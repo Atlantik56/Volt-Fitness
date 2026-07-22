@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { homeWeek, meals, phases, rules, safety, week } from "./personal-data";
 import AuthGate from "./auth-gate";
+import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
@@ -25,7 +26,9 @@ export default function Home() {
   const currentWeight=Number(data.measurements?.[0]?.weight??data.profile?.startWeight??86), startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67);
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
-  const todayPlan=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0];
+  const overrides=data.scheduleOverrides||[], movedToday=overrides.find((x:any)=>x.scheduledDate===today), regularToday=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0];
+  const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
+  const todayPlan=replacement||movedPlan||regularToday;
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
 
@@ -77,6 +80,7 @@ export default function Home() {
         <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><label>Сон, ч<input name="sleepHours" type="number" min="0" max="24" step="0.5" defaultValue={todayActivity.sleepHours||0}/></label><button>Сохранить</button></form>
 
         <MoodCheckin data={data} refresh={load}/>
+        <Readiness data={data} refresh={load}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 
@@ -115,7 +119,7 @@ export default function Home() {
               </article>
             ))}
           </div>
-        </section></> : <Personal section={nav} data={data} refresh={load} />}
+        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} />{nav==="Прогресс"&&<><StrengthAdvice data={data}/><TrainingAnalytics data={data}/><TrainingCalendar data={data}/></>}</>}
       </section>
 
       {activeWorkout&&<WorkoutModal plan={activeWorkout} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
@@ -182,11 +186,16 @@ function Photo({item,title,onDelete}:{item:any;title:string;onDelete?:(id:number
 }
 
 function WorkoutModal({plan,close,done}:{plan:any;close:()=>void;done:()=>void}){
- const warmup=plan.warmup||[], [stage,setStage]=useState(warmup.length?"warmup":"rounds");
- const [round,setRound]=useState(0),[checks,setChecks]=useState<Record<string,boolean>>({}),[values,setValues]=useState<Record<string,string>>({}); const rounds=Math.max(1,plan.rounds);
- const [activeSeconds,setActiveSeconds]=useState(0),[restSeconds,setRestSeconds]=useState(0),[resting,setResting]=useState(false),[summary,setSummary]=useState(false);
+ const warmup=plan.warmup||[], saved=readWorkoutDraft(plan.title), [stage,setStage]=useState(saved?.stage||(warmup.length?"warmup":"rounds"));
+ const [round,setRound]=useState<number>(Number(saved?.round)||0),[checks,setChecks]=useState<Record<string,boolean>>(saved?.checks||{}),[values,setValues]=useState<Record<string,string>>(saved?.values||{}); const rounds=Math.max(1,plan.rounds);
+ const [activeSeconds,setActiveSeconds]=useState<number>(Number(saved?.activeSeconds)||0),[restSeconds,setRestSeconds]=useState<number>(Number(saved?.restSeconds)||0),[resting,setResting]=useState(false),[summary,setSummary]=useState(false);
  const [metrics,setMetrics]=useState<Record<string,string>>({minHeartRate:"",avgHeartRate:"",maxHeartRate:"",calories:"",distanceMeters:"",avgSpeed:""});
+ const [exerciseRest,setExerciseRest]=useState(0),[exerciseResting,setExerciseResting]=useState(false);
  useEffect(()=>{if(summary)return;const timer=setInterval(()=>resting?setRestSeconds(x=>x+1):setActiveSeconds(x=>x+1),1000);return()=>clearInterval(timer)},[resting,summary]);
+ useEffect(()=>{if(!exerciseResting)return;const timer=setInterval(()=>setExerciseRest(x=>x+1),1000);return()=>clearInterval(timer)},[exerciseResting]);
+ useEffect(()=>{const button=document.createElement("button");button.type="button";button.className="exercise-rest-button";button.onclick=()=>{setExerciseRest(0);setExerciseResting(x=>!x)};document.body.appendChild(button);return()=>button.remove()},[]);
+ useEffect(()=>{const button=document.querySelector<HTMLButtonElement>(".exercise-rest-button");if(button){button.hidden=summary||resting;button.textContent=exerciseResting?`Пауза между упражнениями · ${String(Math.floor(exerciseRest/60)).padStart(2,"0")}:${String(exerciseRest%60).padStart(2,"0")}`:"Запустить отдых между упражнениями"}},[exerciseRest,exerciseResting,resting,summary]);
+ useEffect(()=>{if(summary)return;localStorage.setItem("volt-active-workout",JSON.stringify({title:plan.title,stage,round,checks,values,activeSeconds,restSeconds,savedAt:Date.now()}))},[plan.title,stage,round,checks,values,activeSeconds,restSeconds,summary]);
  const warmupComplete=warmup.every((_:any,i:number)=>checks[`warmup-${i}`]);
  const exerciseDone=(r:number,i:number)=>!!checks[`${r}-${i}`]&&Number(values[`${r}-${i}`])>0;
  const total=warmup.length+plan.exercises.length*rounds, complete=warmup.filter((_:any,i:number)=>checks[`warmup-${i}`]).length+Array.from({length:rounds}).reduce((n,_,r)=>n+plan.exercises.filter((_:any,i:number)=>exerciseDone(r,i)).length,0);
@@ -194,11 +203,11 @@ function WorkoutModal({plan,close,done}:{plan:any;close:()=>void;done:()=>void})
  const toggleWarmup=(i:number,checked:boolean)=>{const next={...checks,[`warmup-${i}`]:checked};setChecks(next);if(checked&&warmup.every((_:any,j:number)=>next[`warmup-${j}`]))setStage("rounds")};
  const unit=(name:string)=>name.toLowerCase().includes("планка")?"сек":"повт."; const clock=(n:number)=>`${String(Math.floor(n/60)).padStart(2,"0")}:${String(n%60).padStart(2,"0")}`;
  const details=Array.from({length:rounds}).flatMap((_,r)=>plan.exercises.map((x:any,i:number)=>({key:`${r}-${i}`,name:x[0],value:Number(values[`${r}-${i}`])||0,unit:unit(x[0])})));
- const reps=details.filter(x=>x.unit==="повт.").reduce((n,x)=>n+x.value,0),plank=details.filter(x=>x.unit==="сек").reduce((n,x)=>n+x.value,0);
+ const reps=details.filter((x:any)=>x.unit==="повт.").reduce((n:number,x:any)=>n+x.value,0),plank=details.filter((x:any)=>x.unit==="сек").reduce((n:number,x:any)=>n+x.value,0);
  const activityKind=/плав|бассейн/i.test(plan.title)?"swim":/велосип/i.test(plan.title)?"bike":"strength";
  const metricFields=activityKind==="swim"?[["minHeartRate","Мин. пульс","уд/мин"],["avgHeartRate","Средний пульс","уд/мин"],["maxHeartRate","Макс. пульс","уд/мин"],["distanceMeters","Проплыл","м"]]:activityKind==="bike"?[["minHeartRate","Мин. пульс","уд/мин"],["avgHeartRate","Средний пульс","уд/мин"],["maxHeartRate","Макс. пульс","уд/мин"],["distanceMeters","Расстояние","м"],["avgSpeed","Средняя скорость","км/ч"]]:[["minHeartRate","Мин. пульс","уд/мин"],["avgHeartRate","Средний пульс","уд/мин"],["maxHeartRate","Макс. пульс","уд/мин"],["calories","Сожжено","ккал"]];
  const metricsValid=metricFields.every(([key])=>Number(metrics[key])>0)&&Number(metrics.minHeartRate)<=Number(metrics.avgHeartRate)&&Number(metrics.avgHeartRate)<=Number(metrics.maxHeartRate);
- const finish=async()=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed:Object.keys(checks).filter(k=>checks[k]),durationSeconds:activeSeconds,restSeconds,details,...metrics})});done()};
+ const finish=async()=>{const effort=prompt("Как прошла нагрузка: Легко, Нормально, Тяжело или Боль?","Нормально")||"Нормально",painAfter=prompt("Боль в суставах после тренировки: от 0 до 10","0")||"0";await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed:Object.keys(checks).filter(k=>checks[k]),durationSeconds:activeSeconds,restSeconds,details,effort,painAfter,...metrics})});localStorage.removeItem("volt-active-workout");done()};
  const startRest=()=>setResting(true),finishRest=()=>{setResting(false);setRound(x=>x+1)};
  const items=stage==="warmup"?warmup:plan.exercises;
  if(summary)return <div className="modal-backdrop"><section className="workout-modal workout-summary"><header><div><p className="eyebrow">ТРЕНИРОВКА ЗАВЕРШЕНА</p><h2>Отличная работа</h2></div><button onClick={close}>×</button></header><div className="summary-grid"><article><b>{clock(activeSeconds)}</b><span>активное время</span></article><article><b>{clock(restSeconds)}</b><span>отдых между кругами</span></article><article><b>{reps}</b><span>повторений</span></article><article><b>{plank}</b><span>секунд планки</span></article></div><p>Выполнено {rounds} {rounds===1?"круг":"круга"} · {plan.exercises.length} упражнений в каждом.</p><div className="result-metrics"><div><p className="eyebrow">ДАННЫЕ С ЧАСОВ</p><h3>{activityKind==="swim"?"Плавание":activityKind==="bike"?"Велотренировка":"Нагрузка и пульс"}</h3></div><div className="result-fields">{metricFields.map(([key,label,unit])=><label key={key}><span>{label}</span><div><input type="number" min="1" step={key==="avgSpeed"?"0.1":"1"} inputMode="decimal" value={metrics[key]} onChange={e=>setMetrics({...metrics,[key]:e.target.value})}/><em>{unit}</em></div></label>)}</div>{metrics.minHeartRate&&metrics.avgHeartRate&&metrics.maxHeartRate&&!metricsValid&&<small>Проверь пульс: минимальный ≤ средний ≤ максимальный.</small>}</div><button className="save-workout" disabled={!metricsValid} onClick={finish}>{metricsValid?"Сохранить тренировку":"Заполни данные тренировки"}</button></section></div>;
@@ -277,8 +286,8 @@ function MoodCheckin({data,refresh}:{data:any;refresh:()=>void}){
 
 function urlBase64ToUint8Array(base64:string){const padding="=".repeat((4-base64.length%4)%4);const b64=(base64+padding).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(b64);const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;++i)out[i]=raw.charCodeAt(i);return out}
 function PushToggle(){
- const [enabled,setEnabled]=useState(false), [busy,setBusy]=useState(false), [supported,setSupported]=useState(true);
- useEffect(()=>{if(!("serviceWorker" in navigator)||!("PushManager" in window)){setSupported(false);return}navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>setEnabled(!!sub)).catch(()=>{})},[]);
+ const [enabled,setEnabled]=useState(false), [busy,setBusy]=useState(false), supported=typeof window!=="undefined"&&"serviceWorker" in navigator&&"PushManager" in window;
+ useEffect(()=>{if(!supported)return;navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>setEnabled(!!sub)).catch(()=>{})},[supported]);
  if(!supported)return null;
  const toggle=async()=>{
   setBusy(true);
@@ -309,3 +318,4 @@ function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((N
 function fmt(value:any){return Number(value||0).toLocaleString("ru-RU")}
 function makeWeek(logs:any[]){const now=new Date(),today=localIso(now), monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));const labels=["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"];return labels.map((short,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);const iso=localIso(d),count=logs.filter(x=>x.date===iso).length;return{short,date:String(d.getDate()),iso,count,state:count?"done":iso===today?"active":iso<today?"missed":"future"}})}
 function orderedPlans(plans:any[],today:number){return [...plans].sort((a,b)=>((a.day-today+7)%7)-((b.day-today+7)%7))}
+function readWorkoutDraft(title:string):any{if(typeof window==="undefined")return null;try{const raw=localStorage.getItem("volt-active-workout");if(!raw)return null;const saved=JSON.parse(raw);return saved.title===title&&Date.now()-saved.savedAt<43200000?saved:null}catch{return null}}

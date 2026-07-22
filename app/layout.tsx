@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import "./globals.css";
+import "./fitness-features.css";
 import PwaRegister from "./pwa-register";
 
 export async function generateMetadata(): Promise<Metadata> {

@@ -43,3 +43,16 @@ try{db.exec("ALTER TABLE workout_logs ADD COLUMN distance_meters REAL NOT NULL D
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN avg_speed REAL NOT NULL DEFAULT 0")}catch{}
 try{db.exec("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL NOT NULL DEFAULT 0")}catch{}
 try{db.exec("CREATE TABLE IF NOT EXISTS strength_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, exercise TEXT NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")}catch{}
+
+db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+const migrations=[
+ {version:1,sql:`CREATE TABLE IF NOT EXISTS wellness_logs (id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL UNIQUE,energy INTEGER NOT NULL DEFAULT 3,pain INTEGER NOT NULL DEFAULT 0,pain_area TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
+ CREATE TABLE IF NOT EXISTS schedule_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT,original_date TEXT NOT NULL UNIQUE,scheduled_date TEXT NOT NULL,plan_title TEXT NOT NULL,replacement_title TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`},
+ {version:2,sql:`ALTER TABLE workout_logs ADD COLUMN effort TEXT NOT NULL DEFAULT '';ALTER TABLE workout_logs ADD COLUMN pain_after INTEGER NOT NULL DEFAULT 0;`},
+];
+for(const migration of migrations){
+ if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
+  const apply=db.transaction(()=>{for(const statement of migration.sql.split(";").map(x=>x.trim()).filter(Boolean)){try{db.exec(statement)}catch(error){if(!String(error).includes("duplicate column"))throw error}}db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)").run(migration.version)});
+  apply();
+ }
+}

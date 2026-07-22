@@ -1,0 +1,46 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { homeWeek } from "./personal-data";
+
+const iso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
+const post=(body:Record<string,unknown>)=>fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
+
+export function Readiness({data,refresh}:{data:any;refresh:()=>void}){
+ const today=iso(new Date()), current=(data.wellnessLogs||[]).find((x:any)=>x.date===today)||{}, sleep=Number((data.activity||[]).find((x:any)=>x.date===today)?.sleepHours)||0;
+ const score=Math.max(0,Math.min(100,Math.round((sleep?Math.min(sleep/8,1)*40:20)+(Number(current.energy||3)/5)*40+(1-Number(current.pain||0)/10)*20)));
+ const advice=Number(current.pain)>=5?"Сегодня лучше восстановление. Исключи болезненные движения.":score<55?"Снизь объём на один круг и работай спокойно.":"Готовность хорошая — выполняй план, сохраняя технику.";
+ const save=async(e:any)=>{e.preventDefault();await post({action:"wellness",date:today,...Object.fromEntries(new FormData(e.currentTarget))});refresh()};
+ return <section className="readiness card"><div className="readiness-score"><b>{score}</b><span>готовность</span></div><div><p className="eyebrow">САМОЧУВСТВИЕ И СУСТАВЫ</p><h3>{advice}</h3><form onSubmit={save}><label>Энергия<select name="energy" defaultValue={current.energy||3}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Боль 0–10<input name="pain" type="number" min="0" max="10" defaultValue={current.pain||0}/></label><label>Где болит<input name="painArea" placeholder="Например, тазобедренный" defaultValue={current.painArea||""}/></label><label>Комментарий<input name="note" placeholder="Самочувствие сегодня" defaultValue={current.note||""}/></label><button>Оценить</button></form>{Number(current.pain)>0&&<small>При боли в тазобедренном суставе замени силовую на прогулку или упражнения для верха тела. При повторяющейся боли обратись к врачу.</small>}</div></section>
+}
+
+export function TrainingAnalytics({data}:{data:any}){
+ const [range,setRange]=useState(30), cutoff=new Date();cutoff.setDate(cutoff.getDate()-range+1);const from=iso(cutoff);
+ const logs=(data.workouts||[]).filter((x:any)=>x.date>=from), activity=(data.activity||[]).filter((x:any)=>x.date>=from);
+ const sum=(key:string)=>logs.reduce((n:number,x:any)=>n+Number(x[key]||0),0), avg=(key:string)=>{const v=logs.map((x:any)=>Number(x[key])).filter(Boolean);return v.length?Math.round(v.reduce((a:number,b:number)=>a+b,0)/v.length):0};
+ const cards=[[logs.length,"тренировок"],[Math.round(sum("durationSeconds")/60),"минут"],[sum("calories")||activity.reduce((n:number,x:any)=>n+Number(x.calories||0),0),"ккал"],[avg("avgHeartRate")||"—","средний пульс"],[Math.round(sum("restSeconds")/60),"мин отдыха"],[Math.round(sum("distanceMeters")/100)/10,"км дистанции"]];
+ return <section className="analytics card"><div className="section-head"><div><p className="eyebrow">АНАЛИТИКА</p><h3>Динамика тренировок</h3></div><div className="range-tabs">{[7,30,90].map(x=><button className={range===x?"active":""} onClick={()=>setRange(x)} key={x}>{x} дней</button>)}</div></div><div className="analytics-grid">{cards.map(([v,l])=><article key={String(l)}><b>{v}</b><span>{l}</span></article>)}</div><div className="mini-bars">{Array.from({length:Math.min(range,30)},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(Math.min(range,30)-1-i));const count=logs.filter((x:any)=>x.date===iso(d)).length;return <i key={i} style={{height:`${Math.max(5,count*34)}%`}} title={`${iso(d)}: ${count}`}/>})}</div></section>
+}
+
+export function TrainingCalendar({data}:{data:any}){
+ const [cursor,setCursor]=useState(()=>new Date());const year=cursor.getFullYear(),month=cursor.getMonth(),first=new Date(year,month,1),offset=(first.getDay()+6)%7,total=new Date(year,month+1,0).getDate();
+ const cells=Array.from({length:offset+total},(_,i)=>i<offset?null:i-offset+1), monthName=cursor.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
+ return <section className="calendar card"><div className="section-head"><div><p className="eyebrow">КАЛЕНДАРЬ</p><h3>{monthName}</h3></div><div><button onClick={()=>setCursor(new Date(year,month-1,1))}>←</button><button onClick={()=>setCursor(new Date(year,month+1,1))}>→</button></div></div><div className="calendar-grid">{["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(x=><small key={x}>{x}</small>)}{cells.map((day,i)=>{if(!day)return <span key={`e${i}`}/>;const date=iso(new Date(year,month,day)),work=(data.workouts||[]).filter((x:any)=>x.date===date);return <article key={date} className={date===iso(new Date())?"today":""}><b>{day}</b>{work.map((x:any)=><em key={x.id} title={x.title}>{x.type.slice(0,1)}</em>)}</article>})}</div></section>
+}
+
+export function ScheduleEditor({data,refresh}:{data:any;refresh:()=>void}){
+ const [message,setMessage]=useState("");const plans=homeWeek.filter(x=>x.type!=="Отдых");
+ const save=async(e:any)=>{e.preventDefault();const raw:any=Object.fromEntries(new FormData(e.currentTarget)), selected=plans.find(x=>x.title===raw.planTitle)||plans[0], prev=new Date(`${raw.scheduledDate}T12:00:00`);prev.setDate(prev.getDate()-1);const next=new Date(`${raw.scheduledDate}T12:00:00`);next.setDate(next.getDate()+1);const collision=(data.scheduleOverrides||[]).some((x:any)=>x.planTitle.includes("Гантели")&&[iso(prev),iso(next)].includes(x.scheduledDate));if(selected.type==="Силовая"&&collision&&!confirm("Рядом уже стоит силовая тренировка. Всё равно сохранить?"))return;const r=await post({action:"schedule",...raw});setMessage(r.ok?"План обновлён":"Не удалось сохранить");refresh()};
+ const base=new Date();return <section className="schedule-editor card"><div><p className="eyebrow">ГИБКИЙ ПЛАН</p><h3>Перенести или заменить тренировку</h3><p>Приложение предупредит о двух силовых днях подряд.</p></div><form onSubmit={save}><label>Тренировка<select name="planTitle">{plans.map(x=><option key={`${x.day}-${x.title}`}>{x.title}</option>)}</select></label><label>Плановая дата<input name="originalDate" type="date" required defaultValue={iso(base)}/></label><label>Новая дата<input name="scheduledDate" type="date" required defaultValue={iso(base)}/></label><label>Замена<select name="replacementTitle"><option value="">Без замены</option><option>Прогулка и мобильность</option><option>Плавание в бассейне</option><option>Шоссейный велосипед</option></select></label><button>Сохранить</button></form>{message&&<small>{message}</small>}</section>
+}
+
+export function StrengthAdvice({data}:{data:any}){
+ const groups=useMemo(()=>Object.groupBy((data.strengthLogs||[]) as any[],(x:any)=>x.exercise),[data.strengthLogs]);const advice=Object.entries(groups).map(([name,raw])=>{const list=(raw||[]).slice(0,2) as any[],last=list[0],related=(data.workouts||[]).find((w:any)=>w.details?.some((d:any)=>d.name===name));let text="Сохрани вес и технику";if(related?.effort==="Легко")text=`Можно добавить 1–2 повтора или ${Number(last?.weight||0)+1} кг`;if(related?.effort==="Тяжело")text="Сохрани вес, не добавляй нагрузку";if(related?.effort==="Боль"||Number(related?.painAfter)>=3)text="Останови прогрессию и замени упражнение";return {name,text}}).slice(0,5);
+ if(!advice.length)return null;return <section className="advice card"><p className="eyebrow">ПРОГРЕССИЯ НАГРУЗКИ</p><h3>Рекомендации на следующую тренировку</h3>{advice.map(x=><article key={x.name}><b>{x.name}</b><span>{x.text}</span></article>)}</section>
+}
+
+export function NutritionTools({data}:{data:any}){
+ const [favorites,setFavorites]=useState<string[]>(()=>{try{return JSON.parse(localStorage.getItem("volt-food-favorites")||"[]")}catch{return[]}});const yesterday=new Date();yesterday.setDate(yesterday.getDate()-1);const logs=(data.foodLogs||[]).filter((x:any)=>x.date===iso(yesterday));
+ const add=(name:string)=>{const next=Array.from(new Set([...favorites,name]));setFavorites(next);localStorage.setItem("volt-food-favorites",JSON.stringify(next))};
+ return <section className="food-tools card"><p className="eyebrow">БЫСТРОЕ ДОБАВЛЕНИЕ</p><h3>Избранное и вчерашний рацион</h3><div>{logs.length?logs.map((x:any)=><button key={x.id} onClick={()=>x.items.forEach((i:any)=>add(`${i.name} — ${i.calories} ккал (Б ${i.protein} / Ж ${i.fat} / У ${i.carbs})`))}>☆ {x.mealType} · сохранить блюда</button>):<span>Вчера записей не было</span>}</div>{favorites.length>0&&<ul>{favorites.map(x=><li key={x}><button title="Скопировать для вставки в дневник" onClick={()=>navigator.clipboard.writeText(x)}>Копировать</button><span>{x}</span><button onClick={()=>{const next=favorites.filter(y=>y!==x);setFavorites(next);localStorage.setItem("volt-food-favorites",JSON.stringify(next))}}>×</button></li>)}</ul>}</section>
+}
