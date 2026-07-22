@@ -32,3 +32,6 @@ INSERT OR IGNORE INTO reminder_state (id,last_sent_date) VALUES (1,'');
 `);
 try{db.exec("ALTER TABLE food_logs ADD COLUMN meal_type TEXT NOT NULL DEFAULT 'Перекус'")}catch{}
 try{db.exec("ALTER TABLE daily_activity ADD COLUMN beers INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN rest_seconds INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")}catch{}
