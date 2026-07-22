@@ -5,8 +5,8 @@ import { home, meals, phases, rules, safety, week } from "./personal-data";
 
 const workouts = [
   { type: "Силовая", icon: "↗", title: "Гантели по кругу", meta: "7 упражнений  •  2 круга", tag: "Дом · 20 минут", image: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=900&q=88" },
-  { type: "Кардио", icon: "⌁", title: "Велосипед", meta: "Разговорный темп  •  40–60 мин", tag: "Без ударной нагрузки", image: "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=900&q=88" },
-  { type: "Кардио", icon: "◌", title: "Бассейн", meta: "Кроль или спина  •  30–40 мин", tag: "Без брасса", image: "https://images.unsplash.com/photo-1599447421416-3414500d18a5?auto=format&fit=crop&w=900&q=88" },
+  { type: "Кардио", icon: "⌁", title: "Шоссейный велосипед", meta: "Разговорный темп  •  40–60 мин", tag: "Велоспорт · без ударной нагрузки", image: "/workouts/road-cycling.png" },
+  { type: "Кардио", icon: "◌", title: "Бассейн", meta: "Кроль или спина  •  30–40 мин", tag: "Плавание · без брасса", image: "/workouts/swimming-crawl.png" },
 ];
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
