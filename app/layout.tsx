@@ -4,6 +4,7 @@ import "./globals.css";
 import "./fitness-features.css";
 import "./advanced-features.css";
 import "./body-map-realistic.css";
+import "./mobile-shell.css";
 import PwaRegister from "./pwa-register";
 
 export async function generateMetadata(): Promise<Metadata> {

@@ -2,7 +2,8 @@ import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
 
-const dataDir = path.resolve(process.env.DATA_DIR || "data");
+// DATA_DIR is a runtime-only persistent volume; it must not be bundled into the standalone trace.
+const dataDir = path.resolve(/* turbopackIgnore: true */ process.env.DATA_DIR || "data");
 export const uploadsDir = path.join(dataDir, "uploads");
 mkdirSync(uploadsDir, { recursive: true, mode: 0o700 });
 

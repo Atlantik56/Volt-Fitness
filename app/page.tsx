@@ -13,6 +13,7 @@ const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any
 export default function Home() {
   const [filter, setFilter] = useState("Все");
   const [nav, setNav] = useState("Сегодня");
+  const [mobileMenu,setMobileMenu]=useState(false);
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
   const [activeWorkout,setActiveWorkout]=useState<any>(null);
   const load=()=>fetch("/api/fitness").then(r=>r.json()).then(setData).catch(()=>{});
@@ -36,20 +37,22 @@ export default function Home() {
 
   return (
     <AuthGate><main className="app-shell">
-      <aside className="sidebar">
+      <button className={`mobile-sidebar-backdrop${mobileMenu?" visible":""}`} aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}/>
+      <aside className={`sidebar${mobileMenu?" mobile-open":""}`}>
         <a className="brand" href="#top" aria-label="VOLT — на главную"><span className="brand-mark">V</span><b>VOLT</b></a>
+        <button className="mobile-sidebar-close" aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}>×</button>
         <nav className="side-nav" aria-label="Основная навигация">
           {[
             ["Сегодня", "⌂"], ["План", "▦"], ["Дорожная карта", "⌁"], ["Питание", "◒"], ["Прогресс", "◎"]
           ].map(([label, icon]) => (
-            <button key={label} className={nav === label ? "active" : ""} onClick={() => setNav(label)}><span>{icon}</span>{label}</button>
+            <button key={label} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
           ))}
         </nav>
         <div className="side-bottom">
           <div className="streak"><span>⚡</span><div><b>{streak} {streak===1?"день":"дня"}</b><small>серия активности</small></div></div>
           <div className="streak dry"><span>🌿</span><div><b>{dryStreak} {dryStreak===1?"день":"дня"}</b><small>без пива</small></div></div>
           <PushToggle/>
-          <button className="profile" onClick={()=>setNav("Прогресс")}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
+          <button className="profile" onClick={()=>{setNav("Прогресс");setMobileMenu(false)}}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
           <button className="logout" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()}}>Выйти</button>
         </div>
       </aside>
@@ -57,8 +60,10 @@ export default function Home() {
       <section className="content" id="top">
         <header className="topbar">
           <div><p className="eyebrow">{dateLabel}</p><h1>{greeting}, {data.profile?.name||"Илья"}</h1></div>
-          <div className="header-actions"><button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" onClick={()=>setNav("Прогресс")}>И</button></div>
+          <div className="header-actions"><button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" aria-label="Открыть профиль и серии" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Прогресс")}>И</button></div>
         </header>
+
+        <button className="mobile-status-bar" onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌿 <b>{dryStreak}</b><small> без пива</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>
 
         {nav === "Сегодня" ? <><AdaptiveCoach data={data}/><section className="hero">
           <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
@@ -126,7 +131,7 @@ export default function Home() {
 
       {activeWorkout&&<WorkoutModal plan={activeWorkout} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">{[["Сегодня","⌂"],["План","▦"],["Дорожная карта","⌁"],["Питание","◒"],["Прогресс","◎"]].map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>setNav(label)}><span>{icon}</span>{label}</button>)}</nav>
+      <nav className="mobile-nav" aria-label="Мобильная навигация">{[["Сегодня","⌂"],["План","▦"],["Дорожная карта","⌁"],["Питание","◒"],["Прогресс","◎"]].map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>)}</nav>
     </main></AuthGate>
   );
 }
