@@ -10,7 +10,7 @@ export const homeWeek = [
 {day:1,d:"Понедельник",type:"Силовая",title:"Гантели по кругу",time:"~20 мин",rounds:2,image:"/exercises/dumbbell-bench-press.webp",exercises:home},
 {day:2,d:"Вторник",type:"Кардио",title:"Ходьба или велосипед",time:"30–60 мин",rounds:1,image:"/workouts/road-cycling.webp",exercises:[["Разминка","Лёгкий темп","5 мин"],["Основная часть","Разговорный темп, без тяжёлых горок","20–50 мин"],["Заминка","Постепенно снизить темп","5 мин"]]},
 {day:3,d:"Среда",type:"Силовая",title:"Гантели по кругу",time:"~20 мин",rounds:2,image:"/exercises/dumbbell-bench-press.webp",exercises:home},
-{day:4,d:"Четверг",type:"Восстановление",title:"Прогулка и мобильность",time:"20–30 мин",rounds:1,image:"/backgrounds/volt-trisport.webp",exercises:[["Спокойная прогулка","Темп без одышки","20–30 мин"],["Лёгкая растяжка","Без боли и резких движений","5 мин"]]},
+{day:4,d:"Четверг",type:"Восстановление",title:"Прогулка и мобильность",time:"20–30 мин",rounds:1,image:"/workouts/recovery-walk.webp",exercises:[["Спокойная прогулка","Темп без одышки","20–30 мин"],["Лёгкая растяжка","Без боли и резких движений","5 мин"]]},
 {day:5,d:"Пятница",type:"Силовая",title:"Гантели по кругу",time:"~20 мин",rounds:2,image:"/exercises/dumbbell-bench-press.webp",exercises:home},
 {day:6,d:"Суббота",type:"Кардио",title:"Ходьба или велосипед",time:"30–60 мин",rounds:1,image:"/workouts/road-cycling.webp",exercises:[["Разминка","Лёгкий темп","5 мин"],["Основная часть","Разговорный темп, без тяжёлых горок","20–50 мин"],["Заминка","Постепенно снизить темп","5 мин"]]},
 {day:7,d:"Воскресенье",type:"Отдых",title:"Полный отдых",time:"—",rounds:0,image:"",exercises:[["Восстановление","Сон и заготовка еды на 2–3 дня","По самочувствию"]]}
