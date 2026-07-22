@@ -10,7 +10,7 @@ export function AdaptiveCoach({data}:{data:any}){
  const sleep=Number(activity.sleepHours)||0,energy=Number(wellness.energy)||3,pain=Number(wellness.pain)||0;
  const score=Math.round(Math.min(100,(sleep?Math.min(1,sleep/8)*40:20)+energy/5*40+(10-pain)/10*20));
  const decision=pain>=5?{tone:"stop",title:"Восстановление вместо нагрузки",text:"Суставам нужен щадящий день: прогулка без одышки и только безболезненная мобильность."}:score<55?{tone:"low",title:"Сократи тренировку на один круг",text:"Работай с прежним весом, увеличь отдых и остановись при дискомфорте."}:last?.painAfter>=3?{tone:"low",title:"Не увеличивай рабочие веса",text:"После прошлой тренировки отмечена боль. Сохрани нагрузку или выбери безопасную замену."}:{tone:"good",title:"План можно выполнять полностью",text:"Готовность достаточная. Добавляй нагрузку только при стабильной технике и отсутствии боли."};
- return <section className={`coach-decision card ${decision.tone}`}><div className="coach-gauge"><b>{score}</b><span>готовность</span></div><div><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><h3>{decision.title}</h3><p>{decision.text}</p><small>Сон {sleep||"—"} ч · энергия {energy}/5 · боль {pain}/10</small></div></section>
+ return <section className={`coach-decision card ${decision.tone}`}><div className="coach-gauge"><b>{score}</b><span>готовность</span></div><div className="coach-copy"><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><h3>{decision.title}</h3><p>{decision.text}</p><small>Сон {sleep||"—"} ч · энергия {energy}/5 · боль {pain}/10</small></div></section>
 }
 
 const zones=["Шея","Плечи","Локти","Запястья","Спина","Тазобедренные","Колени","Голеностоп"];

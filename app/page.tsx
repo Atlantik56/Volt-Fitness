@@ -33,6 +33,7 @@ export default function Home() {
   const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
   const todayPlan=replacement||movedPlan||regularToday;
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
+  const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
 
   return (
@@ -65,7 +66,7 @@ export default function Home() {
 
         <button className="mobile-status-bar" onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌿 <b>{dryStreak}</b><small> без пива</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>
 
-        {nav === "Сегодня" ? <><AdaptiveCoach data={data}/><section className="hero">
+        {nav === "Сегодня" ? <><section className="motivation-banner card"><span>⚡</span><div><p className="eyebrow">НАСТРОЙ НА СЕГОДНЯ</p><h3>{motivation}</h3><small>Не нужно быть идеальным. Нужно быть последовательным.</small></div></section><section className="hero">
           <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
           <div className="hero-shade" />
           <div className="hero-content">
@@ -90,6 +91,7 @@ export default function Home() {
         <Readiness data={data} refresh={load}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
+        <AdaptiveCoach data={data}/>
 
         <div className="grid-main">
           <section className="week-card card">
