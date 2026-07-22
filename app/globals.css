@@ -12,3 +12,4 @@
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 .day.missed span{color:#ff7849}.activity-entry{display:grid;grid-template-columns:1.4fr repeat(3,1fr) auto;gap:12px;align-items:end;padding:18px;margin:0 0 14px}.activity-entry h3{margin:0}.activity-entry label{display:grid;gap:6px;color:var(--muted);font-size:9px}.activity-entry input{background:#0c0f11;border:1px solid var(--line);border-radius:9px;color:#fff;padding:11px;min-width:0}.activity-entry button{border:0;border-radius:9px;background:var(--lime);color:#101410;font-weight:800;padding:12px 17px;cursor:pointer}
 @media(max-width:760px){.activity-entry{grid-template-columns:1fr 1fr}.activity-entry>div,.activity-entry button{grid-column:1/-1}}
+.workout{cursor:pointer}.hero h2{max-width:650px}.day-plan details[open]{border-color:#3b4829}.day-plan details[open] summary i{background:var(--lime);color:#111}

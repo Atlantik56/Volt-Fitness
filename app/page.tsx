@@ -1,13 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { home, meals, phases, rules, safety, week } from "./personal-data";
-
-const workouts = [
-  { type: "Силовая", icon: "↗", title: "Гантели по кругу", meta: "7 упражнений  •  2 круга", tag: "Дом · 20 минут", image: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=900&q=88" },
-  { type: "Кардио", icon: "⌁", title: "Шоссейный велосипед", meta: "Разговорный темп  •  40–60 мин", tag: "Велоспорт · без ударной нагрузки", image: "/workouts/road-cycling.png" },
-  { type: "Кардио", icon: "◌", title: "Бассейн", meta: "Кроль или спина  •  30–40 мин", tag: "Плавание · без брасса", image: "/workouts/swimming-crawl.png" },
-];
+import { home, homeWeek, meals, phases, rules, safety, week } from "./personal-data";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 
@@ -15,7 +9,7 @@ export default function Home() {
   const [filter, setFilter] = useState("Все");
   const [nav, setNav] = useState("Сегодня");
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
-  const [workoutOpen,setWorkoutOpen]=useState(false);
+  const [activeWorkout,setActiveWorkout]=useState<any>(null);
   const load=()=>fetch("/api/fitness").then(r=>r.json()).then(setData).catch(()=>{});
   useEffect(()=>{load()},[]);
   const streak=useMemo(()=>calcStreak(data.workouts||[]),[data.workouts]);
@@ -27,6 +21,8 @@ export default function Home() {
   const weekCalories=(data.activity||[]).filter((x:any)=>weekDates.has(x.date)).reduce((n:number,x:any)=>n+(Number(x.calories)||0),0);
   const currentWeight=Number(data.measurements?.[0]?.weight??data.profile?.startWeight??86), startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67);
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
+  const todayPlan=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0];
+  const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
 
   return (
@@ -53,13 +49,13 @@ export default function Home() {
         </header>
 
         {nav === "Сегодня" ? <><section className="hero">
-          <div className="hero-photo" role="img" aria-label="Атлет выполняет упражнение с гирей" />
+          <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
           <div className="hero-shade" />
           <div className="hero-content">
-            <span className="pill lime">ДЕНЬ 2 · НЕДЕЛЯ 1</span>
-            <h2>ГАНТЕЛИ<br /><em>ПО КРУГУ</em></h2>
-            <div className="hero-meta"><span>◷ 20 мин</span><span>◫ 7 упражнений</span><span>◉ 2 круга</span></div>
-            <button className="start-btn" onClick={() => setWorkoutOpen(true)}><span>▶</span>Начать тренировку</button>
+            <span className="pill lime">{todayPlan.d.toUpperCase()} · НЕДЕЛЯ 1</span>
+            <h2>{todayPlan.title.toUpperCase()}</h2>
+            <div className="hero-meta"><span>◷ {todayPlan.time}</span><span>◫ {todayPlan.exercises.length} упражнений</span>{todayPlan.rounds>1&&<span>◉ {todayPlan.rounds} круга</span>}</div>
+            <button className="start-btn" onClick={() => setActiveWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>
           </div>
           <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>Держи темп. Сегодня ты сильнее.</b></div></div>
         </section>
@@ -101,17 +97,17 @@ export default function Home() {
           <div className="section-head plan-title"><div><p className="eyebrow">ПЛАН ТРЕНИРОВОК</p><h3>Следующие занятия</h3></div><button>Весь план →</button></div>
           <div className="filters" role="group" aria-label="Фильтр тренировок">{filters.map((f) => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}</div>
           <div className="workouts">
-            {workouts.filter(w => filter === "Все" || w.type.startsWith(filter.replace("ые", "ая")) || (filter === "Бег" && w.type === "Кардио")).map((w) => (
-              <article className="workout" key={w.title}>
+            {upcoming.filter(w => filter === "Все" || (filter === "Силовые"&&w.type==="Силовая") || (filter === "Велосипед"&&w.title.includes("велосипед")) || (filter === "Плавание"&&w.title==="Бассейн")).map((w) => (
+              <article className="workout" key={`${w.day}-${w.title}`} onClick={()=>setActiveWorkout(w)}>
                 <div className="workout-img" style={{backgroundImage:`url(${w.image})`}}><span>{w.type}</span><button aria-label={`Открыть ${w.title}`}>↗</button></div>
-                <div className="workout-copy"><small>{w.tag}</small><h4>{w.title}</h4><p>{w.meta}</p></div>
+                <div className="workout-copy"><small>{w.d} · {w.time}</small><h4>{w.title}</h4><p>{w.exercises.length} упражнений{w.rounds>1?` · ${w.rounds} круга`:""}</p></div>
               </article>
             ))}
           </div>
         </section></> : <Personal section={nav} data={data} refresh={load} />}
       </section>
 
-      {workoutOpen&&<WorkoutModal close={()=>setWorkoutOpen(false)} done={()=>{setWorkoutOpen(false);load()}}/>}
+      {activeWorkout&&<WorkoutModal plan={activeWorkout} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
 
       <nav className="mobile-nav" aria-label="Мобильная навигация">{[["Сегодня","⌂"],["План","▦"],["Дорожная карта","⌁"],["Питание","◒"],["Прогресс","◎"]].map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>setNav(label)}><span>{icon}</span>{label}</button>)}</nav>
     </main>
@@ -124,7 +120,7 @@ function Metric({ icon, color, label, value, unit, pct }: {icon:string;color:str
 
 function Intro({k,t,p}:{k:string;t:string;p:string}){return <header className="detail-intro"><p className="eyebrow">{k}</p><h2>{t}</h2><p>{p}</p></header>}
 function Personal({section,data,refresh}:{section:string;data:any;refresh:()=>void}){
- if(section==="План") return <div className="detail-page"><Intro k="ПЕРСОНАЛЬНАЯ ПРОГРАММА" t="Тренировки без ударной нагрузки" p="Недели 1–3 — дома. С 4-й недели основным становится расписание зала, бассейна и велосипеда."/><Notice/><h3 className="detail-title">Дом · гантели по кругу</h3><p className="detail-lead">Пн / Ср / Пт · ~20 минут. Неделя 1 — 2 круга; неделя 2 — 3; неделя 3 — прибавка веса или повторов.</p><div className="exercise-list">{home.map((x,i)=><article key={x[0]}><span>{String(i+1).padStart(2,"0")}</span><div><h4>{x[0]}</h4><p>{x[1]}</p></div><b>{x[2]}</b></article>)}</div><h3 className="detail-title">С недели 4 · зал + кардио</h3><div className="day-plan">{week.map(d=><details key={d.d} open={d.d==="Понедельник"}><summary><span>{d.d}</span><div><i>{d.t}</i><h4>{d.n}</h4></div><b>{d.time}</b></summary><div className="mini-exercises">{d.x.map(x=><div key={x}>{x}</div>)}</div></details>)}</div></div>;
+ if(section==="План") return <div className="detail-page"><Intro k="ПЕРСОНАЛЬНАЯ ПРОГРАММА" t="Тренировки без ударной нагрузки" p="Недели 1–3 — дома. С 4-й недели основным становится расписание зала, бассейна и велосипеда."/><Notice/><h3 className="detail-title">Недели 1–3 · домашний план по дням</h3><p className="detail-lead">Неделя 1 — 2 круга; неделя 2 — 3; неделя 3 — прибавка веса или повторов.</p><div className="day-plan">{homeWeek.map(d=><details key={d.d} open={d.day===(new Date().getDay()||7)}><summary><span>{d.d}</span><div><i>{d.type}</i><h4>{d.title}</h4></div><b>{d.time}</b></summary><div className="mini-exercises">{d.exercises.map((x:any)=><div key={x[0]}><b>{x[0]}</b> · {x[2]}</div>)}</div></details>)}</div><h3 className="detail-title">С недели 4 · зал + кардио</h3><div className="day-plan">{week.map(d=><details key={d.d}><summary><span>{d.d}</span><div><i>{d.t}</i><h4>{d.n}</h4></div><b>{d.time}</b></summary><div className="mini-exercises">{d.x.map(x=><div key={x}>{x}</div>)}</div></details>)}</div></div>;
  if(section==="Дорожная карта") return <div className="detail-page"><Intro k="ЛИЧНАЯ ДОРОЖНАЯ КАРТА · 5–7 МЕСЯЦЕВ" t="86 → 67 кг" p="Рост 167 см. Быстро, но без потери мышц: до 1 кг в неделю на старте, после 75 кг — 0,5–0,7 кг."/><div className="road-stats">{[["0,8–1,0","кг в неделю"],["3","силовых"],["3–4","кардио"],["5–7","месяцев"]].map(x=><article key={x[1]}><b>{x[0]}</b><span>{x[1]}</span></article>)}</div><Notice/><div className="phases">{phases.map((p,i)=><article key={p.p}><span>{String(i+1).padStart(2,"0")}</span><div><small>{p.p}</small><h3>{p.n}</h3><p>{p.g}</p><ul>{p.x.map(x=><li key={x}>{x}</li>)}</ul></div></article>)}</div><h3 className="detail-title">Правила тяжёлых дней</h3><div className="motivation-grid">{rules.map((r,i)=><article key={r}><span>{String(i+1).padStart(2,"0")}</span><p>{r}</p></article>)}</div></div>;
  if(section==="Питание") return <div className="detail-page"><Intro k="ПИТАНИЕ · БЕЗ ЗАПРЕТОВ" t="≈ 1700 ккал · 150 г белка" p="Белок в каждом приёме пищи, овощи в обед и ужин, вода перед едой. Готовь курицу и крупу на 2–3 дня."/><div className="meal-list">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-grid"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div>;
  return <ProgressPage data={data} refresh={refresh}/>
@@ -144,14 +140,15 @@ function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
 }
 function Photo({item,title}:{item:any;title:string}){return <article><span>{title}</span>{item?<img src={item.url} alt={`Фото ${title.toLowerCase()}`}/>:<div>Фото ещё не загружено</div>}<small>{item?.date||"—"}</small></article>}
 
-function WorkoutModal({close,done}:{close:()=>void;done:()=>void}){
- const [round,setRound]=useState(0); const [checks,setChecks]=useState<Record<string,boolean>>({}); const rounds=2;
- const total=home.length*rounds, complete=Object.values(checks).filter(Boolean).length;
- const finish=async()=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:new Date().toISOString().slice(0,10),type:"Силовая",title:"Гантели по кругу",rounds,completed:Object.keys(checks).filter(k=>checks[k])})});done()};
- return <div className="modal-backdrop"><section className="workout-modal"><header><div><p className="eyebrow">ТРЕНИРОВКА · ~20 МИН</p><h2>Гантели по кругу</h2></div><button onClick={close}>×</button></header><div className="round-tabs">{Array.from({length:rounds},(_,i)=><button key={i} className={round===i?"active":""} onClick={()=>setRound(i)}>Круг {i+1}<span>{home.filter((_,j)=>checks[`${i}-${j}`]).length}/{home.length}</span></button>)}</div><div className="workout-checks">{home.map((x,i)=>{const k=`${round}-${i}`;return <label key={k} className={checks[k]?"done":""}><input type="checkbox" checked={!!checks[k]} onChange={e=>setChecks({...checks,[k]:e.target.checked})}/><span>{i+1}</span><div><b>{x[0]}</b><small>{x[2]} · {x[1]}</small></div></label>})}</div><footer><div><b>{complete}/{total}</b><span>выполнено</span></div><button disabled={complete<total} onClick={finish}>{complete===total?"Завершить тренировку":"Отметь все подходы"}</button></footer></section></div>
+function WorkoutModal({plan,close,done}:{plan:any;close:()=>void;done:()=>void}){
+ const [round,setRound]=useState(0); const [checks,setChecks]=useState<Record<string,boolean>>({}); const rounds=Math.max(1,plan.rounds);
+ const total=plan.exercises.length*rounds, complete=Object.values(checks).filter(Boolean).length;
+ const finish=async()=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed:Object.keys(checks).filter(k=>checks[k])})});done()};
+ return <div className="modal-backdrop"><section className="workout-modal"><header><div><p className="eyebrow">{plan.d.toUpperCase()} · {plan.time}</p><h2>{plan.title}</h2></div><button onClick={close}>×</button></header>{rounds>1&&<div className="round-tabs">{Array.from({length:rounds},(_,i)=><button key={i} className={round===i?"active":""} onClick={()=>setRound(i)}>Круг {i+1}<span>{plan.exercises.filter((_:any,j:number)=>checks[`${i}-${j}`]).length}/{plan.exercises.length}</span></button>)}</div>}<div className="workout-checks">{plan.exercises.map((x:any,i:number)=>{const k=`${round}-${i}`;return <label key={k} className={checks[k]?"done":""}><input type="checkbox" checked={!!checks[k]} onChange={e=>setChecks({...checks,[k]:e.target.checked})}/><span>{i+1}</span><div><b>{x[0]}</b><small>{x[2]} · {x[1]}</small></div></label>})}</div><footer><div><b>{complete}/{total}</b><span>выполнено</span></div><button disabled={complete<total} onClick={finish}>{complete===total?"Завершить тренировку":"Отметь все упражнения"}</button></footer></section></div>
 }
 function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));let d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
 function localIso(d:Date){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
 function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((Number(value)||0)/goal*100)))}
 function fmt(value:any){return Number(value||0).toLocaleString("ru-RU")}
 function makeWeek(logs:any[]){const now=new Date(),today=localIso(now), monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));const labels=["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"];return labels.map((short,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);const iso=localIso(d),count=logs.filter(x=>x.date===iso).length;return{short,date:String(d.getDate()),iso,count,state:count?"done":iso===today?"active":iso<today?"missed":"future"}})}
+function orderedPlans(plans:any[],today:number){return [...plans].sort((a,b)=>((a.day-today+7)%7)-((b.day-today+7)%7))}
