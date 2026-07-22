@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { home, homeWeek, meals, phases, rules, safety, week } from "./personal-data";
+import { homeWeek, meals, phases, rules, safety, week } from "./personal-data";
+import AuthGate from "./auth-gate";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 
@@ -26,7 +27,7 @@ export default function Home() {
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
 
   return (
-    <main className="app-shell">
+    <AuthGate><main className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="#top" aria-label="VOLT — на главную"><span className="brand-mark">V</span><b>VOLT</b></a>
         <nav className="side-nav" aria-label="Основная навигация">
@@ -39,6 +40,7 @@ export default function Home() {
         <div className="side-bottom">
           <div className="streak"><span>⚡</span><div><b>{streak} {streak===1?"день":"дня"}</b><small>серия активности</small></div></div>
           <button className="profile" onClick={()=>setNav("Прогресс")}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
+          <button className="logout" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()}}>Выйти</button>
         </div>
       </aside>
 
@@ -110,7 +112,7 @@ export default function Home() {
       {activeWorkout&&<WorkoutModal plan={activeWorkout} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
 
       <nav className="mobile-nav" aria-label="Мобильная навигация">{[["Сегодня","⌂"],["План","▦"],["Дорожная карта","⌁"],["Питание","◒"],["Прогресс","◎"]].map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>setNav(label)}><span>{icon}</span>{label}</button>)}</nav>
-    </main>
+    </main></AuthGate>
   );
 }
 
@@ -147,7 +149,7 @@ function WorkoutModal({plan,close,done}:{plan:any;close:()=>void;done:()=>void})
  const finish=async()=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed:Object.keys(checks).filter(k=>checks[k])})});done()};
  return <div className="modal-backdrop"><section className="workout-modal"><header><div><p className="eyebrow">{plan.d.toUpperCase()} · {plan.time}</p><h2>{plan.title}</h2></div><button onClick={close}>×</button></header>{rounds>1&&<div className="round-tabs">{Array.from({length:rounds},(_,i)=><button key={i} className={round===i?"active":""} onClick={()=>setRound(i)}>Круг {i+1}<span>{plan.exercises.filter((_:any,j:number)=>checks[`${i}-${j}`]).length}/{plan.exercises.length}</span></button>)}</div>}<div className="workout-checks visual">{plan.exercises.map((x:any,i:number)=>{const k=`${round}-${i}`;return <label key={k} className={checks[k]?"done":""}><input type="checkbox" checked={!!checks[k]} onChange={e=>setChecks({...checks,[k]:e.target.checked})}/>{x[3]?<img src={x[3]} alt={`Техника: ${x[0]}`}/>:<span>{i+1}</span>}<div><b>{x[0]}</b><small><strong>{x[2]}</strong>{x[1]}</small></div></label>})}</div><footer><div><b>{complete}/{total}</b><span>выполнено</span></div><button disabled={complete<total} onClick={finish}>{complete===total?"Завершить тренировку":"Отметь все упражнения"}</button></footer></section></div>
 }
-function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));let d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
+function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));const d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
 function localIso(d:Date){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
 function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((Number(value)||0)/goal*100)))}
 function fmt(value:any){return Number(value||0).toLocaleString("ru-RU")}
