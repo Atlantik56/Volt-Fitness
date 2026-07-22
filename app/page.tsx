@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { home, meals, phases, rules, safety, week } from "./personal-data";
 
 const days = [
@@ -23,8 +23,12 @@ const filters = ["Все", "Силовые", "Велосипед", "Плаван
 
 export default function Home() {
   const [filter, setFilter] = useState("Все");
-  const [started, setStarted] = useState(false);
   const [nav, setNav] = useState("Сегодня");
+  const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[{date:"2026-07-21"}],measurements:[{date:"2026-07-21",weight:85.9}],photos:[]});
+  const [workoutOpen,setWorkoutOpen]=useState(false);
+  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(setData).catch(()=>{});
+  useEffect(()=>{load()},[]);
+  const streak=useMemo(()=>calcStreak(data.workouts||[]),[data.workouts]);
 
   return (
     <main className="app-shell">
@@ -38,15 +42,15 @@ export default function Home() {
           ))}
         </nav>
         <div className="side-bottom">
-          <div className="streak"><span>⚡</span><div><b>12 дней</b><small>серия активности</small></div></div>
-          <button className="profile"><span className="avatar">AK</span><span><b>Алексей</b><small>Level 14</small></span><i>•••</i></button>
+          <div className="streak"><span>⚡</span><div><b>{streak} {streak===1?"день":"дня"}</b><small>серия активности</small></div></div>
+          <button className="profile" onClick={()=>setNav("Прогресс")}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
         </div>
       </aside>
 
       <section className="content" id="top">
         <header className="topbar">
-          <div><p className="eyebrow">СРЕДА, 22 ИЮЛЯ</p><h1>Доброе утро, Алексей</h1></div>
-          <div className="header-actions"><button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar">AK</button></div>
+          <div><p className="eyebrow">СРЕДА, 22 ИЮЛЯ</p><h1>Доброе утро, {data.profile?.name||"Илья"}</h1></div>
+          <div className="header-actions"><button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" onClick={()=>setNav("Прогресс")}>И</button></div>
         </header>
 
         {nav === "Сегодня" ? <><section className="hero">
@@ -56,7 +60,7 @@ export default function Home() {
             <span className="pill lime">ДЕНЬ 2 · НЕДЕЛЯ 1</span>
             <h2>ГАНТЕЛИ<br /><em>ПО КРУГУ</em></h2>
             <div className="hero-meta"><span>◷ 20 мин</span><span>◫ 7 упражнений</span><span>◉ 2 круга</span></div>
-            <button className="start-btn" onClick={() => setStarted(!started)}><span>{started ? "✓" : "▶"}</span>{started ? "Тренировка запущена" : "Начать тренировку"}</button>
+            <button className="start-btn" onClick={() => setWorkoutOpen(true)}><span>▶</span>Начать тренировку</button>
           </div>
           <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>Держи темп. Сегодня ты сильнее.</b></div></div>
         </section>
@@ -103,8 +107,10 @@ export default function Home() {
               </article>
             ))}
           </div>
-        </section></> : <Personal section={nav} />}
+        </section></> : <Personal section={nav} data={data} refresh={load} />}
       </section>
+
+      {workoutOpen&&<WorkoutModal close={()=>setWorkoutOpen(false)} done={()=>{setWorkoutOpen(false);load()}}/>}
 
       <nav className="mobile-nav" aria-label="Мобильная навигация">{[["Сегодня","⌂"],["План","▦"],["Дорожная карта","⌁"],["Питание","◒"],["Прогресс","◎"]].map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>setNav(label)}><span>{icon}</span>{label}</button>)}</nav>
     </main>
@@ -116,10 +122,31 @@ function Metric({ icon, color, label, value, unit, pct }: {icon:string;color:str
 }
 
 function Intro({k,t,p}:{k:string;t:string;p:string}){return <header className="detail-intro"><p className="eyebrow">{k}</p><h2>{t}</h2><p>{p}</p></header>}
-function Personal({section}:{section:string}){
+function Personal({section,data,refresh}:{section:string;data:any;refresh:()=>void}){
  if(section==="План") return <div className="detail-page"><Intro k="ПЕРСОНАЛЬНАЯ ПРОГРАММА" t="Тренировки без ударной нагрузки" p="Недели 1–3 — дома. С 4-й недели основным становится расписание зала, бассейна и велосипеда."/><Notice/><h3 className="detail-title">Дом · гантели по кругу</h3><p className="detail-lead">Пн / Ср / Пт · ~20 минут. Неделя 1 — 2 круга; неделя 2 — 3; неделя 3 — прибавка веса или повторов.</p><div className="exercise-list">{home.map((x,i)=><article key={x[0]}><span>{String(i+1).padStart(2,"0")}</span><div><h4>{x[0]}</h4><p>{x[1]}</p></div><b>{x[2]}</b></article>)}</div><h3 className="detail-title">С недели 4 · зал + кардио</h3><div className="day-plan">{week.map(d=><details key={d.d} open={d.d==="Понедельник"}><summary><span>{d.d}</span><div><i>{d.t}</i><h4>{d.n}</h4></div><b>{d.time}</b></summary><div className="mini-exercises">{d.x.map(x=><div key={x}>{x}</div>)}</div></details>)}</div></div>;
  if(section==="Дорожная карта") return <div className="detail-page"><Intro k="ЛИЧНАЯ ДОРОЖНАЯ КАРТА · 5–7 МЕСЯЦЕВ" t="86 → 67 кг" p="Рост 167 см. Быстро, но без потери мышц: до 1 кг в неделю на старте, после 75 кг — 0,5–0,7 кг."/><div className="road-stats">{[["0,8–1,0","кг в неделю"],["3","силовых"],["3–4","кардио"],["5–7","месяцев"]].map(x=><article key={x[1]}><b>{x[0]}</b><span>{x[1]}</span></article>)}</div><Notice/><div className="phases">{phases.map((p,i)=><article key={p.p}><span>{String(i+1).padStart(2,"0")}</span><div><small>{p.p}</small><h3>{p.n}</h3><p>{p.g}</p><ul>{p.x.map(x=><li key={x}>{x}</li>)}</ul></div></article>)}</div><h3 className="detail-title">Правила тяжёлых дней</h3><div className="motivation-grid">{rules.map((r,i)=><article key={r}><span>{String(i+1).padStart(2,"0")}</span><p>{r}</p></article>)}</div></div>;
  if(section==="Питание") return <div className="detail-page"><Intro k="ПИТАНИЕ · БЕЗ ЗАПРЕТОВ" t="≈ 1700 ккал · 150 г белка" p="Белок в каждом приёме пищи, овощи в обед и ужин, вода перед едой. Готовь курицу и крупу на 2–3 дня."/><div className="meal-list">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-grid"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div>;
- return <div className="detail-page"><Intro k="МОЙ ПРОГРЕСС" t="Старт зафиксирован" p="Перенесены сохранённые отметки и замеры из персонального трекера."/><div className="progress-hero"><div className="big-ring"><div><b>85,9</b><span>кг сейчас</span></div></div><div><small>ЦЕЛЬ</small><h3>86 → 67 кг</h3><p>Первый замер: 21 июля 2026 · рост 167 см</p><div className="goal-progress"><i style={{width:"1%"}}/></div><b>−0,1 кг с начала пути</b></div></div><div className="progress-cards">{[["НЕДЕЛЯ","1","Дом · адаптация"],["СИЛОВЫХ","1","21 июля 2026"],["КАРДИО","0","Впереди велосипед"],["РАЦИОН","1700","150 г белка"]].map(x=><article key={x[0]}><small>{x[0]}</small><b>{x[1]}</b><p>{x[2]}</p></article>)}</div><Notice/></div>
+ return <ProgressPage data={data} refresh={refresh}/>
 }
 function Notice(){return <div className="safety">✦ <span><b>Суставы под защитой</b>{safety}</span></div>}
+
+function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
+ const latest=data.measurements?.[0]||{}; const first=data.photos?.[0]; const last=data.photos?.[data.photos.length-1];
+ const submit=async(e:any,action:string)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,...b})});e.currentTarget.reset();refresh()};
+ const photo=async(e:any)=>{e.preventDefault();await fetch("/api/photos",{method:"POST",body:new FormData(e.currentTarget)});e.currentTarget.reset();refresh()};
+ return <div className="detail-page"><Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={data.profile?.name||"Илья"} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
+ <div className="progress-hero"><div className="big-ring"><div><b>{latest.weight||85.9}</b><span>кг сейчас</span></div></div><div><small>ЦЕЛЬ</small><h3>{data.profile?.startWeight||86} → {data.profile?.targetWeight||67} кг</h3><p>Старт: 21 июля 2026 · рост {data.profile?.height||167} см</p><div className="goal-progress"><i style={{width:"1%"}}/></div><b>{data.workouts?.length||1} тренировка отмечена</b></div></div>
+ <h3 className="detail-title">Профиль</h3><form className="data-form" onSubmit={e=>submit(e,"profile")}><label>Имя<input name="name" defaultValue={data.profile?.name||"Илья"}/></label><label>Рост<input name="height" type="number" defaultValue={data.profile?.height||167}/></label><label>Стартовый вес<input name="startWeight" type="number" step="0.1" defaultValue={data.profile?.startWeight||86}/></label><label>Цель<input name="targetWeight" type="number" step="0.1" defaultValue={data.profile?.targetWeight||67}/></label><button>Сохранить профиль</button></form>
+ <h3 className="detail-title">Новый замер</h3><form className="data-form measures" onSubmit={e=>submit(e,"measurement")}><label>Дата<input required name="date" type="date" defaultValue="2026-07-22"/></label>{[["weight","Вес, кг"],["waist","Талия, см"],["chest","Грудь, см"],["biceps","Бицепс, см"],["thigh","Бедро, см"],["neck","Шея, см"]].map(x=><label key={x[0]}>{x[1]}<input name={x[0]} type="number" step="0.1"/></label>)}<button>Сохранить замер</button></form>
+ <div className="measure-table">{data.measurements?.map((m:any)=><article key={m.id}><b>{m.date}</b><span>{m.weight||"—"} кг</span><span>Талия {m.waist||"—"}</span><span>Грудь {m.chest||"—"}</span><span>Бицепс {m.biceps||"—"}</span><span>Бедро {m.thigh||"—"}</span><span>Шея {m.neck||"—"}</span></article>)}</div>
+ <h3 className="detail-title">Фото · до и после</h3><p className="detail-lead">«До» — самая первая фотография. «После» автоматически обновляется на последнюю загруженную.</p><div className="photo-compare"><Photo item={first} title="ДО"/><Photo item={last} title="ПОСЛЕ"/></div><form className="photo-form" onSubmit={photo}><input name="date" type="date" defaultValue="2026-07-22"/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form><Notice/></div>
+}
+function Photo({item,title}:{item:any;title:string}){return <article><span>{title}</span>{item?<img src={item.url} alt={`Фото ${title.toLowerCase()}`}/>:<div>Фото ещё не загружено</div>}<small>{item?.date||"—"}</small></article>}
+
+function WorkoutModal({close,done}:{close:()=>void;done:()=>void}){
+ const [round,setRound]=useState(0); const [checks,setChecks]=useState<Record<string,boolean>>({}); const rounds=2;
+ const total=home.length*rounds, complete=Object.values(checks).filter(Boolean).length;
+ const finish=async()=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:new Date().toISOString().slice(0,10),type:"Силовая",title:"Гантели по кругу",rounds,completed:Object.keys(checks).filter(k=>checks[k])})});done()};
+ return <div className="modal-backdrop"><section className="workout-modal"><header><div><p className="eyebrow">ТРЕНИРОВКА · ~20 МИН</p><h2>Гантели по кругу</h2></div><button onClick={close}>×</button></header><div className="round-tabs">{Array.from({length:rounds},(_,i)=><button key={i} className={round===i?"active":""} onClick={()=>setRound(i)}>Круг {i+1}<span>{home.filter((_,j)=>checks[`${i}-${j}`]).length}/{home.length}</span></button>)}</div><div className="workout-checks">{home.map((x,i)=>{const k=`${round}-${i}`;return <label key={k} className={checks[k]?"done":""}><input type="checkbox" checked={!!checks[k]} onChange={e=>setChecks({...checks,[k]:e.target.checked})}/><span>{i+1}</span><div><b>{x[0]}</b><small>{x[2]} · {x[1]}</small></div></label>})}</div><footer><div><b>{complete}/{total}</b><span>выполнено</span></div><button disabled={complete<total} onClick={finish}>{complete===total?"Завершить тренировку":"Отметь все подходы"}</button></footer></section></div>
+}
+function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));let d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
