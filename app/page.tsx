@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { homeWeek, meals, phases, rules, safety, week } from "./personal-data";
 import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
+import { AdaptiveCoach, BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
@@ -59,7 +60,7 @@ export default function Home() {
           <div className="header-actions"><button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" onClick={()=>setNav("Прогресс")}>И</button></div>
         </header>
 
-        {nav === "Сегодня" ? <><section className="hero">
+        {nav === "Сегодня" ? <><AdaptiveCoach data={data}/><section className="hero">
           <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
           <div className="hero-shade" />
           <div className="hero-content">
@@ -120,7 +121,7 @@ export default function Home() {
               </article>
             ))}
           </div>
-        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} />{nav==="Прогресс"&&<><StrengthAdvice data={data}/><TrainingAnalytics data={data}/><TrainingCalendar data={data}/></>}</>}
+        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} />{nav==="Прогресс"&&<><BodyMap data={data} refresh={load}/><StrengthAdvice data={data}/><PersonalRecords data={data}/><TrainingAnalytics data={data}/><TrainingCalendar data={data}/><GarminImport refresh={load}/></>}</>}
       </section>
 
       {activeWorkout&&<WorkoutModal plan={activeWorkout} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
