@@ -9,7 +9,7 @@ ARG NEXT_PUBLIC_VAPID_PUBLIC_KEY
 ENV NEXT_PUBLIC_VAPID_PUBLIC_KEY=$NEXT_PUBLIC_VAPID_PUBLIC_KEY
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-RUN npm run build
+RUN VOLT_BUILD_DATABASE=1 npm run build
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production DATA_DIR=/app/data PORT=3000 HOSTNAME=0.0.0.0

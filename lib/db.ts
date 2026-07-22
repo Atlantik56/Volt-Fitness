@@ -3,12 +3,13 @@ import { mkdirSync } from "node:fs";
 import path from "node:path";
 
 // DATA_DIR is a runtime-only persistent volume; it must not be bundled into the standalone trace.
-const dataDir = path.resolve(/* turbopackIgnore: true */ process.env.DATA_DIR || "data");
+const buildDatabase = process.env.VOLT_BUILD_DATABASE === "1";
+const dataDir = buildDatabase ? "/tmp/volt-build" : path.resolve(/* turbopackIgnore: true */ process.env.DATA_DIR || "data");
 export const uploadsDir = path.join(dataDir, "uploads");
 mkdirSync(uploadsDir, { recursive: true, mode: 0o700 });
 
 const globalDb = globalThis as unknown as { voltDb?: Database.Database };
-export const db = globalDb.voltDb || new Database(path.join(dataDir, "volt.sqlite"));
+export const db = globalDb.voltDb || new Database(buildDatabase ? ":memory:" : path.join(dataDir, "volt.sqlite"));
 if (process.env.NODE_ENV !== "production") globalDb.voltDb = db;
 db.pragma("busy_timeout = 10000");
 db.pragma("journal_mode = WAL");
