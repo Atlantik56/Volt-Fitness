@@ -26,3 +26,5 @@ INSERT OR IGNORE INTO profile (id,name,height,start_weight,target_weight,program
 INSERT OR IGNORE INTO workout_logs (id,date,type,title,completed,rounds) VALUES (1,'2026-07-21','Силовая','Гантели по кругу','[]',2);
 INSERT OR IGNORE INTO measurements (id,date,weight) VALUES (1,'2026-07-21',85.9);
 `);
+const foodColumns=db.prepare("PRAGMA table_info(food_logs)").all() as {name:string}[];
+if(!foodColumns.some(x=>x.name==="meal_type"))db.exec("ALTER TABLE food_logs ADD COLUMN meal_type TEXT NOT NULL DEFAULT 'Перекус'");
