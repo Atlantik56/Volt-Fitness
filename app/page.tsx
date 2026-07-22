@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { home, homeWeek, meals, phases, rules, safety, week } from "./personal-data";
+import { homeWeek, meals, phases, rules, safety, week } from "./personal-data";
+import AuthGate from "./auth-gate";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 
@@ -26,7 +27,7 @@ export default function Home() {
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
 
   return (
-    <main className="app-shell">
+    <AuthGate><main className="app-shell">
       <aside className="sidebar">
         <a className="brand" href="#top" aria-label="VOLT — на главную"><span className="brand-mark">V</span><b>VOLT</b></a>
         <nav className="side-nav" aria-label="Основная навигация">
@@ -39,6 +40,7 @@ export default function Home() {
         <div className="side-bottom">
           <div className="streak"><span>⚡</span><div><b>{streak} {streak===1?"день":"дня"}</b><small>серия активности</small></div></div>
           <button className="profile" onClick={()=>setNav("Прогресс")}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
+          <button className="logout" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()}}>Выйти</button>
         </div>
       </aside>
 
@@ -110,7 +112,7 @@ export default function Home() {
       {activeWorkout&&<WorkoutModal plan={activeWorkout} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
 
       <nav className="mobile-nav" aria-label="Мобильная навигация">{[["Сегодня","⌂"],["План","▦"],["Дорожная карта","⌁"],["Питание","◒"],["Прогресс","◎"]].map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>setNav(label)}><span>{icon}</span>{label}</button>)}</nav>
-    </main>
+    </main></AuthGate>
   );
 }
 
@@ -122,11 +124,19 @@ function Intro({k,t,p}:{k:string;t:string;p:string}){return <header className="d
 function Personal({section,data,refresh}:{section:string;data:any;refresh:()=>void}){
  if(section==="План") return <div className="detail-page"><Intro k="ПЕРСОНАЛЬНАЯ ПРОГРАММА" t="Тренировки без ударной нагрузки" p="Недели 1–3 — дома. С 4-й недели основным становится расписание зала, бассейна и велосипеда."/><Notice/><h3 className="detail-title">Недели 1–3 · домашний план по дням</h3><p className="detail-lead">Неделя 1 — 2 круга; неделя 2 — 3; неделя 3 — прибавка веса или повторов.</p><div className="day-plan">{homeWeek.map(d=><details key={d.d} open={d.day===(new Date().getDay()||7)}><summary><span>{d.d}</span><div><i>{d.type}</i><h4>{d.title}</h4></div><b>{d.time}</b></summary><PlanExercises items={d.exercises}/></details>)}</div><h3 className="detail-title">С недели 4 · зал + кардио</h3><p className="detail-lead">Открой нужный день: внутри — полный список, техника и фотопримеры.</p><div className="day-plan">{week.map(d=><details key={d.d}><summary><span>{d.d}</span><div><i>{d.t}</i><h4>{d.n}</h4></div><b>{d.time}</b></summary><PlanExercises items={d.x}/></details>)}</div></div>;
  if(section==="Дорожная карта") return <div className="detail-page"><Intro k="ЛИЧНАЯ ДОРОЖНАЯ КАРТА · 5–7 МЕСЯЦЕВ" t="86 → 67 кг" p="Рост 167 см. Быстро, но без потери мышц: до 1 кг в неделю на старте, после 75 кг — 0,5–0,7 кг."/><div className="road-stats">{[["0,8–1,0","кг в неделю"],["3","силовых"],["3–4","кардио"],["5–7","месяцев"]].map(x=><article key={x[1]}><b>{x[0]}</b><span>{x[1]}</span></article>)}</div><Notice/><div className="phases">{phases.map((p,i)=><article key={p.p}><span>{String(i+1).padStart(2,"0")}</span><div><small>{p.p}</small><h3>{p.n}</h3><p>{p.g}</p><ul>{p.x.map(x=><li key={x}>{x}</li>)}</ul></div></article>)}</div><h3 className="detail-title">Правила тяжёлых дней</h3><div className="motivation-grid">{rules.map((r,i)=><article key={r}><span>{String(i+1).padStart(2,"0")}</span><p>{r}</p></article>)}</div></div>;
- if(section==="Питание") return <div className="detail-page"><Intro k="ПИТАНИЕ · БЕЗ ЗАПРЕТОВ" t="≈ 1700 ккал · 150 г белка" p="Белок в каждом приёме пищи, овощи в обед и ужин, вода перед едой. Готовь курицу и крупу на 2–3 дня."/><div className="meal-list">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-grid"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div>;
+ if(section==="Питание") return <div className="detail-page"><Intro k="ПИТАНИЕ · БЕЗ ЗАПРЕТОВ" t="≈ 1700 ккал · 150 г белка" p="Белок в каждом приёме пищи, овощи в обед и ужин, вода перед едой. Готовь курицу и крупу на 2–3 дня."/><NutritionDiary data={data} refresh={refresh}/><div className="meal-list">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-grid"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div>;
  return <ProgressPage data={data} refresh={refresh}/>
 }
 function Notice(){return <div className="safety">✦ <span><b>Суставы под защитой</b>{safety}</span></div>}
 function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any)=><article key={x[0]}>{x[3]&&<img src={x[3]} alt={`Пример: ${x[0]}`}/>}<div><h4>{x[0]}</h4><p>{x[1]}</p><b>{x[2]}</b></div></article>)}</div>}
+
+function NutritionDiary({data,refresh}:{data:any;refresh:()=>void}){
+ const [error,setError]=useState(""),[saving,setSaving]=useState(false);const today=localIso(new Date()),logs=data.foodLogs||[],todayLogs=logs.filter((x:any)=>x.date===today),sum=todayLogs.reduce((t:any,x:any)=>({calories:t.calories+x.calories,protein:t.protein+x.protein,fat:t.fat+x.fat,carbs:t.carbs+x.carbs}),{calories:0,protein:0,fat:0,carbs:0});
+ const submit=async(e:any)=>{e.preventDefault();setError("");setSaving(true);const form=e.currentTarget,body=Object.fromEntries(new FormData(form));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"food",...body})}),j=await r.json();setSaving(false);if(!r.ok)return setError(j.error||"Не удалось сохранить");form.reset();refresh()};
+ const remove=async(id:number)=>{if(!confirm("Удалить этот приём пищи? Дневные показатели будут пересчитаны."))return;const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteFood",id})});if(r.ok)refresh();else setError("Не удалось удалить запись")};
+ return <section className="food-diary"><div className="section-head"><div><p className="eyebrow">ДНЕВНИК ПИТАНИЯ</p><h3>Сегодня</h3></div><b>{Math.round(sum.calories)} / 1700 ккал</b></div><div className="macro-scales"><Macro label="Калории" value={sum.calories} goal={1700} unit="ккал"/><Macro label="Белки" value={sum.protein} goal={150} unit="г"/><Macro label="Жиры" value={sum.fat} goal={60} unit="г"/><Macro label="Углеводы" value={sum.carbs} goal={170} unit="г"/></div><form onSubmit={submit}><label className="food-date">Дата<input name="date" type="date" defaultValue={today} required/></label><label className="food-kind">Приём пищи<select name="mealType" defaultValue="Завтрак"><option>Завтрак</option><option>Обед</option><option>Ужин</option><option>Перекус</option></select></label><label className="food-text">Вставьте описание приёма пищи<textarea name="rawText" rows={8} required placeholder={'🍲 Бульон говяжий с яйцом — 130 ккал (Б 10 / Ж 8 / У 2)\n🦃 Индейка запечённая — 350 ккал (Б 58 / Ж 11 / У 3)'}/></label>{error&&<div className="food-error">{error}</div>}<button type="submit" disabled={saving}><span>＋</span>{saving?"Обрабатываю…":"Отправить и рассчитать"}</button></form>{todayLogs.length>0&&<div className="food-log-list">{todayLogs.map((log:any)=><article key={log.id} className={`meal-${String(log.mealType).toLowerCase()}`}><header><div><em>{log.mealType}</em><b>{log.items.length} блюда</b></div><span>{Math.round(log.calories)} ккал · Б {log.protein} / Ж {log.fat} / У {log.carbs}</span><button onClick={()=>remove(log.id)} aria-label={`Удалить ${log.mealType}`} title="Удалить запись">×</button></header>{log.items.map((x:any)=><p key={x.name}><span>{x.name}</span><b>{x.calories} ккал</b></p>)}</article>)}</div>}</section>
+}
+function Macro({label,value,goal,unit}:{label:string;value:number;goal:number;unit:string}){const p=Math.min(100,Math.round(value/goal*100));return <article><div><span>{label}</span><b>{Math.round(value)} / {goal} {unit}</b></div><div className="macro-bar"><i style={{width:`${p}%`}}/></div><small>{p}%</small></article>}
 
 function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  const latest=data.measurements?.[0]||{}; const first=data.photos?.[0]; const last=data.photos?.[data.photos.length-1];
@@ -147,7 +157,7 @@ function WorkoutModal({plan,close,done}:{plan:any;close:()=>void;done:()=>void})
  const finish=async()=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed:Object.keys(checks).filter(k=>checks[k])})});done()};
  return <div className="modal-backdrop"><section className="workout-modal"><header><div><p className="eyebrow">{plan.d.toUpperCase()} · {plan.time}</p><h2>{plan.title}</h2></div><button onClick={close}>×</button></header>{rounds>1&&<div className="round-tabs">{Array.from({length:rounds},(_,i)=><button key={i} className={round===i?"active":""} onClick={()=>setRound(i)}>Круг {i+1}<span>{plan.exercises.filter((_:any,j:number)=>checks[`${i}-${j}`]).length}/{plan.exercises.length}</span></button>)}</div>}<div className="workout-checks visual">{plan.exercises.map((x:any,i:number)=>{const k=`${round}-${i}`;return <label key={k} className={checks[k]?"done":""}><input type="checkbox" checked={!!checks[k]} onChange={e=>setChecks({...checks,[k]:e.target.checked})}/>{x[3]?<img src={x[3]} alt={`Техника: ${x[0]}`}/>:<span>{i+1}</span>}<div><b>{x[0]}</b><small><strong>{x[2]}</strong>{x[1]}</small></div></label>})}</div><footer><div><b>{complete}/{total}</b><span>выполнено</span></div><button disabled={complete<total} onClick={finish}>{complete===total?"Завершить тренировку":"Отметь все упражнения"}</button></footer></section></div>
 }
-function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));let d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
+function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));const d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
 function localIso(d:Date){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
 function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((Number(value)||0)/goal*100)))}
 function fmt(value:any){return Number(value||0).toLocaleString("ru-RU")}

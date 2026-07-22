@@ -1,0 +1,13 @@
+services:
+  volt:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - volt-data:/app/data
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /app/data
+volumes:
+  volt-data:
