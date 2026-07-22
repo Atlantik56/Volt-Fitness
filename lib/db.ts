@@ -35,3 +35,9 @@ try{db.exec("ALTER TABLE daily_activity ADD COLUMN beers INTEGER NOT NULL DEFAUL
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN duration_seconds INTEGER NOT NULL DEFAULT 0")}catch{}
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN rest_seconds INTEGER NOT NULL DEFAULT 0")}catch{}
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN details TEXT NOT NULL DEFAULT '{}'")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN min_heart_rate INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN avg_heart_rate INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN max_heart_rate INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN calories INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN distance_meters REAL NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE workout_logs ADD COLUMN avg_speed REAL NOT NULL DEFAULT 0")}catch{}
