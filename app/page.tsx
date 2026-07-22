@@ -3,16 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { home, meals, phases, rules, safety, week } from "./personal-data";
 
-const days = [
-  { short: "ПН", date: "20", state: "done" },
-  { short: "ВТ", date: "21", state: "done" },
-  { short: "СР", date: "22", state: "active" },
-  { short: "ЧТ", date: "23", state: "future" },
-  { short: "ПТ", date: "24", state: "future" },
-  { short: "СБ", date: "25", state: "rest" },
-  { short: "ВС", date: "26", state: "future" },
-];
-
 const workouts = [
   { type: "Силовая", icon: "↗", title: "Гантели по кругу", meta: "7 упражнений  •  2 круга", tag: "Дом · 20 минут", image: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?auto=format&fit=crop&w=900&q=88" },
   { type: "Кардио", icon: "⌁", title: "Велосипед", meta: "Разговорный темп  •  40–60 мин", tag: "Без ударной нагрузки", image: "https://images.unsplash.com/photo-1552674605-db6ffd4facb5?auto=format&fit=crop&w=900&q=88" },
@@ -24,11 +14,20 @@ const filters = ["Все", "Силовые", "Велосипед", "Плаван
 export default function Home() {
   const [filter, setFilter] = useState("Все");
   const [nav, setNav] = useState("Сегодня");
-  const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[{date:"2026-07-21"}],measurements:[{date:"2026-07-21",weight:85.9}],photos:[]});
+  const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
   const [workoutOpen,setWorkoutOpen]=useState(false);
   const load=()=>fetch("/api/fitness").then(r=>r.json()).then(setData).catch(()=>{});
   useEffect(()=>{load()},[]);
   const streak=useMemo(()=>calcStreak(data.workouts||[]),[data.workouts]);
+  const today=localIso(new Date()), todayActivity=(data.activity||[]).find((x:any)=>x.date===today)||{};
+  const todayWorkouts=(data.workouts||[]).filter((x:any)=>x.date===today).length;
+  const days=useMemo(()=>makeWeek(data.workouts||[]),[data.workouts]);
+  const weekDates=new Set(days.map(x=>x.iso));
+  const weekWorkouts=(data.workouts||[]).filter((x:any)=>weekDates.has(x.date));
+  const weekCalories=(data.activity||[]).filter((x:any)=>weekDates.has(x.date)).reduce((n:number,x:any)=>n+(Number(x.calories)||0),0);
+  const currentWeight=Number(data.measurements?.[0]?.weight??data.profile?.startWeight??86), startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67);
+  const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
+  const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
 
   return (
     <main className="app-shell">
@@ -66,33 +65,35 @@ export default function Home() {
         </section>
 
         <section className="metrics" aria-label="Дневной прогресс">
-          <Metric icon="◉" color="orange" label="Активные калории" value="684" unit="/ 900 ккал" pct={76} />
-          <Metric icon="◷" color="blue" label="Время активности" value="58" unit="/ 75 мин" pct={77} />
-          <Metric icon="↟" color="lime" label="Шаги" value="8 420" unit="/ 10 000" pct={84} />
-          <Metric icon="✓" color="violet" label="Тренировки" value="1" unit="/ 2 сегодня" pct={50} />
+          <Metric icon="◉" color="orange" label="Активные калории" value={fmt(todayActivity.calories||0)} unit="/ 900 ккал" pct={pct(todayActivity.calories,900)} />
+          <Metric icon="◷" color="blue" label="Время активности" value={fmt(todayActivity.activeMinutes||0)} unit="/ 75 мин" pct={pct(todayActivity.activeMinutes,75)} />
+          <Metric icon="↟" color="lime" label="Шаги" value={fmt(todayActivity.steps||0)} unit="/ 10 000" pct={pct(todayActivity.steps,10000)} />
+          <Metric icon="✓" color="violet" label="Тренировки" value={String(todayWorkouts)} unit="/ 1 сегодня" pct={pct(todayWorkouts,1)} />
         </section>
+
+        <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><button>Сохранить</button></form>
 
         <div className="grid-main">
           <section className="week-card card">
             <div className="section-head"><div><p className="eyebrow">ЭТА НЕДЕЛЯ</p><h3>Ритм тренировок</h3></div><button>Подробнее ↗</button></div>
             <div className="week-days">
-              {days.map((day) => <div key={day.short} className={`day ${day.state}`}><small>{day.short}</small><b>{day.date}</b><span>{day.state === "done" ? "✓" : day.state === "rest" ? "—" : day.state === "active" ? "•" : ""}</span></div>)}
+              {days.map((day) => <div key={day.iso} className={`day ${day.state}`}><small>{day.short}</small><b>{day.date}</b><span>{day.state === "done" ? "✓" : day.state === "missed" ? "×" : day.state === "active" ? "•" : ""}</span></div>)}
             </div>
             <div className="chart-wrap">
               <div className="chart-labels"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
               <div className="bars" aria-label="График нагрузки за неделю">
-                {[68, 82, 56, 0, 0, 18, 0].map((h, i) => <div className="bar-slot" key={i}><i style={{height:`${h}%`}} className={i === 2 ? "today" : i === 5 ? "restbar" : ""} /></div>)}
+                {days.map((day) => <div className="bar-slot" key={day.iso}><i style={{height:`${day.count?100:0}%`}} className={day.state === "active" ? "today" : ""} /></div>)}
               </div>
             </div>
-            <div className="week-footer"><div><small>Нагрузка</small><b><span className="trend">↗ 14%</span> выше прошлой недели</b></div><div><small>Активных дней</small><b>3 <span>/ 5</span></b></div><div><small>Калории</small><b>2 840 <span>ккал</span></b></div></div>
+            <div className="week-footer"><div><small>Нагрузка</small><b>{weekWorkouts.length} силовая тренировка</b></div><div><small>Активных дней</small><b>{new Set(weekWorkouts.map((x:any)=>x.date)).size} <span>/ 7</span></b></div><div><small>Калории</small><b>{fmt(weekCalories)} <span>ккал</span></b></div></div>
           </section>
 
           <section className="goal-card card">
             <div className="section-head"><div><p className="eyebrow">ГЛАВНАЯ ЦЕЛЬ</p><h3>Снизить вес</h3></div><button className="dots">•••</button></div>
-            <div className="weight-ring"><div><b>85,9</b><span>кг сейчас</span></div></div>
-            <div className="weight-row"><div><small>Старт</small><b>86,0 кг</b></div><span>−0,1 кг</span><div className="right"><small>Цель</small><b>67,0 кг</b></div></div>
-            <div className="goal-progress"><i style={{width:"1%"}} /></div>
-            <p>Старт программы · осталось 18,9 кг</p>
+            <div className="weight-ring" style={{background:`conic-gradient(var(--lime) ${goalPct}%, #292e2e 0)`}}><div><b>{currentWeight.toFixed(1).replace(".",",")}</b><span>кг сейчас</span></div></div>
+            <div className="weight-row"><div><small>Старт</small><b>{startWeight.toFixed(1).replace(".",",")} кг</b></div><span>−{lost.toFixed(1).replace(".",",")} кг</span><div className="right"><small>Цель</small><b>{targetWeight.toFixed(1).replace(".",",")} кг</b></div></div>
+            <div className="goal-progress"><i style={{width:`${goalPct}%`}} /></div>
+            <p>Старт программы · осталось {remaining.toFixed(1).replace(".",",")} кг</p>
           </section>
         </div>
 
@@ -150,3 +151,7 @@ function WorkoutModal({close,done}:{close:()=>void;done:()=>void}){
  return <div className="modal-backdrop"><section className="workout-modal"><header><div><p className="eyebrow">ТРЕНИРОВКА · ~20 МИН</p><h2>Гантели по кругу</h2></div><button onClick={close}>×</button></header><div className="round-tabs">{Array.from({length:rounds},(_,i)=><button key={i} className={round===i?"active":""} onClick={()=>setRound(i)}>Круг {i+1}<span>{home.filter((_,j)=>checks[`${i}-${j}`]).length}/{home.length}</span></button>)}</div><div className="workout-checks">{home.map((x,i)=>{const k=`${round}-${i}`;return <label key={k} className={checks[k]?"done":""}><input type="checkbox" checked={!!checks[k]} onChange={e=>setChecks({...checks,[k]:e.target.checked})}/><span>{i+1}</span><div><b>{x[0]}</b><small>{x[2]} · {x[1]}</small></div></label>})}</div><footer><div><b>{complete}/{total}</b><span>выполнено</span></div><button disabled={complete<total} onClick={finish}>{complete===total?"Завершить тренировку":"Отметь все подходы"}</button></footer></section></div>
 }
 function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));let d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
+function localIso(d:Date){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
+function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((Number(value)||0)/goal*100)))}
+function fmt(value:any){return Number(value||0).toLocaleString("ru-RU")}
+function makeWeek(logs:any[]){const now=new Date(),today=localIso(now), monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));const labels=["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"];return labels.map((short,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);const iso=localIso(d),count=logs.filter(x=>x.date===iso).length;return{short,date:String(d.getDate()),iso,count,state:count?"done":iso===today?"active":iso<today?"missed":"future"}})}

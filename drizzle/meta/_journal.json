@@ -8,6 +8,13 @@
       "when": 1784708122959,
       "tag": "0000_same_giant_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784708746298,
+      "tag": "0001_dashing_slipstream",
+      "breakpoints": true
     }
   ]
 }
