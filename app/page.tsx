@@ -5,6 +5,7 @@ import { homeWeek, meals, phases, rules, safety, week } from "./personal-data";
 import AuthGate from "./auth-gate";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
+const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
 
 export default function Home() {
   const [filter, setFilter] = useState("Все");
@@ -73,9 +74,11 @@ export default function Home() {
           <Metric icon="✓" color="violet" label="Тренировки" value={String(todayWorkouts)} unit="/ 1 сегодня" pct={pct(todayWorkouts,1)} />
         </section>
 
-        <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><button>Сохранить</button></form>
+        <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><label>Сон, ч<input name="sleepHours" type="number" min="0" max="24" step="0.5" defaultValue={todayActivity.sleepHours||0}/></label><button>Сохранить</button></form>
 
         <MoodCheckin data={data} refresh={load}/>
+
+        <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 
         <div className="grid-main">
           <section className="week-card card">
@@ -154,8 +157,9 @@ function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  return <div className="detail-page"><Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={data.profile?.name||"Илья"} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
  <div className="progress-hero"><div className="big-ring"><div><b>{latest.weight||85.9}</b><span>кг сейчас</span></div></div><div><small>ЦЕЛЬ</small><h3>{data.profile?.startWeight||86} → {data.profile?.targetWeight||67} кг</h3><p>Старт: 21 июля 2026 · рост {data.profile?.height||167} см</p><div className="goal-progress"><i style={{width:`${goalPct}%`}}/></div><b>{data.workouts?.length||1} тренировка отмечена</b></div></div>
  <WorkoutHistory workouts={data.workouts||[]} refresh={refresh}/>
+ <StrengthLog data={data} refresh={refresh}/>
  <h3 className="detail-title">Профиль</h3><form className="data-form" onSubmit={e=>submit(e,"profile")}><label>Имя<input name="name" defaultValue={data.profile?.name||"Илья"}/></label><label>Рост<input name="height" type="number" defaultValue={data.profile?.height||167}/></label><label>Стартовый вес<input name="startWeight" type="number" step="0.1" defaultValue={data.profile?.startWeight||86}/></label><label>Цель<input name="targetWeight" type="number" step="0.1" defaultValue={data.profile?.targetWeight||67}/></label><button>Сохранить профиль</button></form>
- <h3 className="detail-title">Динамика веса</h3><WeightChart measurements={data.measurements||[]} target={targetWeight}/>
+ <h3 className="detail-title">Динамика замеров</h3><MeasurementChart measurements={data.measurements||[]} target={targetWeight}/>
  <h3 className="detail-title">Новый замер</h3><form className="data-form measures" onSubmit={e=>submit(e,"measurement")}><label>Дата<input required name="date" type="date" defaultValue="2026-07-22"/></label>{[["weight","Вес, кг"],["waist","Талия, см"],["chest","Грудь, см"],["biceps","Бицепс, см"],["thigh","Бедро, см"],["neck","Шея, см"]].map(x=><label key={x[0]}>{x[1]}<input name={x[0]} type="number" step="0.1"/></label>)}<button>Сохранить замер</button></form>
  <div className="measure-table">{data.measurements?.map((m:any)=><article key={m.id}><b>{m.date}</b><span>{m.weight||"—"} кг</span><span>Талия {m.waist||"—"}</span><span>Грудь {m.chest||"—"}</span><span>Бицепс {m.biceps||"—"}</span><span>Бедро {m.thigh||"—"}</span><span>Шея {m.neck||"—"}</span></article>)}</div>
  <h3 className="detail-title">Фото · до и после</h3><p className="detail-lead">«До» — самая первая фотография. «После» автоматически обновляется на последнюю загруженную. Фото скрыты по умолчанию — нажми, чтобы показать.</p><div className="photo-compare"><Photo item={first} title="ДО" onDelete={deletePhoto}/><Photo item={last} title="ПОСЛЕ" onDelete={deletePhoto}/></div><form className="photo-form" onSubmit={photo}><input name="date" type="date" defaultValue="2026-07-22"/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form><Notice/></div>
@@ -201,18 +205,61 @@ function WorkoutModal({plan,close,done}:{plan:any;close:()=>void;done:()=>void})
  if(resting)return <div className="modal-backdrop"><section className="workout-modal rest-screen"><p className="eyebrow">КРУГ {round+1} ЗАВЕРШЁН</p><h2>Отдых между кругами</h2><div className="rest-clock">{clock(restSeconds)}</div><p>Дыши спокойно, пройдись или встряхни руки. Не садись глубоко и избегай движений через боль.</p><button onClick={finishRest}>Я готов · начать круг {round+2}</button></section></div>;
  return <div className="modal-backdrop"><section className="workout-modal"><header><div><p className="eyebrow">{plan.d.toUpperCase()} · {plan.time}</p><h2>{plan.title}</h2></div><div className="session-clock"><b>{clock(activeSeconds)}</b><span>тренировка</span></div><button onClick={close}>×</button></header>{warmup.length>0&&<><div className="workout-stages"><button className={stage==="warmup"?"active":""} onClick={()=>setStage("warmup")}>Разминка<span>{warmup.filter((_:any,i:number)=>checks[`warmup-${i}`]).length}/{warmup.length}</span></button><button disabled={!warmupComplete} className={stage==="rounds"?"active":""} onClick={()=>setStage("rounds")}>Круги<span>{warmupComplete?"доступны":"после разминки"}</span></button></div>{stage==="warmup"&&<p className="joint-note">Без боли и рывков. Держи движения комфортными для тазобедренного сустава.</p>}</>}{stage==="rounds"&&rounds>1&&<div className="round-tabs">{Array.from({length:rounds},(_,i)=><button key={i} disabled={i!==round} className={round===i?"active":""}>Круг {i+1}<span>{plan.exercises.filter((_:any,j:number)=>exerciseDone(i,j)).length}/{plan.exercises.length}</span></button>)}</div>}<div className="workout-checks visual">{items.map((x:any,i:number)=>{const k=stage==="warmup"?`warmup-${i}`:`${round}-${i}`,doneNow=stage==="warmup"?!!checks[k]:exerciseDone(round,i);return <label key={k} className={doneNow?"done":""}><input type="checkbox" checked={!!checks[k]} onChange={e=>stage==="warmup"?toggleWarmup(i,e.target.checked):setChecks({...checks,[k]:e.target.checked})}/>{x[3]?<img src={x[3]} alt={`Техника: ${x[0]}`}/>:<span>{i+1}</span>}<div><b>{x[0]}</b><small><strong>{x[2]}</strong>{x[1]}</small>{stage==="rounds"&&<span className="actual-value">Фактически <input aria-label={`Фактически: ${x[0]}`} type="number" min="0" inputMode="numeric" value={values[k]||""} onChange={e=>setValues({...values,[k]:e.target.value})}/><em>{unit(x[0])}</em></span>}</div></label>})}</div><footer><div><b>{complete}/{total}</b><span>выполнено · {clock(activeSeconds)}</span></div>{stage==="rounds"&&round<rounds-1?<button disabled={!roundComplete} onClick={startRest}>{roundComplete?`Завершить круг ${round+1} · отдых`:`Заполни круг ${round+1}`}</button>:<button disabled={!allComplete} onClick={()=>setSummary(true)}>{allComplete?"Посмотреть итоги":!warmupComplete?"Сначала выполни разминку":"Заполни повторы и отметь упражнения"}</button>}</footer></section></div>
 }
-function WeightChart({measurements,target}:{measurements:any[];target:number}){
- const points=[...measurements].filter((m:any)=>m.weight!=null).sort((a:any,b:any)=>a.date.localeCompare(b.date));
- if(points.length<2)return <p className="detail-lead">Добавь ещё один замер веса, чтобы увидеть график.</p>;
- const weights=points.map((p:any)=>Number(p.weight)), min=Math.min(...weights,target)-1, max=Math.max(...weights)+1;
+const measurementOptions=[["weight","Вес","кг"],["waist","Талия","см"],["chest","Грудь","см"],["biceps","Бицепс","см"],["thigh","Бедро","см"],["neck","Шея","см"]] as const;
+function MeasurementChart({measurements,target}:{measurements:any[];target:number}){
+ const [metric,setMetric]=useState<string>("weight");
+ const opt=measurementOptions.find(o=>o[0]===metric)||measurementOptions[0];
+ return <div><div className="metric-tabs" role="group" aria-label="Выбор замера">{measurementOptions.map(([key,label])=><button key={key} type="button" className={metric===key?"active":""} onClick={()=>setMetric(key)}>{label}</button>)}</div><MetricChart measurements={measurements} dataKey={opt[0]} label={opt[1]} unit={opt[2]} target={opt[0]==="weight"?target:undefined}/></div>
+}
+function MetricChart({measurements,dataKey,label,unit,target}:{measurements:any[];dataKey:string;label:string;unit:string;target?:number}){
+ const points=[...measurements].filter((m:any)=>m[dataKey]!=null).sort((a:any,b:any)=>a.date.localeCompare(b.date));
+ if(points.length<2)return <p className="detail-lead">Добавь ещё один замер «{label}», чтобы увидеть график.</p>;
+ const values=points.map((p:any)=>Number(p[dataKey])), min=Math.min(...values,...(target!=null?[target]:[]))-1, max=Math.max(...values,...(target!=null?[target]:[]))+1;
  const w=680,h=180,pad=10;
  const x=(i:number)=>pad+(i/(points.length-1))*(w-2*pad), y=(v:number)=>h-pad-((v-min)/(max-min||1))*(h-2*pad);
- const path=points.map((p:any,i:number)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(Number(p.weight)).toFixed(1)}`).join(" ");
- return <div className="weight-chart"><svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label="График веса по замерам">
-  <line x1={pad} y1={y(target)} x2={w-pad} y2={y(target)} stroke="var(--line)" strokeDasharray="4 4"/>
+ const path=points.map((p:any,i:number)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(Number(p[dataKey])).toFixed(1)}`).join(" ");
+ return <div className="weight-chart"><svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`График «${label}» по замерам`}>
+  {target!=null&&<line x1={pad} y1={y(target)} x2={w-pad} y2={y(target)} stroke="var(--line)" strokeDasharray="4 4"/>}
   <path d={path} fill="none" stroke="var(--lime)" strokeWidth="2.5"/>
-  {points.map((p:any,i:number)=><circle key={p.id} cx={x(i)} cy={y(Number(p.weight))} r="3.5" fill="var(--lime)"/>)}
- </svg><div className="weight-chart-labels"><span>{points[0].date}</span><span>Цель {target} кг</span><span>{points[points.length-1].date}</span></div></div>
+  {points.map((p:any,i:number)=><circle key={p.id??i} cx={x(i)} cy={y(Number(p[dataKey]))} r="3.5" fill="var(--lime)"/>)}
+ </svg><div className="weight-chart-labels"><span>{points[0].date}</span><span>{target!=null?`Цель ${target} ${unit}`:`${label}, ${unit}`}</span><span>{points[points.length-1].date}</span></div></div>
+}
+function StrengthLog({data,refresh}:{data:any;refresh:()=>void}){
+ const logs=data.strengthLogs||[];
+ const [exercise,setExercise]=useState(gymExercises[0]||"");
+ const submit=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"strength",...b})});e.currentTarget.reset();refresh()};
+ const remove=async(id:number)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteStrength",id})});refresh()};
+ const history=logs.filter((x:any)=>x.exercise===exercise).sort((a:any,b:any)=>a.date.localeCompare(b.date));
+ const ordered=[...history].reverse(), latest=ordered[0], prev=ordered[1];
+ const trend=latest&&prev?Number(latest.weight)-Number(prev.weight):null;
+ return <section className="strength-card card"><div className="section-head"><div><p className="eyebrow">ЗАЛ</p><h3>Рабочие веса</h3></div></div>
+  <form onSubmit={submit} className="strength-form"><label>Упражнение<select name="exercise" value={exercise} onChange={e=>setExercise(e.target.value)}>{gymExercises.map(x=><option key={x} value={x}>{x}</option>)}</select></label><label>Дата<input name="date" type="date" required defaultValue={localIso(new Date())}/></label><label>Вес, кг<input name="weight" type="number" min="0" step="0.5" required/></label><label>Повторы<input name="reps" type="number" min="0"/></label><button>Записать</button></form>
+  {history.length>0?<>
+   <MetricChart measurements={history} dataKey="weight" label={exercise} unit="кг"/>
+   {trend!=null&&<p className="detail-lead">{trend>0?`+${trend.toFixed(1)} кг с прошлого раза — прогресс.`:trend<0?`${trend.toFixed(1)} кг с прошлого раза.`:"Вес не изменился с прошлого раза."}</p>}
+   <div className="strength-history">{ordered.slice(0,10).map((x:any)=><article key={x.id}><b>{x.date}</b><span>{x.weight} кг{x.reps?` × ${x.reps}`:""}</span><button type="button" onClick={()=>remove(x.id)} aria-label="Удалить запись">×</button></article>)}</div>
+  </>:<p className="detail-lead">Пока нет записей по «{exercise}».</p>}
+ </section>
+}
+function WeeklyDigest({data,weekWorkouts,weekDates,currentWeight}:{data:any;weekWorkouts:any[];weekDates:Set<string>;currentWeight:number}){
+ const hrs=weekWorkouts.filter((w:any)=>Number(w.avgHeartRate)>0).map((w:any)=>Number(w.avgHeartRate));
+ const avgHr=hrs.length?Math.round(hrs.reduce((a:number,b:number)=>a+b,0)/hrs.length):null;
+ const activity=data.activity||[];
+ const dryDays=activity.filter((x:any)=>weekDates.has(x.date)&&Number(x.beers)===0).length;
+ const sleepVals=activity.filter((x:any)=>weekDates.has(x.date)&&Number(x.sleepHours)>0).map((x:any)=>Number(x.sleepHours));
+ const avgSleep=sleepVals.length?sleepVals.reduce((a:number,b:number)=>a+b,0)/sleepVals.length:null;
+ const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);const cutoffIso=localIso(cutoff);
+ const past=(data.measurements||[]).filter((m:any)=>m.weight!=null&&m.date<=cutoffIso).sort((a:any,b:any)=>b.date.localeCompare(a.date))[0];
+ const weightChange=past?currentWeight-Number(past.weight):null;
+ return <section className="digest-card card"><div className="section-head"><div><p className="eyebrow">ИТОГИ НЕДЕЛИ</p><h3>Как прошла неделя</h3></div></div>
+  <div className="digest-grid">
+   <article><b>{weekWorkouts.length}</b><span>тренировок</span></article>
+   <article><b>{weightChange!=null?`${weightChange<=0?"−":"+"}${Math.abs(weightChange).toFixed(1)}`:"—"}</b><span>кг за неделю</span></article>
+   <article><b>{avgHr??"—"}</b><span>средний пульс</span></article>
+   <article><b>{dryDays}</b><span>дней без пива</span></article>
+   <article><b>{avgSleep!=null?avgSleep.toFixed(1):"—"}</b><span>ч сна в среднем</span></article>
+  </div>
+ </section>
 }
 
 function MoodCheckin({data,refresh}:{data:any;refresh:()=>void}){

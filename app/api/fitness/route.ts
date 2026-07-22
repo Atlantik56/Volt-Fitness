@@ -11,10 +11,11 @@ export async function GET(){
  const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
- const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers FROM daily_activity ORDER BY date DESC").all();
+ const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours FROM daily_activity ORDER BY date DESC").all();
  const foodLogs=(db.prepare("SELECT id,date,meal_type mealType,items_json itemsJson,calories,protein,fat,carbs,created_at createdAt FROM food_logs ORDER BY date DESC,id DESC").all() as any[]).map(x=>({...x,items:JSON.parse(x.itemsJson),itemsJson:undefined}));
  const moodLogs=db.prepare("SELECT id,date,mood,note,created_at createdAt FROM mood_logs ORDER BY created_at DESC,id DESC LIMIT 30").all();
- return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs},{headers:{"cache-control":"no-store"}})
+ const strengthLogs=db.prepare("SELECT id,date,exercise,weight,reps,created_at createdAt FROM strength_logs ORDER BY date DESC,id DESC LIMIT 300").all();
+ return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -33,7 +34,11 @@ export async function POST(req:Request){
   if(!Number.isSafeInteger(id)||id<1||!dateOk(b.date)||!text(b.title)||duration===null||rest===null||rounds===null)return Response.json({error:"Некорректные данные тренировки"},{status:400});
   const result=db.prepare("UPDATE workout_logs SET date=?,type=?,title=?,rounds=?,duration_seconds=?,rest_seconds=?,details=?,min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=? WHERE id=?").run(b.date,text(b.type,40),text(b.title),rounds,duration,rest,JSON.stringify(details),minHr||0,avgHr||0,maxHr||0,calories||0,distance||0,speed||0,id);if(!result.changes)return Response.json({error:"Тренировка не найдена"},{status:404})
  }else if(b.action==="activity"){
-  if(!dateOk(b.date))return Response.json({error:"Некорректная дата"},{status:400});db.prepare("INSERT INTO daily_activity (date,steps,active_minutes,calories,beers) VALUES (?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET steps=excluded.steps,active_minutes=excluded.active_minutes,calories=excluded.calories,beers=excluded.beers").run(b.date,num(b.steps)||0,num(b.activeMinutes,0,1440)||0,num(b.calories,0,20000)||0,num(b.beers,0,100)||0)
+  if(!dateOk(b.date))return Response.json({error:"Некорректная дата"},{status:400});db.prepare("INSERT INTO daily_activity (date,steps,active_minutes,calories,beers,sleep_hours) VALUES (?,?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET steps=excluded.steps,active_minutes=excluded.active_minutes,calories=excluded.calories,beers=excluded.beers,sleep_hours=excluded.sleep_hours").run(b.date,num(b.steps)||0,num(b.activeMinutes,0,1440)||0,num(b.calories,0,20000)||0,num(b.beers,0,100)||0,num(b.sleepHours,0,24)||0)
+ }else if(b.action==="strength"){
+  const weight=num(b.weight,0,500),reps=num(b.reps,0,200);if(!dateOk(b.date)||!text(b.exercise)||weight===null)return Response.json({error:"Укажите дату, упражнение и вес"},{status:400});db.prepare("INSERT INTO strength_logs (date,exercise,weight,reps) VALUES (?,?,?,?)").run(b.date,text(b.exercise,120),weight,reps||0)
+ }else if(b.action==="deleteStrength"){
+  const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM strength_logs WHERE id=?").run(id)
  }else if(b.action==="mood"){
   const moods=["😊","🙂","😐","😔","😢","😡"];if(!dateOk(b.date)||!moods.includes(b.mood))return Response.json({error:"Некорректная запись настроения"},{status:400});db.prepare("INSERT INTO mood_logs (date,mood,note) VALUES (?,?,?)").run(b.date,b.mood,text(b.note,300))
  }else if(b.action==="deleteMood"){

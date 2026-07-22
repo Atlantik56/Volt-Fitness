@@ -41,3 +41,5 @@ try{db.exec("ALTER TABLE workout_logs ADD COLUMN max_heart_rate INTEGER NOT NULL
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN calories INTEGER NOT NULL DEFAULT 0")}catch{}
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN distance_meters REAL NOT NULL DEFAULT 0")}catch{}
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN avg_speed REAL NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL NOT NULL DEFAULT 0")}catch{}
+try{db.exec("CREATE TABLE IF NOT EXISTS strength_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, exercise TEXT NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")}catch{}
