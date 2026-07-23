@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { homeWeek } from "./personal-data";
+import { buildHomeWeek } from "./personal-data";
 
 const iso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
 const post=(body:Record<string,unknown>)=>fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
@@ -29,7 +29,7 @@ export function TrainingCalendar({data}:{data:any}){
 }
 
 export function ScheduleEditor({data,refresh}:{data:any;refresh:()=>void}){
- const [message,setMessage]=useState("");const plans=homeWeek.filter(x=>x.type!=="Отдых");
+ const [message,setMessage]=useState("");const plans=buildHomeWeek(data.profile?.programStart).filter(x=>x.type!=="Отдых");
  const save=async(e:any)=>{e.preventDefault();const raw:any=Object.fromEntries(new FormData(e.currentTarget)), selected=plans.find(x=>x.title===raw.planTitle)||plans[0], prev=new Date(`${raw.scheduledDate}T12:00:00`);prev.setDate(prev.getDate()-1);const next=new Date(`${raw.scheduledDate}T12:00:00`);next.setDate(next.getDate()+1);const collision=(data.scheduleOverrides||[]).some((x:any)=>x.planTitle.includes("Гантели")&&[iso(prev),iso(next)].includes(x.scheduledDate));if(selected.type==="Силовая"&&collision&&!confirm("Рядом уже стоит силовая тренировка. Всё равно сохранить?"))return;const r=await post({action:"schedule",...raw});setMessage(r.ok?"План обновлён":"Не удалось сохранить");refresh()};
  const base=new Date();return <section className="schedule-editor card"><div><p className="eyebrow">ГИБКИЙ ПЛАН</p><h3>Перенести или заменить тренировку</h3><p>Приложение предупредит о двух силовых днях подряд.</p></div><form onSubmit={save}><label>Тренировка<select name="planTitle">{plans.map(x=><option key={`${x.day}-${x.title}`}>{x.title}</option>)}</select></label><label>Плановая дата<input name="originalDate" type="date" required defaultValue={iso(base)}/></label><label>Новая дата<input name="scheduledDate" type="date" required defaultValue={iso(base)}/></label><label>Замена<select name="replacementTitle"><option value="">Без замены</option><option>Прогулка и мобильность</option><option>Плавание в бассейне</option><option>Шоссейный велосипед</option></select></label><button>Сохранить</button></form>{message&&<small>{message}</small>}</section>
 }

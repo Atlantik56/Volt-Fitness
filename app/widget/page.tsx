@@ -3,7 +3,7 @@
 import {FormEvent,useEffect,useMemo,useState} from "react";
 import Link from "next/link";
 import AuthGate from "../auth-gate";
-import {homeWeek} from "../personal-data";
+import {buildHomeWeek} from "../personal-data";
 import styles from "./widget.module.css";
 
 const iso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
@@ -13,6 +13,7 @@ export default function WidgetPage(){
  const [data,setData]=useState<any>(null),[saved,setSaved]=useState(false),[form,setForm]=useState({sleep:3,energy:3,fatigue:3,pain:0,motivation:3,zone:""});
  const load=()=>fetch("/api/fitness",{cache:"no-store"}).then(r=>r.json()).then(j=>{setData(j);const w=j.wellnessLogs?.find((x:any)=>x.date===iso(new Date()));if(w)setForm(x=>({...x,energy:Number(w.energy)||3,pain:Number(w.pain)||0,zone:w.painArea||""}))});
  useEffect(()=>{load()},[]);
+ const homeWeek=buildHomeWeek(data?.profile?.programStart);
  const today=iso(new Date()),plan=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0],activity=data?.activity?.find((x:any)=>x.date===today)||{};
  const score=useMemo(()=>Math.round(form.sleep*4+form.energy*6+(10-form.fatigue)*2+(10-form.pain)*2+form.motivation*2),[form]),advice=form.pain>=5?"Сегодня восстановление и только безболезненная мобильность":score<55?"Снизь объём на один круг и увеличь отдых":"Можно выполнять план, сохраняя технику";
  const save=async(e:FormEvent)=>{e.preventDefault();setSaved(false);const note=`Опрос: сон ${form.sleep}/5 · усталость ${form.fatigue}/10 · мотивация ${form.motivation}/5`;const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"wellness",date:today,energy:form.energy,pain:form.pain,painArea:form.zone,note})});if(r.ok){setSaved(true);load()}};
