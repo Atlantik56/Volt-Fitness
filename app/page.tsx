@@ -28,6 +28,7 @@ export default function Home() {
   const weekCalories=(data.activity||[]).filter((x:any)=>weekDates.has(x.date)).reduce((n:number,x:any)=>n+(Number(x.calories)||0),0);
   const currentWeight=Number(data.measurements?.[0]?.weight??data.profile?.startWeight??86), startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67);
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
+  const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
   const overrides=data.scheduleOverrides||[], movedToday=overrides.find((x:any)=>x.scheduledDate===today), regularToday=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0];
   const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
@@ -114,6 +115,7 @@ export default function Home() {
             <div className="weight-row"><div><small>Старт</small><b>{startWeight.toFixed(1).replace(".",",")} кг</b></div><span>−{lost.toFixed(1).replace(".",",")} кг</span><div className="right"><small>Цель</small><b>{targetWeight.toFixed(1).replace(".",",")} кг</b></div></div>
             <div className="goal-progress"><i style={{width:`${goalPct}%`}} /></div>
             <p>Старт программы · осталось {remaining.toFixed(1).replace(".",",")} кг</p>
+            <p>{goalEta?`При текущем темпе — цель примерно к ${goalEta}`:"Добавь больше замеров веса, чтобы увидеть прогноз даты"}</p>
           </section>
         </div>
 
@@ -320,7 +322,26 @@ function PushToggle(){
 }
 
 function calcDryStreak(activity:any[]){const map=new Map(activity.map((x:any)=>[x.date,Number(x.beers)||0]));const d=new Date();const iso=(x:Date)=>localIso(x);if(!map.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(map.has(iso(d))&&map.get(iso(d))===0){n++;d.setDate(d.getDate()-1)}return n}
-function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));const d=new Date();const iso=(x:Date)=>x.toISOString().slice(0,10);if(!set.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(set.has(iso(d))){n++;d.setDate(d.getDate()-1)}return n}
+function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));const d=new Date();if(!set.has(localIso(d)))d.setDate(d.getDate()-1);let n=0,misses=0;while(true){if(set.has(localIso(d))){n++;misses=0}else{misses++;if(misses>1)break}d.setDate(d.getDate()-1)}return n}
+function projectGoalDate(measurements:any[],target:number):string|null{
+ const all=[...measurements].filter((m:any)=>m.weight!=null).sort((a:any,b:any)=>a.date.localeCompare(b.date));
+ if(all.length<2)return null;
+ const cutoff=new Date(all[all.length-1].date);cutoff.setDate(cutoff.getDate()-45);
+ const windowed=all.filter((m:any)=>new Date(m.date)>=cutoff);
+ const points=windowed.length>=2?windowed:all;
+ const first=points[0],last=points[points.length-1];
+ const days=(new Date(last.date).getTime()-new Date(first.date).getTime())/86400000;
+ if(days<7)return null;
+ const ratePerDay=(Number(last.weight)-Number(first.weight))/days;
+ if(ratePerDay>=-0.01)return null;
+ const remaining=Number(last.weight)-target;
+ if(remaining<=0)return null;
+ const daysToGoal=remaining/-ratePerDay;
+ if(daysToGoal>3*365)return null;
+ const eta=new Date();eta.setDate(eta.getDate()+Math.round(daysToGoal));
+ const months=["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+ return `${eta.getDate()} ${months[eta.getMonth()]} ${eta.getFullYear()}`
+}
 function localIso(d:Date){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
 function formatDateLabel(d:Date){const days=["ВОСКРЕСЕНЬЕ","ПОНЕДЕЛЬНИК","ВТОРНИК","СРЕДА","ЧЕТВЕРГ","ПЯТНИЦА","СУББОТА"],months=["ЯНВАРЯ","ФЕВРАЛЯ","МАРТА","АПРЕЛЯ","МАЯ","ИЮНЯ","ИЮЛЯ","АВГУСТА","СЕНТЯБРЯ","ОКТЯБРЯ","НОЯБРЯ","ДЕКАБРЯ"];return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`}
 function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((Number(value)||0)/goal*100)))}
