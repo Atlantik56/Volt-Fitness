@@ -1,19 +1,21 @@
 import { requireAuth, sameOrigin } from "@/lib/auth";
 export const runtime="nodejs";
 const sig:{[k:string]:(b:Buffer)=>boolean}={"image/jpeg":b=>b[0]===0xff&&b[1]===0xd8&&b[2]===0xff,"image/png":b=>b.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])),"image/webp":b=>b.subarray(0,4).toString()==="RIFF"&&b.subarray(8,12).toString()==="WEBP"};
-const prompt="Ты нутрициолог. На фото — приём пищи. Определи каждое блюдо, оцени размер порции на глаз и её КБЖУ. Ответь ТОЛЬКО строками строго в формате:\nНазвание блюда — 250 ккал (Б 20 / Ж 10 / У 15)\nОдна строка на блюдо, числа целые, названия по-русски, без пояснений и любого другого текста. Если еды на фото нет, ответь ровно: НЕТ ЕДЫ";
+const prompt="Ты нутрициолог. На фото — приём пищи. Определи каждое блюдо, оцени размер порции на глаз и её КБЖУ. Фотографий может быть несколько: само блюдо и, возможно, чек или меню с названиями и граммовками — если чек есть, бери точные названия и веса блюд из него, а состав и размер порций сверяй с фото еды. Чек сам по себе едой не является, перечисли только съеденные блюда. Ответь ТОЛЬКО строками строго в формате:\nНазвание блюда — 250 ккал (Б 20 / Ж 10 / У 15)\nОдна строка на блюдо, числа целые, названия по-русски. После списка блюд добавь ровно одну строку, начинающуюся с «Итог: » — короткая оценка приёма пищи (1–2 предложения) для человека на дефиците ~1700 ккал/день с целью 150 г белка в день: насколько сбалансировано, чего не хватает или что лишнее, дружелюбно и без морализаторства. Больше никакого текста. Если еды на фото нет, ответь ровно: НЕТ ЕДЫ";
 export async function POST(req:Request){
  const denied=await requireAuth();if(denied)return denied;if(!sameOrigin(req))return new Response(null,{status:403});
  const key=process.env.GEMINI_API_KEY;if(!key)return Response.json({error:"Распознавание по фото не настроено на сервере"},{status:503});
- const form=await req.formData(),file=form.get("photo");
- if(!(file instanceof File)||!sig[file.type]||file.size<16||file.size>8_000_000)return Response.json({error:"JPEG, PNG или WebP до 8 МБ"},{status:400});
- const bytes=Buffer.from(await file.arrayBuffer());if(!sig[file.type](bytes))return Response.json({error:"Содержимое файла не соответствует формату"},{status:400});
+ const form=await req.formData(),files=form.getAll("photo").filter(f=>f instanceof File) as File[];
+ if(!files.length||files.length>3||files.some(f=>!sig[f.type]||f.size<16||f.size>8_000_000))return Response.json({error:"1–3 файла JPEG, PNG или WebP до 8 МБ каждый"},{status:400});
+ const parts:any[]=[];
+ for(const f of files){const bytes=Buffer.from(await f.arrayBuffer());if(!sig[f.type](bytes))return Response.json({error:"Содержимое файла не соответствует формату"},{status:400});parts.push({inline_data:{mime_type:f.type,data:bytes.toString("base64")}})}
+ parts.push({text:prompt});
  try{
-  const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":key},signal:AbortSignal.timeout(45000),body:JSON.stringify({contents:[{parts:[{inline_data:{mime_type:file.type,data:bytes.toString("base64")}},{text:prompt}]}],generationConfig:{temperature:0.2,maxOutputTokens:2000}})});
+  const r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent",{method:"POST",headers:{"content-type":"application/json","x-goog-api-key":key},signal:AbortSignal.timeout(60000),body:JSON.stringify({contents:[{parts}],generationConfig:{temperature:0.2,maxOutputTokens:8000}})});
   if(!r.ok)return Response.json({error:`Сервис распознавания недоступен (${r.status})`},{status:502});
   const j=await r.json(),text=String((j.candidates?.[0]?.content?.parts||[]).map((p:any)=>p.text||"").join("\n")).trim();
-  const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(s=>/ккал/i.test(s)&&/\(\s*Б\s*\d/i.test(s));
+  const rows=text.split(/\r?\n/).map(s=>s.trim()),lines=rows.filter(s=>/ккал/i.test(s)&&/\(\s*Б\s*\d/i.test(s)),note=(rows.find(s=>/^итог\s*:/i.test(s))||"").replace(/^итог\s*:\s*/i,"").slice(0,600);
   if(!lines.length)return Response.json({error:/НЕТ ЕДЫ/i.test(text)?"На фото не нашлось еды":"Не удалось распознать блюда, попробуйте другое фото"},{status:422});
-  return Response.json({ok:true,text:lines.join("\n")});
+  return Response.json({ok:true,text:lines.join("\n"),note});
  }catch{return Response.json({error:"Сервис распознавания не ответил, попробуйте ещё раз"},{status:504})}
 }

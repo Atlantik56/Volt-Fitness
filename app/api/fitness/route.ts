@@ -12,7 +12,7 @@ export async function GET(){
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
  const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours FROM daily_activity ORDER BY date DESC").all();
- const foodLogs=(db.prepare("SELECT id,date,meal_type mealType,items_json itemsJson,calories,protein,fat,carbs,created_at createdAt FROM food_logs ORDER BY date DESC,id DESC").all() as any[]).map(x=>({...x,items:JSON.parse(x.itemsJson),itemsJson:undefined}));
+ const foodLogs=(db.prepare("SELECT id,date,meal_type mealType,items_json itemsJson,calories,protein,fat,carbs,note,created_at createdAt FROM food_logs ORDER BY date DESC,id DESC").all() as any[]).map(x=>({...x,items:JSON.parse(x.itemsJson),itemsJson:undefined}));
  const moodLogs=db.prepare("SELECT id,date,mood,note,created_at createdAt FROM mood_logs ORDER BY created_at DESC,id DESC LIMIT 30").all();
  const strengthLogs=db.prepare("SELECT id,date,exercise,weight,reps,created_at createdAt FROM strength_logs ORDER BY date DESC,id DESC LIMIT 300").all();
  const wellnessLogs=db.prepare("SELECT id,date,energy,pain,pain_area painArea,note FROM wellness_logs ORDER BY date DESC LIMIT 120").all();
@@ -50,7 +50,7 @@ export async function POST(req:Request){
  }else if(b.action==="deleteMood"){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM mood_logs WHERE id=?").run(id)
  }else if(b.action==="food"){
-  const raw=typeof b.rawText==="string"?b.rawText.trim().slice(0,12000):"",mealType=["Завтрак","Обед","Ужин","Перекус"].includes(b.mealType)?b.mealType:"Перекус";if(!dateOk(b.date)||!raw)return Response.json({error:"Добавьте дату и текст приёма пищи"},{status:400});const parsed=parseFood(raw);if(!parsed.items.length)return Response.json({error:"Не удалось распознать строки. Формат: Блюдо — 130 ккал (Б 10 / Ж 8 / У 2)"},{status:400});db.prepare("INSERT INTO food_logs(date,meal_type,raw_text,items_json,calories,protein,fat,carbs) VALUES(?,?,?,?,?,?,?,?)").run(b.date,mealType,raw,JSON.stringify(parsed.items),parsed.calories,parsed.protein,parsed.fat,parsed.carbs);return Response.json({ok:true,parsed})
+  const raw=typeof b.rawText==="string"?b.rawText.trim().slice(0,12000):"",mealType=["Завтрак","Обед","Ужин","Перекус"].includes(b.mealType)?b.mealType:"Перекус";if(!dateOk(b.date)||!raw)return Response.json({error:"Добавьте дату и текст приёма пищи"},{status:400});const parsed=parseFood(raw);if(!parsed.items.length)return Response.json({error:"Не удалось распознать строки. Формат: Блюдо — 130 ккал (Б 10 / Ж 8 / У 2)"},{status:400});db.prepare("INSERT INTO food_logs(date,meal_type,raw_text,items_json,calories,protein,fat,carbs,note) VALUES(?,?,?,?,?,?,?,?,?)").run(b.date,mealType,raw,JSON.stringify(parsed.items),parsed.calories,parsed.protein,parsed.fat,parsed.carbs,text(b.note,600));return Response.json({ok:true,parsed})
  }else if(b.action==="deleteFood"){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM food_logs WHERE id=?").run(id)
  }else return Response.json({error:"Неизвестное действие"},{status:400});
