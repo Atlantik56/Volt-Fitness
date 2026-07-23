@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import { buildHomeWeek, meals, phases, rules, safety, week } from "./personal-data";
 import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
-import { AdaptiveCoach, BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
+import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
@@ -93,7 +93,6 @@ export default function Home() {
         <Readiness data={data} refresh={load}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
-        <AdaptiveCoach data={data}/>
 
         <div className="grid-main">
           <section className="week-card card">
@@ -131,7 +130,7 @@ export default function Home() {
               </article>
             ))}
           </div>
-        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} />{nav==="Прогресс"&&<><BodyMap data={data} refresh={load}/><StrengthAdvice data={data}/><PersonalRecords data={data}/><TrainingAnalytics data={data}/><TrainingCalendar data={data}/><GarminImport refresh={load}/></>}</>}
+        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} /></>}
       </section>
 
       {activeWorkout&&<WorkoutModal plan={activeWorkout} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
@@ -165,6 +164,7 @@ function NutritionDiary({data,refresh}:{data:any;refresh:()=>void}){
 function Macro({label,value,goal,unit}:{label:string;value:number;goal:number;unit:string}){const p=Math.min(100,Math.round(value/goal*100));return <article><div><span>{label}</span><b>{Math.round(value)} / {goal} {unit}</b></div><div className="macro-bar"><i style={{width:`${p}%`}}/></div><small>{p}%</small></article>}
 
 function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
+ const [tab,setTab]=useState("Тело");
  const latest=data.measurements?.[0]||{}; const first=data.photos?.[0]; const last=data.photos?.[data.photos.length-1];
  const startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67), currentWeight=Number(latest.weight??startWeight);
  const goalPct=Math.max(0,Math.min(100,((startWeight-currentWeight)/(startWeight-targetWeight||1))*100));
@@ -173,13 +173,28 @@ function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  const deletePhoto=async(id:number)=>{if(!confirm("Удалить это фото? Действие необратимо."))return;await fetch(`/api/photos?id=${id}`,{method:"DELETE"});refresh()};
  return <div className="detail-page"><Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={data.profile?.name||"Илья"} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
  <div className="progress-hero"><div className="big-ring"><div><b>{latest.weight||85.9}</b><span>кг сейчас</span></div></div><div><small>ЦЕЛЬ</small><h3>{data.profile?.startWeight||86} → {data.profile?.targetWeight||67} кг</h3><p>Старт: 21 июля 2026 · рост {data.profile?.height||167} см</p><div className="goal-progress"><i style={{width:`${goalPct}%`}}/></div><b>{data.workouts?.length||1} тренировка отмечена</b></div></div>
- <WorkoutHistory workouts={data.workouts||[]} refresh={refresh}/>
- <StrengthLog data={data} refresh={refresh}/>
+ <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика"].map(x=><button key={x} type="button" className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
+ {tab==="Тело"&&<>
  <h3 className="detail-title">Профиль</h3><form className="data-form" onSubmit={e=>submit(e,"profile")}><label>Имя<input name="name" defaultValue={data.profile?.name||"Илья"}/></label><label>Рост<input name="height" type="number" defaultValue={data.profile?.height||167}/></label><label>Стартовый вес<input name="startWeight" type="number" step="0.1" defaultValue={data.profile?.startWeight||86}/></label><label>Цель<input name="targetWeight" type="number" step="0.1" defaultValue={data.profile?.targetWeight||67}/></label><button>Сохранить профиль</button></form>
  <h3 className="detail-title">Динамика замеров</h3><MeasurementChart measurements={data.measurements||[]} target={targetWeight}/>
  <h3 className="detail-title">Новый замер</h3><form className="data-form measures" onSubmit={e=>submit(e,"measurement")}><label>Дата<input required name="date" type="date" defaultValue="2026-07-22"/></label>{[["weight","Вес, кг"],["waist","Талия, см"],["chest","Грудь, см"],["biceps","Бицепс, см"],["thigh","Бедро, см"],["neck","Шея, см"]].map(x=><label key={x[0]}>{x[1]}<input name={x[0]} type="number" step="0.1"/></label>)}<button>Сохранить замер</button></form>
  <div className="measure-table">{data.measurements?.map((m:any)=><article key={m.id}><b>{m.date}</b><span>{m.weight||"—"} кг</span><span>Талия {m.waist||"—"}</span><span>Грудь {m.chest||"—"}</span><span>Бицепс {m.biceps||"—"}</span><span>Бедро {m.thigh||"—"}</span><span>Шея {m.neck||"—"}</span></article>)}</div>
- <h3 className="detail-title">Фото · до и после</h3><p className="detail-lead">«До» — самая первая фотография. «После» автоматически обновляется на последнюю загруженную. Фото скрыты по умолчанию — нажми, чтобы показать.</p><div className="photo-compare"><Photo item={first} title="ДО" onDelete={deletePhoto}/><Photo item={last} title="ПОСЛЕ" onDelete={deletePhoto}/></div><form className="photo-form" onSubmit={photo}><input name="date" type="date" defaultValue="2026-07-22"/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form><Notice/></div>
+ <h3 className="detail-title">Фото · до и после</h3><p className="detail-lead">«До» — самая первая фотография. «После» автоматически обновляется на последнюю загруженную. Фото скрыты по умолчанию — нажми, чтобы показать.</p><div className="photo-compare"><Photo item={first} title="ДО" onDelete={deletePhoto}/><Photo item={last} title="ПОСЛЕ" onDelete={deletePhoto}/></div><form className="photo-form" onSubmit={photo}><input name="date" type="date" defaultValue="2026-07-22"/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form>
+ <BodyMap data={data} refresh={refresh}/>
+ <Notice/>
+ </>}
+ {tab==="Тренировки"&&<>
+ <WorkoutHistory workouts={data.workouts||[]} refresh={refresh}/>
+ <StrengthLog data={data} refresh={refresh}/>
+ <StrengthAdvice data={data}/>
+ <PersonalRecords data={data}/>
+ <GarminImport refresh={refresh}/>
+ </>}
+ {tab==="Аналитика"&&<>
+ <TrainingAnalytics data={data}/>
+ <TrainingCalendar data={data}/>
+ </>}
+ </div>
 }
 function WorkoutHistory({workouts,refresh}:{workouts:any[];refresh:()=>void}){
  const [message,setMessage]=useState(""); const clock=(n:number)=>`${Math.floor((Number(n)||0)/60)} мин ${String((Number(n)||0)%60).padStart(2,"0")} сек`;
