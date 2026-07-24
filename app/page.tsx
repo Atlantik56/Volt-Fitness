@@ -7,6 +7,7 @@ import { WorkoutSession } from "./training-session";
 import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
+import { CoachCard } from "./coach-card";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
@@ -20,7 +21,8 @@ export default function Home() {
   const [mobileMenu,setMobileMenu]=useState(false);
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
   const [activeWorkout,setActiveWorkout]=useState<any>(null);
-  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(setData).catch(()=>{});
+  const [loaded,setLoaded]=useState(false);
+  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true)}).catch(()=>{});
   useEffect(()=>{load()},[]);
   const streak=useMemo(()=>calcStreak(data.workouts||[]),[data.workouts]);
   const dryStreak=useMemo(()=>calcDryStreak(data.activity||[]),[data.activity]);
@@ -93,6 +95,7 @@ export default function Home() {
 
         <MoodCheckin data={data} refresh={load}/>
         <Readiness data={data} refresh={load}/>
+        <CoachCard data={data} plan={todayPlan} today={today} ready={loaded}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 
