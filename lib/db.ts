@@ -53,6 +53,7 @@ const migrations=[
  {version:2,sql:`ALTER TABLE workout_logs ADD COLUMN effort TEXT NOT NULL DEFAULT '';ALTER TABLE workout_logs ADD COLUMN pain_after INTEGER NOT NULL DEFAULT 0;`},
  {version:3,sql:`ALTER TABLE food_logs ADD COLUMN note TEXT NOT NULL DEFAULT '';`},
  {version:4,sql:`ALTER TABLE strength_logs ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'Нормально';`},
+ {version:5,sql:`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
