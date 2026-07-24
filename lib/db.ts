@@ -52,6 +52,7 @@ const migrations=[
  CREATE TABLE IF NOT EXISTS schedule_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT,original_date TEXT NOT NULL UNIQUE,scheduled_date TEXT NOT NULL,plan_title TEXT NOT NULL,replacement_title TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`},
  {version:2,sql:`ALTER TABLE workout_logs ADD COLUMN effort TEXT NOT NULL DEFAULT '';ALTER TABLE workout_logs ADD COLUMN pain_after INTEGER NOT NULL DEFAULT 0;`},
  {version:3,sql:`ALTER TABLE food_logs ADD COLUMN note TEXT NOT NULL DEFAULT '';`},
+ {version:4,sql:`ALTER TABLE strength_logs ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'Нормально';`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
