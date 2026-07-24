@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { buildHomeWeek } from "./personal-data";
+import { calculateReadiness } from "../lib/readiness";
 
 const iso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
 const post=(body:Record<string,unknown>)=>fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
@@ -9,8 +10,7 @@ const post=(body:Record<string,unknown>)=>fetch("/api/fitness",{method:"POST",he
 export function Readiness({data,refresh}:{data:any;refresh:()=>void}){
  const today=iso(new Date()), current=(data.wellnessLogs||[]).find((x:any)=>x.date===today)||{}, sleep=Number((data.activity||[]).find((x:any)=>x.date===today)?.sleepHours)||0;
  const energy=Number(current.energy||3), pain=Number(current.pain||0), last=(data.workouts||[])[0];
- const score=Math.round(Math.min(100,(sleep?Math.min(1,sleep/8)*40:20)+energy/5*40+(10-pain)/10*20));
- const decision=pain>=5?{tone:"stop",title:"Восстановление вместо нагрузки",text:"Суставам нужен щадящий день: прогулка без одышки и только безболезненная мобильность."}:score<55?{tone:"low",title:"Сократи тренировку на один круг",text:"Работай с прежним весом, увеличь отдых и остановись при дискомфорте."}:last?.painAfter>=3?{tone:"low",title:"Не увеличивай рабочие веса",text:"После прошлой тренировки отмечена боль. Сохрани нагрузку или выбери безопасную замену."}:{tone:"good",title:"План можно выполнять полностью",text:"Готовность достаточная. Добавляй нагрузку только при стабильной технике и отсутствии боли."};
+ const {score,decision}=calculateReadiness({sleepHours:sleep,energy,pain,lastWorkoutPain:Number(last?.painAfter)||0});
  const save=async(e:any)=>{e.preventDefault();await post({action:"wellness",date:today,...Object.fromEntries(new FormData(e.currentTarget))});refresh()};
  return <section className={`readiness card ${decision.tone}`}><div className="readiness-score"><b>{score}</b><span>готовность</span></div><div><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><h3>{decision.title}</h3><p className="readiness-text">{decision.text}</p><small className="readiness-summary">Сон {sleep||"—"} ч · энергия {energy}/5 · боль {pain}/10</small><form onSubmit={save}><label>Энергия<select name="energy" defaultValue={current.energy||3}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Боль 0–10<input name="pain" type="number" min="0" max="10" defaultValue={current.pain||0}/></label><label>Где болит<input name="painArea" placeholder="Например, тазобедренный" defaultValue={current.painArea||""}/></label><label>Комментарий<input name="note" placeholder="Самочувствие сегодня" defaultValue={current.note||""}/></label><button>Оценить</button></form>{pain>0&&<small className="readiness-warning">При боли в тазобедренном суставе замени силовую на прогулку или упражнения для верха тела. При повторяющейся боли обратись к врачу.</small>}</div></section>
 }
