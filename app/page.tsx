@@ -10,6 +10,9 @@ import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
+const NAV_ITEMS = [
+  ["Сегодня", "⌂"], ["План", "▦"], ["Дорожная карта", "⌁"], ["Питание", "◒"], ["Прогресс", "◎"]
+] as const;
 
 export default function Home() {
   const [filter, setFilter] = useState("Все");
@@ -46,9 +49,7 @@ export default function Home() {
         <a className="brand" href="#top" aria-label="VOLT — на главную"><span className="brand-mark">V</span><b>VOLT</b></a>
         <button className="mobile-sidebar-close" aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}>×</button>
         <nav className="side-nav" aria-label="Основная навигация">
-          {[
-            ["Сегодня", "⌂"], ["План", "▦"], ["Дорожная карта", "⌁"], ["Питание", "◒"], ["Прогресс", "◎"]
-          ].map(([label, icon]) => (
+          {NAV_ITEMS.map(([label, icon]) => (
             <button key={label} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
           ))}
         </nav>
@@ -136,7 +137,7 @@ export default function Home() {
 
       {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">{[["Сегодня","⌂"],["План","▦"],["Дорожная карта","⌁"],["Питание","◒"],["Прогресс","◎"]].map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>)}</nav>
+      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>)}</nav>
     </main></AuthGate>
   );
 }
