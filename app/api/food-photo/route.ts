@@ -12,7 +12,7 @@ export async function POST(req:Request){
  for(const f of files){const bytes=Buffer.from(await f.arrayBuffer());if(!sig[f.type](bytes))return Response.json({error:"Содержимое файла не соответствует формату"},{status:400});content.push({type:"image",source:{type:"base64",media_type:f.type,data:bytes.toString("base64")}})}
  content.push({type:"text",text:prompt});
  try{
-  const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},signal:AbortSignal.timeout(60000),body:JSON.stringify({model:"claude-sonnet-5",max_tokens:8000,temperature:0.2,messages:[{role:"user",content}]})});
+  const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},signal:AbortSignal.timeout(60000),body:JSON.stringify({model:"claude-sonnet-5",max_tokens:8000,messages:[{role:"user",content}]})});
   if(!r.ok)return Response.json({error:`Сервис распознавания недоступен (${r.status})`},{status:502});
   const j=await r.json(),text=String((j.content||[]).map((p:any)=>p.text||"").join("\n")).trim();
   const rows=text.split(/\r?\n/).map(s=>s.trim()),lines=rows.filter(s=>/ккал/i.test(s)&&/\(\s*Б\s*\d/i.test(s)),note=(rows.find(s=>/^итог\s*:/i.test(s))||"").replace(/^итог\s*:\s*/i,"").slice(0,600);
