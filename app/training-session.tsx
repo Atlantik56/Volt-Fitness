@@ -95,13 +95,14 @@ export function WorkoutSession({plan,strengthLogs,close,done}:{plan:WorkoutPlan;
 function ExerciseStepView({step,showLoad,positionLabel,activeSeconds,value,onValue,weight,onWeight,difficulty,onDifficulty,substituted,onSubstitute,recommendation,onDone,onDiscard}:{step:ExerciseStep;showLoad:boolean;positionLabel:string;activeSeconds:number;value:string;onValue:(v:string)=>void;weight:string;onWeight:(v:string)=>void;difficulty:string;onDifficulty:(v:string)=>void;substituted:boolean;onSubstitute:()=>void;recommendation:ProgressDecision;onDone:()=>void;onDiscard:()=>void}){
   const [formOpen,setFormOpen]=useState(()=>value!=="");
   const [replacementOpen,setReplacementOpen]=useState(false);
+  const [videoOpen,setVideoOpen]=useState(false);
   const replacement=exerciseReplacement(step.exercise[0],step.exercise[3]);
   const display=substituted?replacement:{name:step.exercise[0],image:step.exercise[3],explanation:step.exercise[1]};
   const canSave=step.phase==="warmup"||Number(value)>0;
-  const handlePrimary=()=>{if(step.phase==="warmup")return onDone();if(!formOpen)return setFormOpen(true);if(canSave)onDone()};
+  const handlePrimary=()=>{setVideoOpen(false);if(step.phase==="warmup")return onDone();if(!formOpen)return setFormOpen(true);if(canSave)onDone()};
   return <section className="session-card">
     <header className="session-card-head"><div><p className="eyebrow">{positionLabel}</p><h2>{display.name}</h2></div><div className="session-clock"><b>{sessionClock(activeSeconds)}</b><span>тренировка</span></div><button aria-label="Прервать тренировку" onClick={onDiscard}>×</button></header>
-    <div className="session-card-body"><div className="session-media">{display.image?<img src={display.image} alt={`Техника: ${display.name}`}/>:null}<ExerciseVideo name={display.name}/></div><div className="session-info">
+    <div className="session-card-body"><div className="session-media">{display.image?<img src={display.image} alt={`Техника: ${display.name}`}/>:null}<ExerciseVideo name={display.name} open={videoOpen} onOpenChange={setVideoOpen}/></div><div className="session-info">
       {substituted&&<em className="replacement-badge">БЕЗОПАСНАЯ ЗАМЕНА</em>}<p className="session-target"><strong>{step.exercise[2]}</strong></p><p className="session-note">{display.explanation}</p>
       {step.phase==="work"&&showLoad&&<div className={`progress-hint ${recommendation.kind}`}><span>{recommendation.title}</span><small>{recommendation.text}</small></div>}
       <button type="button" className="pain-replacement" onClick={()=>setReplacementOpen(open=>!open)}>Больно / неудобно</button>
