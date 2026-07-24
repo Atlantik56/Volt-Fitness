@@ -2,9 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { buildHomeWeek, meals, phases, rules, safety, week } from "./personal-data";
-import { exerciseVideoId } from "./exercise-videos";
-import { progressionDecision } from "./exercise-progress";
-import { exerciseReplacement } from "./exercise-replacements";
+import { ExerciseVideo } from "./exercise-video";
+import { WorkoutSession } from "./training-session";
 import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
@@ -155,7 +154,6 @@ function Personal({section,data,refresh}:{section:string;data:any;refresh:()=>vo
  return <ProgressPage data={data} refresh={refresh}/>
 }
 function Notice(){return <div className="safety">✦ <span><b>Суставы под защитой</b>{safety}</span></div>}
-function ExerciseVideo({name,compact=false}:{name:string;compact?:boolean}){const id=exerciseVideoId(name),[open,setOpen]=useState(false);if(!id)return null;return <div className={`exercise-video${compact?" compact":""}`}><button type="button" aria-expanded={open} onClick={e=>{e.preventDefault();e.stopPropagation();setOpen(x=>!x)}}>{open?"▴ Скрыть видео":"▶ Смотреть технику"}</button>{open&&<div className="exercise-video-frame"><iframe src={`https://www.youtube-nocookie.com/embed/${id}?rel=0&playsinline=1`} title={`Техника: ${name}`} loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerPolicy="strict-origin-when-cross-origin" allowFullScreen/></div>}</div>}
 function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any)=><article key={x[0]}>{x[3]&&<img src={x[3]} alt={`Пример: ${x[0]}`}/>}<div><h4>{x[0]}</h4><p>{x[1]}</p><b>{x[2]}</b></div><ExerciseVideo name={x[0]}/></article>)}</div>}
 
 function NutritionDiary({data,refresh}:{data:any;refresh:()=>void}){
@@ -217,114 +215,6 @@ function Photo({item,title,onDelete}:{item:any;title:string;onDelete?:(id:number
  </article>
 }
 
-const EXERCISE_REST_SECONDS=45;
-function activityKindOf(title:string){return /плав|бассейн/i.test(title)?"swim":/велосип/i.test(title)?"bike":"strength"}
-function exerciseUnit(name:string){return name.toLowerCase().includes("планка")?"сек":"повт."}
-function sessionClock(n:number){return `${String(Math.floor(n/60)).padStart(2,"0")}:${String(n%60).padStart(2,"0")}`}
-
-type SessionStep =
- | {kind:"exercise";key:string;tuple:any[];isWarmup:boolean;showLoad:boolean;roundIndex:number;exerciseIndex:number}
- | {kind:"rest";key:string;nextTuple:any[]};
-
-function buildSessionSteps(plan:any):SessionStep[]{
- const rounds=Math.max(1,plan.rounds), warmup:any[]=plan.warmup||[], showLoad=activityKindOf(plan.title)==="strength";
- const core:SessionStep[]=[];
- warmup.forEach((tuple:any,i:number)=>core.push({kind:"exercise",key:`warmup-${i}`,tuple,isWarmup:true,showLoad:false,roundIndex:-1,exerciseIndex:i}));
- for(let r=0;r<rounds;r++)plan.exercises.forEach((tuple:any,i:number)=>core.push({kind:"exercise",key:`${r}-${i}`,tuple,isWarmup:false,showLoad,roundIndex:r,exerciseIndex:i}));
- const steps:SessionStep[]=[];
- core.forEach((step,idx)=>{
-  steps.push(step);
-  const next=core[idx+1];
-  if(step.kind==="exercise"&&!step.isWarmup&&showLoad&&next&&next.kind==="exercise")steps.push({kind:"rest",key:`rest-${step.key}`,nextTuple:next.tuple});
- });
- return steps;
-}
-
-function WorkoutSession({plan,strengthLogs,close,done}:{plan:any;strengthLogs:any[];close:()=>void;done:()=>void}){
- const steps=useMemo(()=>buildSessionSteps(plan),[plan]);
- const saved=readWorkoutDraft(plan.title);
- const [cursor,setCursor]=useState<number>(Math.min(Number(saved?.cursor)||0,steps.length));
- const [doneKeys,setDoneKeys]=useState<Record<string,boolean>>(saved?.done||{});
- const [values,setValues]=useState<Record<string,string>>(saved?.values||{});
- const [weights,setWeights]=useState<Record<string,string>>(()=>saved?.weights||Object.fromEntries(plan.exercises.map((x:any,i:number)=>[String(i),String(strengthLogs.find((log:any)=>log.exercise===x[0])?.weight||"")])));
- const [difficulties,setDifficulties]=useState<Record<string,string>>(saved?.difficulties||{});
- const [substitutions,setSubstitutions]=useState<Record<string,boolean>>(saved?.substitutions||{});
- const [activeSeconds,setActiveSeconds]=useState<number>(Number(saved?.activeSeconds)||0);
- const [restSecondsSpent,setRestSecondsSpent]=useState<number>(Number(saved?.restSecondsSpent)||0);
- const [metrics,setMetrics]=useState<Record<string,string>>({minHeartRate:"",avgHeartRate:"",maxHeartRate:"",calories:"",distanceMeters:"",avgSpeed:""});
- const [effort,setEffort]=useState("Нормально"),[painAfter,setPainAfter]=useState("0");
-
- const finished=cursor>=steps.length, step=finished?null:steps[cursor];
- const rounds=Math.max(1,plan.rounds), activityKind=activityKindOf(plan.title), warmupCount=(plan.warmup||[]).length;
-
- useEffect(()=>{if(finished)return;const resting=step?.kind==="rest";const timer=setInterval(()=>resting?setRestSecondsSpent(x=>x+1):setActiveSeconds(x=>x+1),1000);return()=>clearInterval(timer)},[finished,step?.kind]);
- useEffect(()=>{if(finished)return;localStorage.setItem("volt-active-workout",JSON.stringify({version:workoutDraftVersion,title:plan.title,cursor,done:doneKeys,values,weights,difficulties,substitutions,activeSeconds,restSecondsSpent,savedAt:Date.now()}))},[plan.title,cursor,doneKeys,values,weights,difficulties,substitutions,activeSeconds,restSecondsSpent,finished]);
-
- const markDone=(key:string)=>{setDoneKeys(d=>({...d,[key]:true}));setCursor(c=>Math.min(c+1,steps.length))};
- const skipRest=()=>setCursor(c=>Math.min(c+1,steps.length));
- const discard=()=>{if(!confirm("Прервать тренировку? Прогресс будет потерян."))return;localStorage.removeItem("volt-active-workout");close()};
-
- const details=Array.from({length:rounds}).flatMap((_,r)=>plan.exercises.map((x:any,i:number)=>{const replacement=exerciseReplacement(x[0],x[3]),replaced=!!substitutions[String(i)];return{key:`${r}-${i}`,name:replaced?replacement.name:x[0],originalName:x[0],value:Number(values[`${r}-${i}`])||0,weight:Number(weights[String(i)])||0,difficulty:difficulties[String(i)]||"Нормально",unit:exerciseUnit(x[0])}}));
- const reps=details.filter((x:any)=>x.unit==="повт.").reduce((n:number,x:any)=>n+x.value,0),plank=details.filter((x:any)=>x.unit==="сек").reduce((n:number,x:any)=>n+x.value,0);
- const nextDecisions=plan.exercises.map((x:any,i:number)=>{const performed=details.filter((d:any)=>d.originalName===x[0]);return{name:x[0],...progressionDecision(x[0],x[2],strengthLogs,{weight:Number(weights[String(i)])||0,reps:Math.max(...performed.map((d:any)=>d.value),0),difficulty:difficulties[String(i)]||"Нормально"})}});
- const metricFields=activityKind==="swim"?[["minHeartRate","Мин. пульс","уд/мин"],["avgHeartRate","Средний пульс","уд/мин"],["maxHeartRate","Макс. пульс","уд/мин"],["distanceMeters","Проплыл","м"]]:activityKind==="bike"?[["minHeartRate","Мин. пульс","уд/мин"],["avgHeartRate","Средний пульс","уд/мин"],["maxHeartRate","Макс. пульс","уд/мин"],["distanceMeters","Расстояние","м"],["avgSpeed","Средняя скорость","км/ч"]]:[["minHeartRate","Мин. пульс","уд/мин"],["avgHeartRate","Средний пульс","уд/мин"],["maxHeartRate","Макс. пульс","уд/мин"],["calories","Сожжено","ккал"]];
- const metricsValid=metricFields.every(([key])=>Number(metrics[key])>0)&&Number(metrics.minHeartRate)<=Number(metrics.avgHeartRate)&&Number(metrics.avgHeartRate)<=Number(metrics.maxHeartRate);
- const finish=async()=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed:Object.keys(doneKeys).filter(k=>doneKeys[k]),durationSeconds:activeSeconds,restSeconds:restSecondsSpent,details,effort,painAfter,...metrics})});localStorage.removeItem("volt-active-workout");done()};
-
- return <div className="modal-backdrop focus-mode session-mode">
-  {finished?<WorkoutFinishView plan={plan} rounds={rounds} activeSeconds={activeSeconds} reps={reps} plank={plank} nextDecisions={nextDecisions} activityKind={activityKind} metricFields={metricFields} metrics={metrics} onMetric={(k,v)=>setMetrics({...metrics,[k]:v})} effort={effort} onEffort={setEffort} painAfter={painAfter} onPainAfter={setPainAfter} metricsValid={metricsValid} onSave={finish} onClose={discard}/>
-  :step!.kind==="rest"?<RestStepView key={step!.key} totalSeconds={EXERCISE_REST_SECONDS} nextName={step!.nextTuple[0]} onSkip={skipRest} onExpire={skipRest} onDiscard={discard}/>
-  :<ExerciseStepView key={step!.key} step={step as any} positionLabel={(step as any).isWarmup?`Разминка · ${(step as any).exerciseIndex+1} из ${warmupCount}`:`Упражнение ${(step as any).roundIndex*plan.exercises.length+(step as any).exerciseIndex+1} из ${rounds*plan.exercises.length}${rounds>1?` · Круг ${(step as any).roundIndex+1} из ${rounds}`:""}`} activeSeconds={activeSeconds} value={values[(step as any).key]||""} onValue={(v:string)=>setValues({...values,[(step as any).key]:v})} weight={weights[String((step as any).exerciseIndex)]||""} onWeight={(v:string)=>setWeights({...weights,[String((step as any).exerciseIndex)]:v})} difficulty={difficulties[String((step as any).exerciseIndex)]||"Нормально"} onDifficulty={(v:string)=>setDifficulties({...difficulties,[String((step as any).exerciseIndex)]:v})} substituted={!!substitutions[String((step as any).exerciseIndex)]} onSubstitute={()=>setSubstitutions({...substitutions,[String((step as any).exerciseIndex)]:!substitutions[String((step as any).exerciseIndex)]})} recommendation={progressionDecision((step as any).tuple[0],(step as any).tuple[2],strengthLogs)} onDone={()=>markDone((step as any).key)} onDiscard={discard}/>}
- </div>;
-}
-
-function ExerciseStepView({step,positionLabel,activeSeconds,value,onValue,weight,onWeight,difficulty,onDifficulty,substituted,onSubstitute,recommendation,onDone,onDiscard}:{step:Extract<SessionStep,{kind:"exercise"}>;positionLabel:string;activeSeconds:number;value:string;onValue:(v:string)=>void;weight:string;onWeight:(v:string)=>void;difficulty:string;onDifficulty:(v:string)=>void;substituted:boolean;onSubstitute:()=>void;recommendation:any;onDone:()=>void;onDiscard:()=>void}){
- const [formOpen,setFormOpen]=useState(false),[replacementOpen,setReplacementOpen]=useState(false);
- const tuple=step.tuple, replacement=exerciseReplacement(tuple[0],tuple[3]), display=substituted?replacement:{name:tuple[0],image:tuple[3],explanation:tuple[1]};
- const valueUnit=exerciseUnit(tuple[0]), canSave=step.isWarmup||Number(value)>0;
- const handlePrimary=()=>{if(step.isWarmup)return onDone();if(!formOpen)return setFormOpen(true);if(!canSave)return;onDone()};
- return <section className="session-card">
-  <header className="session-card-head"><div><p className="eyebrow">{positionLabel}</p><h2>{display.name}</h2></div><div className="session-clock"><b>{sessionClock(activeSeconds)}</b><span>тренировка</span></div><button aria-label="Прервать тренировку" onClick={onDiscard}>×</button></header>
-  <div className="session-card-body">
-   <div className="session-media">{display.image?<img src={display.image} alt={`Техника: ${display.name}`}/>:null}<ExerciseVideo name={display.name}/></div>
-   <div className="session-info">
-    {substituted&&<em className="replacement-badge">БЕЗОПАСНАЯ ЗАМЕНА</em>}
-    <p className="session-target"><strong>{tuple[2]}</strong></p>
-    <p className="session-note">{substituted?replacement.explanation:tuple[1]}</p>
-    {!step.isWarmup&&step.showLoad&&<div className={`progress-hint ${recommendation.kind}`}><span>{recommendation.title}</span><small>{recommendation.text}</small></div>}
-    <button type="button" className="pain-replacement" onClick={()=>setReplacementOpen(o=>!o)}>Больно / неудобно</button>
-    {replacementOpen&&<section className="replacement-panel"><img src={replacement.image} alt={`Замена: ${replacement.name}`}/><div><small>СУСТАВОСБЕРЕГАЮЩИЙ ВАРИАНТ</small><b>{replacement.name}</b><p>{replacement.explanation}</p><button type="button" onClick={()=>{onSubstitute();setReplacementOpen(false)}}>{substituted?"Вернуть исходное":"Использовать замену"}</button></div></section>}
-    {!step.isWarmup&&formOpen&&<div className="session-result-form actual-fields">
-     <label><span>Фактически</span><div><input autoFocus aria-label="Фактически" type="number" min="0" inputMode="numeric" value={value} onChange={e=>onValue(e.target.value)}/><em>{valueUnit}</em></div></label>
-     {step.showLoad&&<><label><span>Рабочий вес</span><div><input aria-label="Рабочий вес" type="number" min="0" step="0.5" inputMode="decimal" placeholder="0" value={weight} onChange={e=>onWeight(e.target.value)}/><em>кг</em></div></label><label><span>Сложность (RPE)</span><select aria-label="Сложность" value={difficulty} onChange={e=>onDifficulty(e.target.value)}><option>Легко</option><option>Нормально</option><option>Тяжело</option><option>Боль</option></select></label><p className="weight-help">Гантели — вес одной, не ×2. Тренажёр — значение на стеке. 0 — собственный вес.</p></>}
-    </div>}
-   </div>
-  </div>
-  <footer className="session-card-foot"><button className="session-primary" disabled={formOpen&&!canSave} onClick={handlePrimary}>{step.isWarmup?"Готово":formOpen?(canSave?"Сохранить и продолжить":"Укажи результат"):"Выполнено"}</button></footer>
- </section>;
-}
-
-function RestStepView({totalSeconds,nextName,onSkip,onExpire,onDiscard}:{totalSeconds:number;nextName:string;onSkip:()=>void;onExpire:()=>void;onDiscard:()=>void}){
- const [secondsLeft,setSecondsLeft]=useState(totalSeconds);
- useEffect(()=>{const timer=setInterval(()=>setSecondsLeft(x=>{if(x<=1){clearInterval(timer);onExpire();return 0}return x-1}),1000);return()=>clearInterval(timer)},[]);
- const pct=Math.max(0,Math.min(100,Math.round((1-secondsLeft/totalSeconds)*100)));
- return <section className="session-card rest-card">
-  <header className="session-card-head"><div><p className="eyebrow">ОТДЫХ</p><h2>Дыши спокойно</h2></div><button aria-label="Прервать тренировку" onClick={onDiscard}>×</button></header>
-  <div className="rest-body"><div className="rest-clock">{secondsLeft}</div><div className="rest-progress"><i style={{width:`${pct}%`}}/></div><p className="rest-next">Дальше: <b>{nextName}</b></p></div>
-  <footer className="session-card-foot"><button className="session-primary" onClick={onSkip}>Пропустить отдых</button></footer>
- </section>;
-}
-
-function WorkoutFinishView({plan,rounds,activeSeconds,reps,plank,nextDecisions,activityKind,metricFields,metrics,onMetric,effort,onEffort,painAfter,onPainAfter,metricsValid,onSave,onClose}:{plan:any;rounds:number;activeSeconds:number;reps:number;plank:number;nextDecisions:any[];activityKind:string;metricFields:any[];metrics:Record<string,string>;onMetric:(k:string,v:string)=>void;effort:string;onEffort:(v:string)=>void;painAfter:string;onPainAfter:(v:string)=>void;metricsValid:boolean;onSave:()=>void;onClose:()=>void}){
- return <section className="workout-modal workout-summary"><header><div><p className="eyebrow">ТРЕНИРОВКА ЗАВЕРШЕНА</p><h2>Отличная работа</h2></div><button aria-label="Закрыть и сбросить тренировку" onClick={onClose}>×</button></header>
-  <div className="summary-grid"><article><b>{sessionClock(activeSeconds)}</b><span>активное время</span></article><article><b>{reps}</b><span>повторений</span></article><article><b>{plank}</b><span>секунд планки</span></article><article><b>{rounds}</b><span>{rounds===1?"круг":"круга"}</span></article></div>
-  <p>{plan.exercises.length} упражнений в каждом круге.</p>
-  {activityKind==="strength"&&<div className="progress-decisions"><div><p className="eyebrow">VOLT COACH</p><h3>Следующая тренировка</h3></div>{nextDecisions.map((x:any)=><article className={x.kind} key={x.name}><span>{x.kind==="weight"?"↑":x.kind==="reps"?"+":x.kind==="deload"?"↓":"="}</span><div><b>{x.name}</b><strong>{x.title}</strong><small>{x.text}</small></div></article>)}</div>}
-  <div className="result-metrics"><div><p className="eyebrow">САМОЧУВСТВИЕ</p><h3>Как прошла нагрузка</h3></div><div className="result-fields"><label><span>Нагрузка</span><select value={effort} onChange={e=>onEffort(e.target.value)}>{["Легко","Нормально","Тяжело","Боль"].map(x=><option key={x}>{x}</option>)}</select></label><label><span>Боль в суставах после, 0–10</span><input type="number" min="0" max="10" inputMode="numeric" value={painAfter} onChange={e=>onPainAfter(e.target.value)}/></label></div></div>
-  <div className="result-metrics"><div><p className="eyebrow">ДАННЫЕ С ЧАСОВ</p><h3>{activityKind==="swim"?"Плавание":activityKind==="bike"?"Велотренировка":"Нагрузка и пульс"}</h3></div><div className="result-fields">{metricFields.map(([key,label,unit]:any)=><label key={key}><span>{label}</span><div><input type="number" min="1" step={key==="avgSpeed"?"0.1":"1"} inputMode="decimal" value={metrics[key]} onChange={e=>onMetric(key,e.target.value)}/><em>{unit}</em></div></label>)}</div>{metrics.minHeartRate&&metrics.avgHeartRate&&metrics.maxHeartRate&&!metricsValid&&<small>Проверь пульс: минимальный ≤ средний ≤ максимальный.</small>}</div>
-  <button className="save-workout" disabled={!metricsValid} onClick={onSave}>{metricsValid?"Сохранить тренировку":"Заполни данные тренировки"}</button>
- </section>;
-}
 const measurementOptions=[["weight","Вес","кг"],["waist","Талия","см"],["chest","Грудь","см"],["biceps","Бицепс","см"],["thigh","Бедро","см"],["neck","Шея","см"]] as const;
 function MeasurementChart({measurements,target}:{measurements:any[];target:number}){
  const [metric,setMetric]=useState<string>("weight");
@@ -448,5 +338,3 @@ function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((N
 function fmt(value:any){return Number(value||0).toLocaleString("ru-RU")}
 function makeWeek(logs:any[]){const now=new Date(),today=localIso(now), monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));const labels=["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"];return labels.map((short,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);const iso=localIso(d),count=logs.filter(x=>x.date===iso).length;return{short,date:String(d.getDate()),iso,count,state:count?"done":iso===today?"active":iso<today?"missed":"future"}})}
 function orderedPlans(plans:any[],today:number){return [...plans].sort((a,b)=>((a.day-today+7)%7)-((b.day-today+7)%7))}
-const workoutDraftVersion=4;
-function readWorkoutDraft(title:string):any{if(typeof window==="undefined")return null;try{const raw=localStorage.getItem("volt-active-workout");if(!raw)return null;const saved=JSON.parse(raw);return saved.version===workoutDraftVersion&&saved.title===title&&Date.now()-saved.savedAt<43200000?saved:null}catch{return null}}
