@@ -8,7 +8,8 @@ import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
-import { buildCoachResult, COACH_ACTION_LABELS, type CoachAction } from "../lib/coach";
+import { buildCoachResult, COACH_ACTION_LABELS, COACH_TARGETS, type CoachAction } from "../lib/coach";
+import { buildCoachInsights } from "../lib/coach-insights";
 import { WhatsNewGate } from "./whats-new-gate";
 import { useToast } from "./toast";
 import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Route } from "lucide-react";
@@ -58,6 +59,7 @@ export default function Home() {
   const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
   const todayPlan=replacement||movedPlan||regularToday;
   const coach=useMemo(()=>buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile}),[data,todayPlan,today,loaded]);
+  const coachInsights=useMemo(()=>loaded?buildCoachInsights({date:today,measurements:data.measurements||[],workouts:data.workouts||[],foodLogs:data.foodLogs||[],strengthLogs:data.strengthLogs||[],planDays:homeWeek.map(d=>({day:d.day,type:d.type})),targets:{calories:COACH_TARGETS.calories,protein:COACH_TARGETS.protein},targetWeight:data.profile?.targetWeight!=null?Number(data.profile.targetWeight):null}):[],[data,homeWeek,today,loaded]);
   const coachAction:CoachAction|null=coach.decision?.action??null;
   const goCoach=()=>{setNav("Сегодня");setMobileMenu(false);setTimeout(()=>document.getElementById("volt-coach")?.scrollIntoView({behavior:"smooth",block:"start"}),80)};
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
@@ -118,7 +120,7 @@ export default function Home() {
 
         <MoodCheckin data={data} refresh={load}/>
         <Readiness data={data} refresh={load}/>
-        <CoachCard result={coach} plan={todayPlan} ready={loaded}/>
+        <CoachCard result={coach} plan={todayPlan} insights={coachInsights} ready={loaded}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 

@@ -25,3 +25,4 @@
 .readiness-coach-link{display:inline-block;margin:6px 0 4px;color:var(--lime);font-size:10.5px;text-decoration:none;border-bottom:1px dashed #3d4a1c;padding-bottom:1px}.readiness-coach-link:hover{border-bottom-style:solid}
 @media(max-width:760px){.coach-indicator{padding:7px 10px;font-size:10px;gap:6px}.coach-indicator-text{white-space:nowrap}.coach-status b{font-size:12px}}
 @media(max-width:420px){.coach-indicator-text{max-width:96px;overflow:hidden;text-overflow:ellipsis}}
+.coach-insights{margin-top:4px}.coach-insights-head{margin:0 0 8px;color:#727b81;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}

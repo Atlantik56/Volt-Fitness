@@ -5,8 +5,11 @@
 // чтобы карточка и индикатор не могли показать разные решения.
 
 import { COACH_ACTION_LABELS, type CoachResult } from "../lib/coach";
+import type { CoachInsight } from "../lib/coach-insights";
 
 const TONE_ICON:Record<string,string>={stop:"⛔",warn:"⚠",good:"✓",info:"◆"};
+// На карточке — только 1-2 самых важных наблюдения; полная лента (Sprint 6.15) появится позже.
+const CARD_INSIGHTS_VISIBLE=2;
 
 function CoachAbout(){
  return <details className="coach-about">
@@ -19,7 +22,7 @@ function CoachAbout(){
  </details>;
 }
 
-export function CoachCard({result,plan,ready=true}:{result:CoachResult;plan?:{title:string;type:string}|null;ready?:boolean}){
+export function CoachCard({result,plan,insights=[],ready=true}:{result:CoachResult;plan?:{title:string;type:string}|null;insights?:CoachInsight[];ready?:boolean}){
  const {advice,decision}=result;
  if(!ready)return <section id="volt-coach" className="coach-card card"><div className="coach-head"><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><small>Локально, без внешнего AI</small></div><ol className="coach-list"><li className="coach-item info"><span className="coach-icon" aria-hidden="true">◆</span><div><b>Собираю данные дня…</b><small>Решение появится, когда загрузятся тренировки, питание и самочувствие.</small></div></li></ol></section>;
  const meta=decision?COACH_ACTION_LABELS[decision.action]:null;
@@ -45,6 +48,12 @@ export function CoachCard({result,plan,ready=true}:{result:CoachResult;plan?:{ti
     <div><b>{item.title}</b><small>{item.reason}</small></div>
    </li>)}
   </ol>}
+  {insights.length>0&&<div className="coach-insights"><p className="coach-insights-head">Что заметил VOLT</p><ol className="coach-list">
+   {insights.slice(0,CARD_INSIGHTS_VISIBLE).map(item=><li key={item.id} className={`coach-item ${item.tone}`}>
+    <span className="coach-icon" aria-hidden="true">{TONE_ICON[item.tone]||"◆"}</span>
+    <div><b>{item.title}</b><small>{item.text}</small></div>
+   </li>)}
+  </ol></div>}
   <CoachAbout/>
  </section>;
 }
