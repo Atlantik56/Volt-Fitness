@@ -219,13 +219,13 @@ test("P1: старая боль вне недельного окна не счи
   assert.equal(result.advice.map(x=>x.id).includes("pain-persistent"),false);
 });
 
-test("P1: workout-no-progression не теряется рядом с workout-todo", ()=>{
+test("боль после прошлой тренировки заменяет силовую восстановлением", ()=>{
   const result=buildCoachResult({...normalDay(),workouts:[{date:"2026-07-23",painAfter:6}]});
   const advice=result.advice.map(x=>x.id);
-  assert.ok(advice.includes("workout-todo"),"общий совет тренироваться может остаться");
-  assert.ok(advice.includes("workout-no-progression"),"предупреждение по нагрузке не должно теряться");
-  // Сначала «выполни тренировку», затем «не повышай веса» — согласованная пара.
-  assert.ok(advice.indexOf("workout-todo")<advice.indexOf("workout-no-progression"));
+  assert.equal(result.decision?.action,"replace");
+  assert.equal(result.decision?.reasonCode,"low-readiness-strength-recovery");
+  assert.equal(advice.includes("workout-todo"),false);
+  assert.equal(advice.includes("workout-no-progression"),false);
 });
 
 test("P1: при боли ≥5 предупреждение по весам не противоречит отказу от нагрузки", ()=>{
@@ -280,4 +280,81 @@ test("день отдыха не превращается в тренирово�
   const advice=ids({...normalDay(),plan:{title:"Полный отдых",type:"Отдых"}});
   assert.ok(advice.includes("rest-day"));
   assert.equal(advice.includes("workout-todo"),false);
+});
+
+test("CoachDecision: ready=false и отсутствие плана не создают решения", ()=>{
+  assert.equal(buildCoachResult({...normalDay(),ready:false}).decision,null);
+  assert.equal(buildCoachResult({...normalDay(),plan:null}).decision,null);
+});
+
+test("CoachDecision: все пять действий достижимы", ()=>{
+  assert.equal(buildCoachResult(normalDay()).decision?.action,"proceed");
+  assert.equal(buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:2,pain:0}]}).decision?.action,"reduce");
+  assert.equal(buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:4,pain:5}]}).decision?.action,"replace");
+  assert.equal(buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:4,pain:7}]}).decision?.action,"rest");
+  assert.equal(buildCoachResult({...normalDay(),workouts:[{date:DATE,title:"  ГАНТЕЛИ   ПО КРУГУ ",type:"Силовая"}]}).decision?.action,"complete");
+});
+
+test("границы боли 5, 6 и 7 детерминированы для разных типов", ()=>{
+  const withPain=(pain:number,plan:CoachInput["plan"])=>buildCoachResult({
+    ...normalDay(),plan,wellnessLogs:[{date:DATE,energy:4,pain}],
+  }).decision;
+  assert.equal(withPain(5,strengthPlan)?.action,"replace");
+  assert.equal(withPain(6,{title:"Бассейн",type:"Кардио"})?.action,"reduce");
+  assert.equal(withPain(6,{title:"Прогулка и мобильность",type:"Восстановление"})?.action,"reduce");
+  assert.equal(withPain(7,{title:"Полный отдых",type:"Отдых"})?.action,"rest");
+});
+
+test("низкая, средняя и хорошая готовность дают reduce, reduce и proceed", ()=>{
+  assert.equal(buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:2,pain:0}]}).decision?.action,"reduce");
+  assert.equal(buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:3,pain:0}],activity:[{date:DATE,sleepHours:6.5,steps:8000,activeMinutes:60}]}).decision?.action,"reduce");
+  assert.equal(buildCoachResult(normalDay()).decision?.action,"proceed");
+});
+
+test("другая активность сегодня не завершает запланированную тренировку", ()=>{
+  const result=buildCoachResult({...normalDay(),workouts:[
+    {date:DATE,title:"Бассейн",type:"Кардио"},
+    {date:DATE,title:"Гантели по кругу",type:"Кардио"},
+  ]});
+  assert.equal(result.summary.workoutDone,false);
+  assert.equal(result.decision?.action,"proceed");
+});
+
+test("плавание нормализуется как cardio, восстановление и отдых не становятся strength", ()=>{
+  const kinds=[
+    buildCoachResult({...normalDay(),plan:{title:"Бассейн",type:"Плавание"}}).summary.planKind,
+    buildCoachResult({...normalDay(),plan:{title:"Прогулка",type:"Восстановление"}}).summary.planKind,
+    buildCoachResult({...normalDay(),plan:{title:"Полный отдых",type:"Отдых"}}).summary.planKind,
+  ];
+  assert.deepEqual(kinds,["cardio","recovery","rest"]);
+});
+
+test("решение не повышает нагрузку и не мутирует вход", ()=>{
+  const input=normalDay();
+  const before=structuredClone(input);
+  for(const variant of [
+    input,
+    {...input,wellnessLogs:[{date:DATE,energy:2,pain:0}]},
+    {...input,wellnessLogs:[{date:DATE,energy:4,pain:5}]},
+  ]){
+    const decision=buildCoachResult(variant).decision!;
+    assert.doesNotMatch(decision.suggestedLoad.details,/увеличь (объ[её]м|вес|темп|интенсивност|повтор|круг)|добавь (вес|круг|повтор)|повыс/i);
+  }
+  assert.deepEqual(input,before);
+});
+
+test("одинаковый вход даёт побайтно одинаковый результат", ()=>{
+  const input={...normalDay(),workouts:[{date:"2026-07-24",painAfter:4,effort:"Тяжело"}]};
+  assert.equal(JSON.stringify(buildCoachResult(input)),JSON.stringify(buildCoachResult(input)));
+});
+
+test("совместимые advice Sprint 3 сохранены и подчинены решению", ()=>{
+  const proceed=buildCoachResult(normalDay());
+  assert.ok(proceed.advice.some(x=>x.id==="workout-todo"));
+  const reduced=buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:2,pain:0}]});
+  assert.ok(reduced.advice.some(x=>x.id==="energy-low"));
+  assert.ok(reduced.advice.some(x=>x.id==="decision-reduce"));
+  const complete=buildCoachResult({...normalDay(),workouts:[{date:DATE,title:strengthPlan.title,type:strengthPlan.type}]});
+  assert.equal(complete.advice.some(x=>x.id==="workout-todo"),false);
+  assert.ok(complete.advice.some(x=>x.id==="keep-going"));
 });

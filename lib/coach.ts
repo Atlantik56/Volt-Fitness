@@ -40,9 +40,11 @@ export type CoachSummary={
   recentPainDays:number;
   hasWellness:boolean;
   plan:{title:string;type:string}|null;
+  planKind:CoachPlanKind|null;
   isRestDay:boolean;
   workoutDone:boolean;
   lastWorkoutPain:number|null;
+  lastWorkoutEffort:string;
   nutrition:CoachNutrition;
   steps:number|null;
   activeMinutes:number|null;
@@ -61,7 +63,23 @@ export type CoachAdvice={
 
 export type CoachResult={
   summary:CoachSummary;
+  decision:CoachDecision|null;
   advice:CoachAdvice[];
+};
+
+export type CoachAction="proceed"|"reduce"|"replace"|"rest"|"complete";
+export type CoachPlanKind="strength"|"cardio"|"recovery"|"rest";
+export type CoachDecision={
+  action:CoachAction;
+  priority:number;
+  reasonCode:string;
+  title:string;
+  explanation:string;
+  suggestedLoad:{
+    title:string;
+    type:CoachPlanKind;
+    details:string;
+  };
 };
 
 export type CoachInput={
@@ -89,6 +107,28 @@ const SEVERE_PAIN=8;
 const NOTABLE_PAIN=5;
 const PAIN_WINDOW_DAYS=7;
 const PERSISTENT_PAIN_DAYS=3;
+
+const normalizeText=(value:unknown)=>String(value??"")
+  .trim().toLocaleLowerCase("ru-RU")
+  .replace(/ё/g,"е")
+  .replace(/[^\p{L}\p{N}]+/gu," ")
+  .trim();
+
+// Внутренняя модель Coach. Она намеренно не переиспользует ActivityKind:
+// восстановление и отдых не должны по умолчанию становиться силовой.
+export function normalizeCoachPlanKind(type:unknown,title:unknown=""):CoachPlanKind{
+  const normalizedType=normalizeText(type);
+  const normalizedTitle=normalizeText(title);
+  if(normalizedType==="отдых"||/\bотдых\b/.test(normalizedTitle))return "rest";
+  if(normalizedType==="восстановление"||/восстанов|мобильност|прогулк/.test(normalizedTitle))return "recovery";
+  if(normalizedType==="кардио"||normalizedType==="плавание"||/плаван|бассейн/.test(normalizedTitle))return "cardio";
+  return "strength";
+}
+
+const samePlannedWorkout=(workout:any,plan:{title:string;type:string},date:string)=>
+  workout?.date===date
+  &&normalizeText(workout?.title)===normalizeText(plan.title)
+  &&normalizeCoachPlanKind(workout?.type,workout?.title)===normalizeCoachPlanKind(plan.type,plan.title);
 
 // Число из произвольного источника; null, если значения нет или оно нечитаемо.
 // Пустая строка, null и undefined — это «нет данных», а не ноль.
@@ -161,6 +201,8 @@ export function buildCoachSummary(input:CoachInput):CoachSummary{
     .sort((a,b)=>String(b.date).localeCompare(String(a.date)))[0]??null;
 
   const plan=input.plan??null;
+  const planKind=plan?normalizeCoachPlanKind(plan.type,plan.title):null;
+  const workoutDone=plan?workouts.some(x=>samePlannedWorkout(x,plan,date)):false;
 
   // Устойчивая боль: сколько дней за последнюю неделю боль достигала заметного уровня.
   const recentPainDays=wellnessLogs.filter(row=>{
@@ -179,9 +221,11 @@ export function buildCoachSummary(input:CoachInput):CoachSummary{
     recentPainDays,
     hasWellness:Boolean(wellness),
     plan,
-    isRestDay:plan?plan.type==="Отдых":false,
-    workoutDone:workouts.some(x=>x?.date===date),
+    planKind,
+    isRestDay:planKind==="rest",
+    workoutDone,
     lastWorkoutPain:previousWorkout?numberOrNull(previousWorkout.painAfter):null,
+    lastWorkoutEffort:typeof previousWorkout?.effort==="string"?previousWorkout.effort:"",
     nutrition:buildNutrition(foodLogs,date),
     steps:today?numberOrNull(today.steps)??0:null,
     activeMinutes:today?numberOrNull(today.activeMinutes)??0:null,
@@ -287,11 +331,123 @@ const RULES:((s:CoachSummary)=>CoachAdvice|null)[]=[
 // «не повышай веса» противоречил бы отказу от нагрузки.
 const LOAD_ADVICE_IDS=new Set(["workout-todo","steps-low","workout-no-progression"]);
 
-export function resolveCoachAdvice(summary:CoachSummary,candidates:CoachAdvice[]):CoachAdvice[]{
-  let advice=candidates;
+const DECISION_PRIORITY:Record<CoachAction,number>={
+  rest:0,
+  replace:1,
+  reduce:2,
+  proceed:3,
+  complete:4,
+};
 
-  // 1. Безопасность подавляет нагрузку: боль ≥ 5 исключает тяжёлую тренировку и рост нагрузки.
-  if(summary.pain!==null&&summary.pain>=NOTABLE_PAIN)advice=advice.filter(x=>!LOAD_ADVICE_IDS.has(x.id));
+const proposed=(title:string,type:CoachPlanKind,details:string)=>({title,type,details});
+
+export function decideCoach(summary:CoachSummary):CoachDecision|null{
+  const plan=summary.plan;
+  const kind=summary.planKind;
+  if(!plan||!kind)return null;
+
+  if(summary.workoutDone)return {
+    action:"complete",priority:DECISION_PRIORITY.complete,reasonCode:"planned-workout-completed",
+    title:"План на сегодня выполнен",
+    explanation:"Запись совпадает с сегодняшним планом по названию и типу. Повторять тренировку не нужно.",
+    suggestedLoad:proposed(plan.title,kind,"Тренировка уже завершена; дополнительная нагрузка не предлагается."),
+  };
+
+  if(summary.pain!==null&&summary.pain>=7)return {
+    action:"rest",priority:DECISION_PRIORITY.rest,reasonCode:"pain-seven-or-higher",
+    title:"Сегодня отдых без тренировочной нагрузки",
+    explanation:`Боль ${summary.pain}/10 имеет высший приоритет над планом.`,
+    suggestedLoad:proposed("Отдых", "rest","Сон и обычная повседневная активность; тренировочную нагрузку сегодня не добавлять."),
+  };
+
+  if(summary.pain!==null&&summary.pain>=5){
+    if(kind==="rest")return {
+      action:"rest",priority:DECISION_PRIORITY.rest,reasonCode:"pain-five-six-rest-plan",
+      title:"Сохрани запланированный отдых",
+      explanation:`Боль ${summary.pain}/10: нагрузку добавлять нельзя.`,
+      suggestedLoad:proposed(plan.title,"rest","Оставь исходный день отдыха без дополнительной активности."),
+    };
+    if(kind==="strength")return {
+      action:"replace",priority:DECISION_PRIORITY.replace,reasonCode:"pain-five-six-strength",
+      title:"Замени силовую на существующее восстановление",
+      explanation:`Боль ${summary.pain}/10 исключает силовую тренировку.`,
+      suggestedLoad:proposed("Прогулка и мобильность","recovery","Только спокойная прогулка и безболезненная мобильность из восстановительного плана."),
+    };
+    return {
+      action:"reduce",priority:DECISION_PRIORITY.reduce,reasonCode:`pain-five-six-${kind}`,
+      title:kind==="cardio"?"Сократи кардио до восстановительного темпа":"Сократи восстановительную сессию",
+      explanation:`Боль ${summary.pain}/10: допустим только более лёгкий вариант исходного плана.`,
+      suggestedLoad:proposed(plan.title,kind,kind==="cardio"
+        ?"Сократи продолжительность примерно вдвое, держи спокойный разговорный темп и остановись при боли."
+        :"Сократи продолжительность примерно вдвое и оставь только безболезненные движения."),
+    };
+  }
+
+  const lowEnergy=summary.energy!==null&&summary.energy<=2;
+  const shortSleep=summary.sleepHours!==null&&summary.sleepHours<6;
+  const previousPainHigh=summary.lastWorkoutPain!==null&&summary.lastWorkoutPain>=5;
+  const previousEffortPain=/боль/i.test(summary.lastWorkoutEffort);
+  if(lowEnergy||shortSleep||previousPainHigh||previousEffortPain){
+    if(kind==="strength"&&(previousPainHigh||previousEffortPain))return {
+      action:"replace",priority:DECISION_PRIORITY.replace,reasonCode:"low-readiness-strength-recovery",
+      title:"Замени силовую на восстановление",
+      explanation:"После предыдущей нагрузки была выраженная боль; сегодня силовую не продолжаем.",
+      suggestedLoad:proposed("Прогулка и мобильность","recovery","Используй только спокойную прогулку и безболезненную мобильность из существующего плана."),
+    };
+    if(kind==="rest")return {
+      action:"proceed",priority:DECISION_PRIORITY.proceed,reasonCode:"low-readiness-rest-plan",
+      title:"Выполни текущий план отдыха",
+      explanation:"Низкая готовность подтверждает день отдыха; дополнительная активность не нужна.",
+      suggestedLoad:proposed(plan.title,"rest","Сохрани исходный план отдыха без добавления нагрузки."),
+    };
+    return {
+      action:"reduce",priority:DECISION_PRIORITY.reduce,reasonCode:"low-readiness-reduce",
+      title:"Выполни облегчённый вариант",
+      explanation:"Низкая готовность по доступным данным требует уменьшить, а не наращивать нагрузку.",
+      suggestedLoad:proposed(plan.title,kind,"Убери один круг или сократи длительность примерно на треть; сохрани прежнюю интенсивность или ниже и увеличь отдых."),
+    };
+  }
+
+  const mediumEnergy=summary.energy===3;
+  const mediumSleep=summary.sleepHours!==null&&summary.sleepHours>=6&&summary.sleepHours<7;
+  const previousPain=summary.lastWorkoutPain!==null&&summary.lastWorkoutPain>=3;
+  const hardEffort=/тяжело/i.test(summary.lastWorkoutEffort);
+  if((mediumEnergy&&mediumSleep)||previousPain||hardEffort)return {
+    action:"reduce",priority:DECISION_PRIORITY.reduce,reasonCode:"medium-readiness-reduce",
+    title:"Сохрани план, но снизь объём",
+    explanation:"Готовность средняя или предыдущая нагрузка далась тяжело; прогрессия сегодня не нужна.",
+    suggestedLoad:proposed(plan.title,kind,kind==="rest"
+      ?"Сохрани исходный отдых без добавления нагрузки."
+      :"Убери один круг или сократи длительность примерно на четверть; веса и темп не повышай."),
+  };
+
+  return {
+    action:"proceed",priority:DECISION_PRIORITY.proceed,reasonCode:"readiness-good",
+    title:kind==="rest"?"Следуй плану отдыха":"Выполни текущий план",
+    explanation:"Доступные показатели не требуют менять сегодняшний план.",
+    suggestedLoad:proposed(plan.title,kind,"Выполни исходный план без увеличения объёма, веса, темпа или интенсивности."),
+  };
+}
+
+const decisionAdvice=(decision:CoachDecision):CoachAdvice=>({
+  // Сохраняем Sprint 3 id для обычного выполнения плана.
+  id:decision.action==="proceed"?"workout-todo":`decision-${decision.action}`,
+  category:"training",
+  priority:decision.priority+0.01,
+  tone:decision.action==="rest"?"stop":decision.action==="reduce"||decision.action==="replace"?"warn":"good",
+  title:decision.title,
+  reason:`${decision.explanation} ${decision.suggestedLoad.details}`,
+});
+
+export function resolveCoachAdvice(summary:CoachSummary,candidates:CoachAdvice[],decision:CoachDecision|null):CoachAdvice[]{
+  let advice=decision?[decisionAdvice(decision),...candidates]:candidates;
+  if(decision)advice=advice.filter((x,index)=>x.id!=="workout-todo"||index===0);
+
+  // Итоговое решение — источник истины для всех нагрузочных советов.
+  if(decision?.action==="rest")advice=advice.filter(x=>!LOAD_ADVICE_IDS.has(x.id)&&x.id!=="energy-low"&&x.id!=="sleep-short");
+  if(decision?.action==="replace")advice=advice.filter(x=>!LOAD_ADVICE_IDS.has(x.id));
+  if(decision?.action==="complete")advice=advice.filter(x=>x.id!=="workout-todo"&&x.id!=="energy-low"&&x.id!=="sleep-short");
+  if(decision?.action==="reduce")advice=advice.filter(x=>x.id!=="workout-todo");
 
   // 2. Выполненная тренировка не предлагается повторно.
   if(summary.workoutDone)advice=advice.filter(x=>x.id!=="workout-todo");
@@ -313,7 +469,8 @@ export function buildCoachResult(input:CoachInput):CoachResult{
   const summary=buildCoachSummary(input);
   // Пока данные не загружены (или загрузка не удалась), Coach молчит:
   // сводка на пустом состоянии неотличима от «ничего не сделано» и дала бы ложные утверждения.
-  if(input.ready===false)return {summary,advice:[]};
+  if(input.ready===false)return {summary,decision:null,advice:[]};
+  const decision=decideCoach(summary);
   const candidates=RULES.map(rule=>rule(summary)).filter((x):x is CoachAdvice=>x!==null);
-  return {summary,advice:resolveCoachAdvice(summary,candidates)};
+  return {summary,decision,advice:resolveCoachAdvice(summary,candidates,decision)};
 }

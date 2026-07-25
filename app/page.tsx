@@ -8,12 +8,20 @@ import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
+import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Route } from "lucide-react";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
 const NAV_ITEMS = [
   ["Сегодня", "⌂"], ["План", "▦"], ["Дорожная карта", "⌁"], ["Питание", "◒"], ["Прогресс", "◎"]
 ] as const;
+const MOBILE_ICONS={
+  "Сегодня":HomeIcon,
+  "План":CalendarDays,
+  "Дорожная карта":Route,
+  "Питание":Apple,
+  "Прогресс":ChartColumn,
+} as const;
 
 export default function Home() {
   const [filter, setFilter] = useState("Все");
@@ -140,7 +148,7 @@ export default function Home() {
 
       {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label,icon])=><button key={label} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>)}</nav>
+      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={23} strokeWidth={2}/></span>{label}</button>})}</nav>
     </main></AuthGate>
   );
 }
