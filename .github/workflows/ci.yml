@@ -44,3 +44,17 @@ jobs:
 
       - name: Build application
         run: npm run build
+
+  deploy:
+    name: Deploy to production
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, volt-vps]
+    timeout-minutes: 10
+    concurrency:
+      group: volt-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Pull latest and rebuild container
+        run: sudo /opt/volt-fitness/deploy.sh
