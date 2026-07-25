@@ -1,12 +1,24 @@
 import { db } from "@/lib/db";
 import { requireAuth, sameOrigin } from "@/lib/auth";
-import { getSetting } from "@/lib/settings";
+import { getSetting, setSetting } from "@/lib/settings";
 import { buildAiCoachContext } from "@/lib/ai-context";
 import { askAiCoach, AiCoachError, type AiChatMessage } from "@/lib/ai-coach";
 
 export const runtime = "nodejs";
 
 const dateOk = (x: any) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
+
+// Дневной лимит сообщений — защита от случайной цепочки запросов (баг в UI,
+// повторные клики, зависший ретрай), а не от обычного использования одним человеком.
+const DAILY_MESSAGE_LIMIT = 40;
+
+function checkAndBumpDailyLimit(date: string): boolean {
+  const key = `coach_chat_count_${date}`;
+  const count = Number(getSetting(key)) || 0;
+  if (count >= DAILY_MESSAGE_LIMIT) return false;
+  setSetting(key, String(count + 1));
+  return true;
+}
 
 export async function POST(req: Request) {
   const denied = await requireAuth();
@@ -23,6 +35,8 @@ export async function POST(req: Request) {
   const date = dateOk(body.date) ? body.date : null;
   const question = typeof body.question === "string" ? body.question.trim().slice(0, 1000) : "";
   if (!date || !question) return Response.json({ error: "Укажите дату и вопрос" }, { status: 400 });
+  if (!checkAndBumpDailyLimit(date))
+    return Response.json({ error: `Дневной лимит сообщений тренеру исчерпан (${DAILY_MESSAGE_LIMIT}). Продолжите завтра.` }, { status: 429 });
 
   const plan =
     body.plan && typeof body.plan.title === "string" && typeof body.plan.type === "string"
@@ -32,8 +46,8 @@ export async function POST(req: Request) {
   const history: AiChatMessage[] = Array.isArray(body.history)
     ? body.history
         .filter((m: any) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string")
-        .slice(-10)
-        .map((m: any) => ({ role: m.role, text: String(m.text).slice(0, 2000) }))
+        .slice(-6)
+        .map((m: any) => ({ role: m.role, text: String(m.text).slice(0, 400) }))
     : [];
 
   const key = getSetting("anthropic_api_key") || process.env.ANTHROPIC_API_KEY;

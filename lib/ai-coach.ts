@@ -44,6 +44,15 @@ function parseStructuredReply(raw:string):AiCoachReply{
 
 export type AnthropicFetch=(url:string,init:RequestInit)=>Promise<Response>;
 
+// Приложение личное и однопользовательское: Haiku на порядок дешевле Sonnet и
+// для коротких вопросов по уже посчитанным показателям этого достаточно.
+// Короткий system-промпт помечен cache_control — Anthropic кэширует его между
+// запросами, и повторные обращения в тот же день почти не тратят токены на промпт.
+const MODEL="claude-haiku-4-5-20251001";
+const MAX_REPLY_TOKENS=500;
+const MAX_HISTORY_MESSAGES=6;
+const MAX_HISTORY_MESSAGE_CHARS=400;
+
 export async function askAiCoach(
   apiKey:string,
   context:AiCoachContext,
@@ -53,7 +62,7 @@ export async function askAiCoach(
 ):Promise<AiCoachReply>{
   const contextText=renderAiCoachContextText(context);
   const messages=[
-    ...history.slice(-10).map(m=>({role:m.role,content:m.text})),
+    ...history.slice(-MAX_HISTORY_MESSAGES).map(m=>({role:m.role,content:m.text.slice(0,MAX_HISTORY_MESSAGE_CHARS)})),
     {role:"user" as const,content:`Контекст пользователя на сегодня (${context.date}):\n${contextText}\n\nВопрос пользователя: ${question}`},
   ];
   let response:Response;
@@ -62,7 +71,12 @@ export async function askAiCoach(
       method:"POST",
       headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
       signal:AbortSignal.timeout(30000),
-      body:JSON.stringify({model:"claude-sonnet-5",max_tokens:1000,system:SYSTEM_PROMPT,messages}),
+      body:JSON.stringify({
+        model:MODEL,
+        max_tokens:MAX_REPLY_TOKENS,
+        system:[{type:"text",text:SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],
+        messages,
+      }),
     });
   }catch{
     throw new AiCoachError("Сервис ИИ-тренера не ответил, попробуйте ещё раз",504);
