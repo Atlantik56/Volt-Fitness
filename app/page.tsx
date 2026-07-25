@@ -8,6 +8,7 @@ import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
+import { WhatsNewGate } from "./whats-new-gate";
 import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Route } from "lucide-react";
 import {
   MEASUREMENT_KEYS, METRIC_LABELS, METRIC_UNITS, PERIODS, PERIOD_LABELS,
@@ -65,7 +66,7 @@ export default function Home() {
         <button className="mobile-sidebar-close" aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}>×</button>
         <nav className="side-nav" aria-label="Основная навигация">
           {NAV_ITEMS.map(([label, icon]) => (
-            <button key={label} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
+            <button key={label} data-tour-id={label==="Прогресс"?"nav-progress":undefined} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
           ))}
         </nav>
         <div className="side-bottom">
@@ -152,8 +153,9 @@ export default function Home() {
       </section>
 
       {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
+      {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={23} strokeWidth={2}/></span>{label}</button>})}</nav>
+      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Прогресс"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={23} strokeWidth={2}/></span>{label}</button>})}</nav>
     </main></AuthGate>
   );
 }
@@ -218,7 +220,7 @@ function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  const submitProfile=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"profile",...b})});refresh()};
 
  return <div className="detail-page">{toast&&<div className="toast">{toast}</div>}<Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={profile.name} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
- <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика"].map(x=><button key={x} type="button" className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
+ <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика"].map(x=><button key={x} type="button" data-tour-id={x==="Аналитика"?"tab-analytics":undefined} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
  {tab==="Тело"&&<>
  <ProgressSummaryHero summary={summary} profile={profile}/>
 

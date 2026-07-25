@@ -3,6 +3,11 @@
 import { useMemo, useState } from "react";
 import { buildHomeWeek } from "./personal-data";
 import { calculateReadiness } from "../lib/readiness";
+import {
+  ANALYTICS_PERIODS, ANALYTICS_PERIOD_LABELS, buildHeatmap, buildWorkoutsCsv, buildWorkoutsJson,
+  computePeriodSummary, computeWellnessSummary, groupVolumeByPeriod, localIso as analyticsLocalIso,
+  type AnalyticsPeriod, type WorkoutRecord,
+} from "./training-analytics-model";
 
 const iso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
 const post=(body:Record<string,unknown>)=>fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
@@ -15,18 +20,77 @@ export function Readiness({data,refresh}:{data:any;refresh:()=>void}){
  return <section className={`readiness card ${decision.tone}`}><div className="readiness-score"><b>{score}</b><span>готовность</span></div><div><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><h3>{decision.title}</h3><p className="readiness-text">{decision.text}</p><small className="readiness-summary">Сон {sleep||"—"} ч · энергия {energy}/5 · боль {pain}/10</small><form onSubmit={save}><label>Энергия<select name="energy" defaultValue={current.energy||3}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Боль 0–10<input name="pain" type="number" min="0" max="10" defaultValue={current.pain||0}/></label><label>Где болит<input name="painArea" placeholder="Например, тазобедренный" defaultValue={current.painArea||""}/></label><label>Комментарий<input name="note" placeholder="Самочувствие сегодня" defaultValue={current.note||""}/></label><button>Оценить</button></form>{pain>0&&<small className="readiness-warning">При боли в тазобедренном суставе замени силовую на прогулку или упражнения для верха тела. При повторяющейся боли обратись к врачу.</small>}</div></section>
 }
 
+function downloadText(filename:string,content:string,mime:string){
+ const blob=new Blob([content],{type:mime}),url=URL.createObjectURL(blob),a=document.createElement("a");
+ a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);
+}
+const KIND_LABELS:Record<string,string>={strength:"Силовые",cardio:"Кардио",recovery:"Восстановление",rest:"Отдых"};
+
 export function TrainingAnalytics({data}:{data:any}){
- const [range,setRange]=useState(30), cutoff=new Date();cutoff.setDate(cutoff.getDate()-range+1);const from=iso(cutoff);
- const logs=(data.workouts||[]).filter((x:any)=>x.date>=from), activity=(data.activity||[]).filter((x:any)=>x.date>=from);
- const sum=(key:string)=>logs.reduce((n:number,x:any)=>n+Number(x[key]||0),0), avg=(key:string)=>{const v=logs.map((x:any)=>Number(x[key])).filter(Boolean);return v.length?Math.round(v.reduce((a:number,b:number)=>a+b,0)/v.length):0};
- const cards=[[logs.length,"тренировок"],[Math.round(sum("durationSeconds")/60),"минут"],[sum("calories")||activity.reduce((n:number,x:any)=>n+Number(x.calories||0),0),"ккал"],[avg("avgHeartRate")||"—","средний пульс"],[Math.round(sum("restSeconds")/60),"мин отдыха"],[Math.round(sum("distanceMeters")/100)/10,"км дистанции"]];
- return <section className="analytics card"><div className="section-head"><div><p className="eyebrow">АНАЛИТИКА</p><h3>Динамика тренировок</h3></div><div className="range-tabs">{[7,30,90].map(x=><button className={range===x?"active":""} onClick={()=>setRange(x)} key={x}>{x} дней</button>)}</div></div><div className="analytics-grid">{cards.map(([v,l])=><article key={String(l)}><b>{v}</b><span>{l}</span></article>)}</div><div className="mini-bars">{Array.from({length:Math.min(range,30)},(_,i)=>{const d=new Date();d.setDate(d.getDate()-(Math.min(range,30)-1-i));const count=logs.filter((x:any)=>x.date===iso(d)).length;return <i key={i} style={{height:`${Math.max(5,count*34)}%`}} title={`${iso(d)}: ${count}`}/>})}</div></section>
+ const [period,setPeriod]=useState<AnalyticsPeriod>("3M");
+ const workouts=useMemo(()=>(data.workouts||[]) as WorkoutRecord[],[data.workouts]);
+ const planDays=useMemo(()=>buildHomeWeek(data.profile?.programStart).map(d=>({day:d.day,type:d.type})),[data.profile?.programStart]);
+ const anchor=useMemo(()=>new Date(),[]);
+ const summary=useMemo(()=>computePeriodSummary(workouts,planDays,period,anchor),[workouts,planDays,period,anchor]);
+ const inPeriod=useMemo(()=>workouts.filter(w=>w.date>=summary.fromDate&&w.date<=summary.toDate),[workouts,summary.fromDate,summary.toDate]);
+ const wellness=useMemo(()=>computeWellnessSummary(inPeriod),[inPeriod]);
+ const granularity=period==="4W"?"week":"month";
+ const volume=useMemo(()=>groupVolumeByPeriod(inPeriod,granularity),[inPeriod,granularity]);
+ const cards:[string|number,string][]=[
+  [summary.totalWorkouts,"тренировок"],
+  [summary.planCompletionPct!=null?`${summary.planCompletionPct}%`:"—","выполнение плана"],
+  [`${summary.regularityPct}%`,"регулярность"],
+  [summary.activeDays,"активных дней"],
+ ];
+ return <section className="analytics card">
+  <div className="section-head"><div><p className="eyebrow">АНАЛИТИКА</p><h3>Динамика тренировок и восстановления</h3></div><div className="period-tabs">{ANALYTICS_PERIODS.map(p=><button type="button" key={p} className={period===p?"active":""} onClick={()=>setPeriod(p)}>{ANALYTICS_PERIOD_LABELS[p]}</button>)}</div></div>
+  <div className="analytics-grid">{cards.map(([v,l])=><article key={l}><b>{v}</b><span>{l}</span></article>)}</div>
+  <div className="analytics-kind-split">{(Object.keys(summary.byKind) as (keyof typeof summary.byKind)[]).filter(k=>summary.byKind[k]>0).map(k=><span key={k}>{KIND_LABELS[k]}: {summary.byKind[k]}</span>)}{summary.totalWorkouts===0&&<span>Нет тренировок за период</span>}</div>
+
+  <h4 className="analytics-subhead">Объём по {granularity==="week"?"неделям":"месяцам"}</h4>
+  <div className="volume-rows">{volume.length===0?<p className="detail-lead">Нет тренировок за период.</p>:volume.map(b=><article key={b.key} className="volume-row"><b>{b.key}</b>
+   {b.strengthSessions>0&&<span>Силовая: {b.strengthSessions} трен. · {b.strengthActiveMinutes} мин{b.strengthTotalReps>0?` · ${b.strengthTotalReps} повт.`:""}</span>}
+   {b.cardioSessions>0&&<span>Кардио: {b.cardioSessions} трен. · {Math.round(b.cardioDistanceMeters/100)/10} км · {b.cardioActiveMinutes} мин{b.cardioAvgHeartRate?` · пульс ~${b.cardioAvgHeartRate}`:""}</span>}
+  </article>)}</div>
+
+  <h4 className="analytics-subhead">Самочувствие после нагрузки</h4>
+  {wellness.sessionsTotal===0?<p className="detail-lead">Нет тренировок за период.</p>:<div className="wellness-summary">
+   <span>{wellness.sessionsWithPain} из {wellness.sessionsTotal} сессий с болью после</span>
+   <span>Средняя боль после: {wellness.avgPain}/10</span>
+   <span>{wellness.hardEffortSessions} с тяжёлым или болезненным усилием</span>
+  </div>}
+  <p className="detail-lead small">Это совпадения в сохранённых данных, а не диагноз и не причинно-следственная связь.</p>
+
+  <div className="analytics-export"><button type="button" className="ghost-btn" onClick={()=>downloadText(`volt-workouts-${summary.fromDate}_${summary.toDate}.csv`,buildWorkoutsCsv(inPeriod),"text/csv")}>Экспорт CSV</button><button type="button" className="ghost-btn" onClick={()=>downloadText(`volt-workouts-${summary.fromDate}_${summary.toDate}.json`,buildWorkoutsJson(inPeriod),"application/json")}>Экспорт JSON</button></div>
+ </section>
 }
 
+const HEATMAP_WEEKDAYS=[1,2,3,4,5,6,7] as const;
+function heatmapWeekday(date:Date){const d=date.getDay();return d===0?7:d}
+function heatmapLevel(count:number,max:number){if(!count)return 0;return Math.min(4,Math.ceil((count/max)*4))}
+
 export function TrainingCalendar({data}:{data:any}){
- const [cursor,setCursor]=useState(()=>new Date());const year=cursor.getFullYear(),month=cursor.getMonth(),first=new Date(year,month,1),offset=(first.getDay()+6)%7,total=new Date(year,month+1,0).getDate();
- const cells=Array.from({length:offset+total},(_,i)=>i<offset?null:i-offset+1), monthName=cursor.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
- return <section className="calendar card"><div className="section-head"><div><p className="eyebrow">КАЛЕНДАРЬ</p><h3>{monthName}</h3></div><div><button onClick={()=>setCursor(new Date(year,month-1,1))}>←</button><button onClick={()=>setCursor(new Date(year,month+1,1))}>→</button></div></div><div className="calendar-grid">{["Пн","Вт","Ср","Чт","Пт","Сб","Вс"].map(x=><small key={x}>{x}</small>)}{cells.map((day,i)=>{if(!day)return <span key={`e${i}`}/>;const date=iso(new Date(year,month,day)),work=(data.workouts||[]).filter((x:any)=>x.date===date);return <article key={date} className={date===iso(new Date())?"today":""}><b>{day}</b>{work.map((x:any)=><em key={x.id} title={x.title}>{x.type.slice(0,1)}</em>)}</article>})}</div></section>
+ const [months,setMonths]=useState(6);
+ const workouts=useMemo(()=>(data.workouts||[]) as WorkoutRecord[],[data.workouts]);
+ const anchor=useMemo(()=>new Date(),[]);
+ const fromIso=useMemo(()=>{const d=new Date(anchor);d.setMonth(d.getMonth()-months+1);d.setDate(1);return analyticsLocalIso(d)},[anchor,months]);
+ const toIso=analyticsLocalIso(anchor);
+ const cells=useMemo(()=>buildHeatmap(workouts,fromIso,toIso),[workouts,fromIso,toIso]);
+ const weeks=useMemo(()=>{
+  const firstWeekday=heatmapWeekday(new Date(`${fromIso}T00:00:00`));
+  const padded:({date:string;count:number}|null)[]=[...Array.from({length:firstWeekday-1},()=>null),...cells];
+  const out:({date:string;count:number}|null)[][]=[];
+  for(let i=0;i<padded.length;i+=7)out.push(padded.slice(i,i+7));
+  return out;
+ },[cells,fromIso]);
+ const max=Math.max(1,...cells.map(c=>c.count));
+ return <section className="calendar card heatmap-card">
+  <div className="section-head"><div><p className="eyebrow">КАЛЕНДАРЬ НАГРУЗКИ</p><h3>Активность за {months===6?"6 месяцев":"год"}</h3></div><div className="period-tabs"><button type="button" className={months===6?"active":""} onClick={()=>setMonths(6)}>6 мес</button><button type="button" className={months===12?"active":""} onClick={()=>setMonths(12)}>1 год</button></div></div>
+  {cells.every(c=>c.count===0)?<p className="detail-lead">Пока нет тренировок за выбранный период.</p>:<>
+  <div className="heatmap-grid">{weeks.map((week,wi)=><div className="heatmap-col" key={wi}>{HEATMAP_WEEKDAYS.map((wd,di)=>{const cell=week[di];return cell?<span key={cell.date} className={`heatmap-cell level-${heatmapLevel(cell.count,max)}`} title={`${cell.date}: ${cell.count} трен.`}/>:<span key={`${wi}-${wd}`} className="heatmap-cell empty"/>})}</div>)}</div>
+  <div className="heatmap-legend"><small>Меньше</small>{[0,1,2,3,4].map(l=><span key={l} className={`heatmap-cell level-${l}`}/>)}<small>Больше</small></div>
+  </>}
+ </section>
 }
 
 export function ScheduleEditor({data,refresh}:{data:any;refresh:()=>void}){

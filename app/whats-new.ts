@@ -1,0 +1,40 @@
+export interface WhatsNewHighlight {
+  title: string;
+  text: string;
+  target: string;
+  activate?: string[];
+}
+
+export interface WhatsNewRelease {
+  version: number;
+  label: string;
+  date: string;
+  summary: string[];
+  highlights: WhatsNewHighlight[];
+}
+
+export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
+  {
+    version: 1,
+    label: "Спринты 5–6",
+    date: "2026-07-25",
+    summary: [
+      "«Прогресс» переработан: сводка, графики по периодам 1М/3М/6М/1Г/Всё, карточки показателей, история замеров и приватное сравнение фото.",
+      "«Аналитика» тренировок: выполнение плана, регулярность, объём по неделям и месяцам, самочувствие после нагрузки, личные рекорды и календарь нагрузки.",
+      "Историю тренировок теперь можно выгрузить в CSV или JSON.",
+    ],
+    highlights: [
+      { title: "Раздел «Прогресс»", text: "Здесь теперь сводка, графики по периодам и история замеров вместо одной большой формы.", target: '[data-tour-id="nav-progress"], [data-tour-id="nav-progress-mobile"]', activate: ['[data-tour-id="nav-progress"], [data-tour-id="nav-progress-mobile"]'] },
+      { title: "Новый замер", text: "Форма компактная и открывается по кнопке — не занимает экран постоянно.", target: ".add-measurement-btn" },
+      { title: "Вкладка «Аналитика»", text: "Выполнение плана, регулярность, объём тренировок и самочувствие после нагрузки.", target: '[data-tour-id="tab-analytics"]', activate: ['[data-tour-id="tab-analytics"]'] },
+      { title: "Экспорт данных", text: "Выгрузи историю тренировок за период в CSV или JSON.", target: ".analytics-export" },
+      { title: "Календарь нагрузки", text: "Heatmap активности за 6 месяцев или год.", target: ".heatmap-card" },
+    ],
+  },
+];
+
+export const LATEST_WHATS_NEW_VERSION = WHATS_NEW_RELEASES.reduce((max, r) => Math.max(max, r.version), 0);
+
+export function pendingReleases(seenVersion: number): WhatsNewRelease[] {
+  return WHATS_NEW_RELEASES.filter((r) => r.version > seenVersion).sort((a, b) => a.version - b.version);
+}

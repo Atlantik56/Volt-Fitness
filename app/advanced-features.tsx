@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { computeCardioRecords, computeStrengthRecords, type WorkoutRecord } from "./training-analytics-model";
 
 const localIso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
 const post=(body:Record<string,unknown>)=>fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
@@ -31,6 +32,11 @@ export function GarminImport({refresh}:{refresh:()=>void}){
 }
 
 export function PersonalRecords({data}:{data:any}){
- const records=useMemo(()=>{const groups=new Map<string,any[]>();for(const x of data.strengthLogs||[])groups.set(x.exercise,[...(groups.get(x.exercise)||[]),x]);return [...groups].map(([exercise,logs])=>({exercise,best:Math.max(...logs.map(x=>Number(x.weight)||0)),volume:Math.max(...logs.map(x=>(Number(x.weight)||0)*(Number(x.reps)||0)))})).sort((a,b)=>b.volume-a.volume).slice(0,6)},[data.strengthLogs]);
- if(!records.length)return null;return <section className="records card"><p className="eyebrow">ЛИЧНЫЕ РЕКОРДЫ</p><h3>Лучшие рабочие веса</h3><div>{records.map(x=><article key={x.exercise}><span>{x.exercise}</span><b>{x.best} кг</b><small>лучший объём {x.volume}</small></article>)}</div></section>
+ const strengthRecords=useMemo(()=>computeStrengthRecords((data.strengthLogs||[]).map((x:any)=>({exercise:x.exercise,weight:Number(x.weight)||0,reps:Number(x.reps)||0,date:x.date}))).slice(0,6),[data.strengthLogs]);
+ const cardioRecords=useMemo(()=>computeCardioRecords((data.workouts||[]) as WorkoutRecord[]).slice(0,6),[data.workouts]);
+ if(!strengthRecords.length&&!cardioRecords.length)return null;
+ return <section className="records card"><p className="eyebrow">ЛИЧНЫЕ РЕКОРДЫ</p><h3>Лучшие результаты</h3>
+  {strengthRecords.length>0&&<div>{strengthRecords.map(x=><article key={x.exercise}><span>{x.exercise}{x.isRecord&&<em className="record-badge">PR</em>}</span><b>{x.weight} кг</b><small>{x.reps?`× ${x.reps} · `:""}{x.date}</small></article>)}</div>}
+  {cardioRecords.length>0&&<div>{cardioRecords.map(x=><article key={`${x.title}-${x.kind}`}><span>{x.title} · {x.kind==="distance"?"дистанция":"темп"}</span><b>{x.kind==="distance"?`${(x.value/1000).toFixed(2)} км`:`${x.value} ${x.unit}`}</b><small>{x.date}</small></article>)}</div>}
+ </section>
 }
