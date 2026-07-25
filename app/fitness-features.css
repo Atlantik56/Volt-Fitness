@@ -26,3 +26,19 @@
 @media(max-width:760px){.coach-indicator{padding:7px 10px;font-size:10px;gap:6px}.coach-indicator-text{white-space:nowrap}.coach-status b{font-size:12px}}
 @media(max-width:420px){.coach-indicator-text{max-width:96px;overflow:hidden;text-overflow:ellipsis}}
 .coach-insights{margin-top:4px}.coach-insights-head{margin:0 0 8px;color:#727b81;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}
+
+/* Sprint 6.11 — компактная панель чата с VOLT Coach */
+.ask-coach-btn{display:inline-flex;align-items:center;gap:8px;margin-top:2px;padding:10px 15px;border:1px solid var(--line);border-radius:11px;background:#141719;color:#e7eae9;font-weight:700;font-size:12px;cursor:pointer}.ask-coach-btn:hover{border-color:#3a4145}
+.coach-chat-panel{position:fixed;right:24px;bottom:24px;width:min(380px,calc(100vw - 32px));height:min(560px,calc(100vh - 48px));display:flex;flex-direction:column;padding:0;z-index:250;box-shadow:0 20px 50px #000c;overflow:hidden}
+.coach-chat-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:16px 16px 12px;border-bottom:1px solid var(--line)}.coach-chat-head .eyebrow{margin:0 0 4px}.coach-chat-head small{color:#8d959a;font-size:9px}.coach-chat-head button{border:0;background:transparent;color:#8d959a;font-size:20px;line-height:1;cursor:pointer;padding:0 2px}
+.coach-chat-list{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.coach-chat-empty{color:#7c858a;font-size:11px;line-height:1.6;margin:0}
+.coach-chat-bubble{max-width:85%;padding:10px 13px;border-radius:14px;font-size:12px;line-height:1.5;background:#15191b;border:1px solid var(--line)}.coach-chat-bubble p{margin:0}
+.coach-chat-bubble.user{align-self:flex-end;background:#1d2515;border-color:#2c3a17;color:#e7f5c9}
+.coach-chat-bubble.assistant{align-self:flex-start}
+.coach-chat-bubble.pending{color:#8d959a;font-style:italic}
+.coach-chat-recommendation{display:block;margin-top:7px;color:var(--lime);font-size:11px}
+.coach-chat-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+.coach-chat-form input{flex:1;min-width:0;background:#0c0f11;border:1px solid var(--line);border-radius:10px;color:#fff;padding:11px 13px;font-size:12px}
+.coach-chat-form button{border:0;border-radius:10px;background:var(--lime);color:#111;font-weight:800;padding:11px 16px;cursor:pointer;white-space:nowrap}.coach-chat-form button:disabled{opacity:.5;cursor:default}
+@media(max-width:760px){.coach-chat-panel{right:8px;left:8px;bottom:8px;width:auto;height:min(72vh,560px)}}

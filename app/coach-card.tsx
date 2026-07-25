@@ -22,7 +22,7 @@ function CoachAbout(){
  </details>;
 }
 
-export function CoachCard({result,plan,insights=[],ready=true}:{result:CoachResult;plan?:{title:string;type:string}|null;insights?:CoachInsight[];ready?:boolean}){
+export function CoachCard({result,plan,insights=[],ready=true,onAskCoach}:{result:CoachResult;plan?:{title:string;type:string}|null;insights?:CoachInsight[];ready?:boolean;onAskCoach?:()=>void}){
  const {advice,decision}=result;
  if(!ready)return <section id="volt-coach" className="coach-card card"><div className="coach-head"><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><small>Локально, без внешнего AI</small></div><ol className="coach-list"><li className="coach-item info"><span className="coach-icon" aria-hidden="true">◆</span><div><b>Собираю данные дня…</b><small>Решение появится, когда загрузятся тренировки, питание и самочувствие.</small></div></li></ol></section>;
  const meta=decision?COACH_ACTION_LABELS[decision.action]:null;
@@ -54,6 +54,7 @@ export function CoachCard({result,plan,insights=[],ready=true}:{result:CoachResu
     <div><b>{item.title}</b><small>{item.text}</small></div>
    </li>)}
   </ol></div>}
+  {onAskCoach&&ready&&<button type="button" className="ask-coach-btn" onClick={onAskCoach}><span aria-hidden="true">💬</span>Спросить тренера</button>}
   <CoachAbout/>
  </section>;
 }

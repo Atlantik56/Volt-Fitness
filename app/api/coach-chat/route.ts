@@ -11,6 +11,9 @@ const dateOk = (x: any) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x
 // Дневной лимит сообщений — защита от случайной цепочки запросов (баг в UI,
 // повторные клики, зависший ретрай), а не от обычного использования одним человеком.
 const DAILY_MESSAGE_LIMIT = 40;
+// Скользящее окно хранимой истории разговора — не бесконечный журнал,
+// только последние сообщения для контекста и отображения при перезагрузке.
+const STORED_MESSAGES_LIMIT = 40;
 
 function checkAndBumpDailyLimit(date: string): boolean {
   const key = `coach_chat_count_${date}`;
@@ -18,6 +21,27 @@ function checkAndBumpDailyLimit(date: string): boolean {
   if (count >= DAILY_MESSAGE_LIMIT) return false;
   setSetting(key, String(count + 1));
   return true;
+}
+
+function loadConversation(limit: number): AiChatMessage[] {
+  const rows = db.prepare("SELECT role,text FROM coach_conversation ORDER BY id DESC LIMIT ?").all(limit) as AiChatMessage[];
+  return rows.reverse();
+}
+
+function appendMessages(question: string, answer: string) {
+  const insert = db.prepare("INSERT INTO coach_conversation (role,text) VALUES (?,?)");
+  const prune = db.prepare("DELETE FROM coach_conversation WHERE id NOT IN (SELECT id FROM coach_conversation ORDER BY id DESC LIMIT ?)");
+  db.transaction(() => {
+    insert.run("user", question);
+    insert.run("assistant", answer);
+    prune.run(STORED_MESSAGES_LIMIT);
+  })();
+}
+
+export async function GET() {
+  const denied = await requireAuth();
+  if (denied) return denied;
+  return Response.json({ messages: loadConversation(STORED_MESSAGES_LIMIT) }, { headers: { "cache-control": "no-store" } });
 }
 
 export async function POST(req: Request) {
@@ -43,12 +67,7 @@ export async function POST(req: Request) {
       ? { title: body.plan.title.slice(0, 120), type: body.plan.type.slice(0, 40) }
       : null;
 
-  const history: AiChatMessage[] = Array.isArray(body.history)
-    ? body.history
-        .filter((m: any) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string")
-        .slice(-6)
-        .map((m: any) => ({ role: m.role, text: String(m.text).slice(0, 400) }))
-    : [];
+  const history = loadConversation(6);
 
   const key = getSetting("anthropic_api_key") || process.env.ANTHROPIC_API_KEY;
   if (!key) return Response.json({ error: "ИИ-тренер не настроен на сервере" }, { status: 503 });
@@ -78,6 +97,7 @@ export async function POST(req: Request) {
 
   try {
     const reply = await askAiCoach(key, context, history, question);
+    appendMessages(question, reply.answer);
     return Response.json({ ok: true, ...reply });
   } catch (err) {
     if (err instanceof AiCoachError) return Response.json({ error: err.message }, { status: err.status });

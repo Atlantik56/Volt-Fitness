@@ -8,6 +8,7 @@ import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
+import { CoachChatPanel } from "./coach-chat-panel";
 import { buildCoachResult, COACH_ACTION_LABELS, COACH_TARGETS, type CoachAction } from "../lib/coach";
 import { buildCoachInsights } from "../lib/coach-insights";
 import { WhatsNewGate } from "./whats-new-gate";
@@ -39,6 +40,7 @@ export default function Home() {
   const [mobileMenu,setMobileMenu]=useState(false);
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
   const [activeWorkout,setActiveWorkout]=useState<any>(null);
+  const [coachChatOpen,setCoachChatOpen]=useState(false);
   const [loaded,setLoaded]=useState(false);
   const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true)}).catch(()=>{});
   useEffect(()=>{load()},[]);
@@ -120,7 +122,7 @@ export default function Home() {
 
         <MoodCheckin data={data} refresh={load}/>
         <Readiness data={data} refresh={load}/>
-        <CoachCard result={coach} plan={todayPlan} insights={coachInsights} ready={loaded}/>
+        <CoachCard result={coach} plan={todayPlan} insights={coachInsights} ready={loaded} onAskCoach={()=>setCoachChatOpen(true)}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 
@@ -164,6 +166,7 @@ export default function Home() {
       </section>
 
       {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
+      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today}/>
       {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
       <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Прогресс"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={23} strokeWidth={2}/></span>{label}</button>})}</nav>
