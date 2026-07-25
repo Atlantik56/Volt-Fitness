@@ -4,7 +4,7 @@
 // Никакого ИИ здесь нет и не должно быть — LLM только объясняет уже готовые факты.
 
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "./coach-weekly.ts";
-import { computePeriodSummary, type WeeklyPlanDay, type WorkoutRecord } from "../app/training-analytics-model.ts";
+import { computePeriodSummary, type ScheduleOverrideRecord, type WeeklyPlanDay, type WorkoutRecord } from "../app/training-analytics-model.ts";
 
 export type CoachInsightCategory = "weight" | "training" | "nutrition" | "consistency";
 export type CoachInsightTone = "good" | "warn" | "info";
@@ -25,6 +25,7 @@ export type CoachInsightsInput = {
   foodLogs: { date: string; calories?: number; protein?: number }[];
   strengthLogs: { exercise: string; weight: number; date: string }[];
   planDays: WeeklyPlanDay[];
+  scheduleOverrides?: ScheduleOverrideRecord[];
   targets: { calories: number; protein: number };
   targetWeight: number | null;
 };
@@ -77,7 +78,7 @@ function missedWorkoutsInsight(input: CoachInsightsInput): CoachInsight | null {
 
 function planCompletionInsight(input: CoachInsightsInput, anchor: Date): CoachInsight | null {
   if (!input.planDays.some(d => d.type !== "Отдых")) return null;
-  const summary = computePeriodSummary(input.workouts, input.planDays, "4W", anchor);
+  const summary = computePeriodSummary(input.workouts, input.planDays, "4W", anchor, input.scheduleOverrides);
   if (summary.planCompletionPct == null) return null;
   if (summary.planCompletionPct >= 80) return {
     id: "plan-completion-good", category: "consistency", tone: "good", priority: 4,

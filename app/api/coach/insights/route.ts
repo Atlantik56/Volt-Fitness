@@ -25,6 +25,9 @@ export async function GET(req: Request) {
     )
     .all(date) as any[];
   const strengthLogs = db.prepare("SELECT exercise,weight,date FROM strength_logs WHERE date<=? ORDER BY date DESC LIMIT 300").all(date) as any[];
+  const scheduleOverrides = db.prepare(
+    "SELECT original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle FROM schedule_overrides WHERE original_date<=? OR scheduled_date<=? ORDER BY scheduled_date,id",
+  ).all(date, date) as any[];
 
   const planDays = buildHomeWeek(profile?.programStart).map((d: any) => ({ day: d.day, type: d.type }));
 
@@ -35,6 +38,7 @@ export async function GET(req: Request) {
     foodLogs,
     strengthLogs,
     planDays,
+    scheduleOverrides,
     targets: { calories: COACH_TARGETS.calories, protein: COACH_TARGETS.protein },
     targetWeight: profile?.targetWeight != null ? Number(profile.targetWeight) : null,
   });

@@ -16,7 +16,8 @@ function CoachAbout(){
   <summary>О VOLT Coach</summary>
   <div>
    <p>Coach читает только сохранённые тобой данные: план на день, самочувствие (боль и субъективную энергию), сон, записи тренировок, питание и замеры. Незаполненные поля он считает отсутствующими, а не нулевыми.</p>
-   <p>Работает локально и детерминированно: одни и те же данные всегда дают одно и то же решение. Никакие данные никуда не отправляются, внешний AI не используется.</p>
+   <p>Решение на сегодня рассчитывается локально и детерминированно: одни и те же данные всегда дают один результат. Для этого расчёта внешний AI не используется.</p>
+   <p>Только когда ты сам нажимаешь «Спросить тренера» и отправляешь вопрос, компактный контекст из сохранённых показателей передаётся Anthropic Claude для формирования ответа. Полная база и фотографии не отправляются.</p>
    <p>Coach не ставит диагнозы, не заменяет врача и не меняет план автоматически — решение остаётся рекомендацией, выполнять её или нет, решаешь ты. При повторяющейся боли обратись к врачу очно.</p>
   </div>
  </details>;
@@ -24,12 +25,12 @@ function CoachAbout(){
 
 export function CoachCard({result,plan,insights=[],ready=true,onAskCoach}:{result:CoachResult;plan?:{title:string;type:string}|null;insights?:CoachInsight[];ready?:boolean;onAskCoach?:()=>void}){
  const {advice,decision}=result;
- if(!ready)return <section id="volt-coach" className="coach-card card"><div className="coach-head"><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><small>Локально, без внешнего AI</small></div><ol className="coach-list"><li className="coach-item info"><span className="coach-icon" aria-hidden="true">◆</span><div><b>Собираю данные дня…</b><small>Решение появится, когда загрузятся тренировки, питание и самочувствие.</small></div></li></ol></section>;
+ if(!ready)return <section id="volt-coach" className="coach-card card"><div className="coach-head"><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><small>Локальное решение · AI только по запросу</small></div><ol className="coach-list"><li className="coach-item info"><span className="coach-icon" aria-hidden="true">◆</span><div><b>Собираю данные дня…</b><small>Решение появится, когда загрузятся тренировки, питание и самочувствие.</small></div></li></ol></section>;
  const meta=decision?COACH_ACTION_LABELS[decision.action]:null;
  return <section id="volt-coach" className="coach-card card" aria-label="VOLT Coach — решение на сегодня">
   <div className="coach-head">
    <p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p>
-   <small>Локально, без внешнего AI</small>
+   <small>Локальное решение · AI только по запросу</small>
   </div>
   {decision&&meta?<>
    <div className={`coach-status ${meta.tone}`} role="status"><span className="coach-status-dot" aria-hidden="true"/><b>{meta.label}</b></div>

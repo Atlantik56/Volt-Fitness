@@ -3,6 +3,11 @@ import test from "node:test";
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "../lib/coach-weekly.ts";
 import { buildAiCoachContext, renderAiCoachContextText } from "../lib/ai-context.ts";
 import { askAiCoach, AiCoachError } from "../lib/ai-coach.ts";
+import {
+  dateInTimeZone,
+  releaseDailyQuota,
+  reserveDailyQuota,
+} from "../lib/coach-chat-quota.ts";
 
 const DATE = "2026-07-25";
 
@@ -115,4 +120,22 @@ test("6.8: сетевая ошибка/таймаут превращается �
     throw new Error("network down");
   };
   await assert.rejects(() => askAiCoach("key", fakeContext, [], "?", fetchMock as any), AiCoachError);
+});
+
+test("6.11: дневной лимит использует серверную московскую дату", () => {
+  const instant = new Date("2026-07-25T21:30:00Z");
+  assert.equal(dateInTimeZone(instant), "2026-07-26");
+});
+
+test("6.11: квота резервируется атомарным шагом и возвращается после ошибки", () => {
+  const values = new Map<string, string>();
+  const store = {
+    get: (key: string) => values.get(key) ?? null,
+    set: (key: string, value: string) => values.set(key, value),
+  };
+  assert.equal(reserveDailyQuota(store, DATE, 2), true);
+  assert.equal(reserveDailyQuota(store, DATE, 2), true);
+  assert.equal(reserveDailyQuota(store, DATE, 2), false);
+  releaseDailyQuota(store, DATE);
+  assert.equal(reserveDailyQuota(store, DATE, 2), true);
 });

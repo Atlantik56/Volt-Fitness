@@ -79,6 +79,67 @@ test("computePeriodSummary: byKind classifies strength/cardio/recovery/rest cons
   assert.equal(s.byKind.rest, 0);
 });
 
+test("computePeriodSummary: другая активность не засчитывается как выполнение плана", () => {
+  const monday = "2026-07-20";
+  const workouts = [
+    w(1, monday, { type: "Кардио", title: "Незапланированная прогулка" }),
+    w(2, "2026-07-19", { type: "Силовая", title: "Силовая в день отдыха" }),
+  ];
+  const s = computePeriodSummary(workouts, planDays, "4W", anchor);
+  assert.equal(s.activeDays, 2);
+  assert.equal(s.planCompletionPct, 0);
+});
+
+test("computePeriodSummary: совпавший тип тренировки засчитывает только плановый день", () => {
+  const workouts = [
+    w(1, "2026-07-20", { type: "Силовая" }),
+    w(2, "2026-07-20", { type: "Силовая", title: "Вторая силовая в тот же день" }),
+  ];
+  const s = computePeriodSummary(workouts, planDays, "4W", anchor);
+  assert.equal(s.activeDays, 1);
+  assert.equal(s.planCompletionPct, Math.round(1 / s.expectedTrainingDays * 100));
+});
+
+test("computePeriodSummary: перенос исключает исходную дату и учитывает новую", () => {
+  const overrides = [{
+    originalDate: "2026-07-20",
+    scheduledDate: "2026-07-21",
+    planTitle: "Гантели по кругу",
+    replacementTitle: "",
+  }];
+  const workouts = [
+    w(1, "2026-07-20", { type: "Силовая" }),
+    w(2, "2026-07-21", { type: "Силовая" }),
+  ];
+  const s = computePeriodSummary(workouts, planDays, "4W", anchor, overrides);
+  assert.equal(s.planCompletionPct, Math.round(1 / s.expectedTrainingDays * 100));
+});
+
+test("computePeriodSummary: замена требует фактически выполненный тип замены", () => {
+  const overrides = [{
+    originalDate: "2026-07-20",
+    scheduledDate: "2026-07-20",
+    planTitle: "Гантели по кругу",
+    replacementTitle: "Прогулка и мобильность",
+  }];
+  const wrong = computePeriodSummary(
+    [w(1, "2026-07-20", { type: "Силовая" })],
+    planDays,
+    "4W",
+    anchor,
+    overrides,
+  );
+  const matching = computePeriodSummary(
+    [w(1, "2026-07-20", { type: "Восстановление", title: "Прогулка и мобильность" })],
+    planDays,
+    "4W",
+    anchor,
+    overrides,
+  );
+  assert.equal(wrong.planCompletionPct, 0);
+  assert.equal(matching.planCompletionPct, Math.round(1 / matching.expectedTrainingDays * 100));
+});
+
 test("computePeriodSummary: does not mutate input arrays", () => {
   const workouts = [w(1, "2026-07-20")];
   const before = JSON.stringify(workouts);
@@ -153,6 +214,16 @@ test("groupVolumeByPeriod: monthly grouping and determinism over 500 workouts", 
     assert.ok(Number.isFinite(bucket.strengthActiveMinutes));
     assert.ok(Number.isFinite(bucket.cardioActiveMinutes));
   }
+});
+
+test("groupVolumeByPeriod: средний пульс не искажается после третьей кардиосессии", () => {
+  const workouts = [
+    w(1, "2026-07-06", { type: "Кардио", avgHeartRate: 100 }),
+    w(2, "2026-07-07", { type: "Кардио", avgHeartRate: 200 }),
+    w(3, "2026-07-08", { type: "Кардио", avgHeartRate: 300 }),
+  ];
+  const [bucket] = groupVolumeByPeriod(workouts, "week");
+  assert.equal(bucket.cardioAvgHeartRate, 200);
 });
 
 test("computeWellnessSummary: empty history returns nulls, not zeros disguised as data", () => {

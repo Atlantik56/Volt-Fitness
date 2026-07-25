@@ -1,6 +1,6 @@
 // VOLT Coach — локальный детерминированный тренер.
 // Чистые функции: без React, без обращений к API, без побочных эффектов.
-// Никогда не обращается к Gemini: читает только уже сохранённые (подтверждённые) данные.
+// Никогда не обращается к внешнему AI: читает только уже сохранённые данные.
 // Проектное описание: docs/VOLT_COACH_DESIGN.md
 
 export type CoachCategory="safety"|"escalation"|"recovery"|"training"|"load"|"nutrition"|"activity"|"support";
@@ -173,7 +173,7 @@ const daysBetween=(from:string,to:string)=>{
 function buildNutrition(foodLogs:any[],date:string):CoachNutrition{
   const todays=foodLogs.filter(x=>x?.date===date);
   // Нет сохранённых записей — это «ещё не записано», а не «съедено 0».
-  // Распознавание Gemini, не подтверждённое пользователем, сюда не попадает по построению.
+  // Неподтверждённый результат AI-распознавания сюда не попадает по построению.
   if(!todays.length)return {logged:false,meals:0,calories:null,protein:null,fat:null,carbs:null};
   const sum=(key:string)=>todays.reduce((total,row)=>total+(numberOrNull(row?.[key])??0),0);
   return {logged:true,meals:todays.length,calories:sum("calories"),protein:sum("protein"),fat:sum("fat"),carbs:sum("carbs")};

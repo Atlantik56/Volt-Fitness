@@ -47,6 +47,13 @@ export interface WeeklyPlanDay {
   type: string;
 }
 
+export interface ScheduleOverrideRecord {
+  originalDate: string;
+  scheduledDate: string;
+  planTitle: string;
+  replacementTitle?: string;
+}
+
 function round1(n: number): number {
   const r = Math.round(n * 10) / 10;
   return Object.is(r, -0) ? 0 : r;
@@ -90,6 +97,36 @@ export function computeExpectedTrainingDays(planDays: WeeklyPlanDay[], fromIso: 
   return count;
 }
 
+function buildExpectedPlanByDate(
+  planDays: WeeklyPlanDay[],
+  scheduleOverrides: ScheduleOverrideRecord[],
+  fromIso: string,
+  toIso: string,
+): Map<string, CoachPlanKind> {
+  const planByWeekday = new Map(
+    planDays.map((day) => [day.day, normalizeCoachPlanKind(day.type)]),
+  );
+  const movedFrom = new Map(scheduleOverrides.map((item) => [item.originalDate, item]));
+  const movedTo = new Map(scheduleOverrides.map((item) => [item.scheduledDate, item]));
+  const expected = new Map<string, CoachPlanKind>();
+  const cursor = new Date(`${fromIso}T12:00:00`);
+  const end = new Date(`${toIso}T12:00:00`);
+  while (cursor <= end) {
+    const date = localIso(cursor);
+    const movedHere = movedTo.get(date);
+    const movedAway = movedFrom.get(date);
+    let kind: CoachPlanKind | undefined;
+    if (movedHere) {
+      kind = normalizeCoachPlanKind("", movedHere.replacementTitle || movedHere.planTitle);
+    } else if (!movedAway || movedAway.scheduledDate === date) {
+      kind = planByWeekday.get(isoWeekday(cursor));
+    }
+    if (kind && kind !== "rest") expected.set(date, kind);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return expected;
+}
+
 export interface PeriodSummary {
   period: AnalyticsPeriod;
   fromDate: string;
@@ -104,7 +141,13 @@ export interface PeriodSummary {
   planCompletionPct: number | null;
 }
 
-export function computePeriodSummary(workouts: WorkoutRecord[], planDays: WeeklyPlanDay[], period: AnalyticsPeriod, anchor: Date): PeriodSummary {
+export function computePeriodSummary(
+  workouts: WorkoutRecord[],
+  planDays: WeeklyPlanDay[],
+  period: AnalyticsPeriod,
+  anchor: Date,
+  scheduleOverrides: ScheduleOverrideRecord[] = [],
+): PeriodSummary {
   const fromIso = localIso(periodCutoffDate(period, anchor));
   const toIso = localIso(anchor);
   const inPeriod = workouts.filter((w) => w.date >= fromIso && w.date <= toIso);
@@ -117,7 +160,15 @@ export function computePeriodSummary(workouts: WorkoutRecord[], planDays: Weekly
     activeWeeks.add(weekBucket(w.date, fromIso));
   }
   const totalWeeks = Math.max(1, Math.ceil(daysBetweenInclusive(fromIso, toIso) / 7));
-  const expectedTrainingDays = computeExpectedTrainingDays(planDays, fromIso, toIso);
+  const expectedPlanByDate = buildExpectedPlanByDate(planDays, scheduleOverrides, fromIso, toIso);
+  const expectedTrainingDays = expectedPlanByDate.size;
+  const completedPlannedDays = new Set<string>();
+  for (const workout of inPeriod) {
+    const expectedKind = expectedPlanByDate.get(workout.date);
+    if (expectedKind === normalizeCoachPlanKind(workout.type, workout.title)) {
+      completedPlannedDays.add(workout.date);
+    }
+  }
   return {
     period,
     fromDate: fromIso,
@@ -129,7 +180,7 @@ export function computePeriodSummary(workouts: WorkoutRecord[], planDays: Weekly
     totalWeeks,
     regularityPct: Math.round(Math.min(1, activeWeeks.size / totalWeeks) * 100),
     expectedTrainingDays,
-    planCompletionPct: expectedTrainingDays > 0 ? Math.round(Math.min(1, activeDays.size / expectedTrainingDays) * 100) : null,
+    planCompletionPct: expectedTrainingDays > 0 ? Math.round(Math.min(1, completedPlannedDays.size / expectedTrainingDays) * 100) : null,
   };
 }
 
@@ -173,6 +224,7 @@ function bucketKeyOf(dateIso: string, granularity: "week" | "month"): string {
 
 export function groupVolumeByPeriod(workouts: WorkoutRecord[], granularity: "week" | "month"): VolumeBucket[] {
   const buckets = new Map<string, VolumeBucket>();
+  const cardioHeartRates = new Map<string, number[]>();
   const sorted = [...workouts].sort((a, b) => a.date.localeCompare(b.date));
   for (const w of sorted) {
     const key = bucketKeyOf(w.date, granularity);
@@ -190,8 +242,10 @@ export function groupVolumeByPeriod(workouts: WorkoutRecord[], granularity: "wee
       bucket.cardioDistanceMeters += w.distanceMeters;
       bucket.cardioActiveMinutes += w.durationSeconds / 60;
       if (w.avgHeartRate > 0) {
-        const heartRateSamples = bucket.cardioAvgHeartRate == null ? [w.avgHeartRate] : [bucket.cardioAvgHeartRate, w.avgHeartRate];
-        bucket.cardioAvgHeartRate = round1(heartRateSamples.reduce((a, b) => a + b, 0) / heartRateSamples.length);
+        const samples = cardioHeartRates.get(key) ?? [];
+        samples.push(w.avgHeartRate);
+        cardioHeartRates.set(key, samples);
+        bucket.cardioAvgHeartRate = round1(samples.reduce((sum, value) => sum + value, 0) / samples.length);
       }
     }
   }

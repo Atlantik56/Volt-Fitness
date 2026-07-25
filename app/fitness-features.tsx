@@ -42,8 +42,9 @@ export function TrainingAnalytics({data}:{data:any}){
  const [period,setPeriod]=useState<AnalyticsPeriod>("3M");
  const workouts=useMemo(()=>(data.workouts||[]) as WorkoutRecord[],[data.workouts]);
  const planDays=useMemo(()=>buildHomeWeek(data.profile?.programStart).map(d=>({day:d.day,type:d.type})),[data.profile?.programStart]);
+ const scheduleOverrides=useMemo(()=>data.scheduleOverrides||[],[data.scheduleOverrides]);
  const anchor=useMemo(()=>new Date(),[]);
- const summary=useMemo(()=>computePeriodSummary(workouts,planDays,period,anchor),[workouts,planDays,period,anchor]);
+ const summary=useMemo(()=>computePeriodSummary(workouts,planDays,period,anchor,scheduleOverrides),[workouts,planDays,period,anchor,scheduleOverrides]);
  const inPeriod=useMemo(()=>workouts.filter(w=>w.date>=summary.fromDate&&w.date<=summary.toDate),[workouts,summary.fromDate,summary.toDate]);
  const wellness=useMemo(()=>computeWellnessSummary(inPeriod),[inPeriod]);
  const granularity=period==="4W"?"week":"month";

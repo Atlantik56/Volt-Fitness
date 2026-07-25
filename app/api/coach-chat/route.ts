@@ -3,25 +3,24 @@ import { requireAuth, sameOrigin } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/settings";
 import { buildAiCoachContext } from "@/lib/ai-context";
 import { askAiCoach, AiCoachError, type AiChatMessage } from "@/lib/ai-coach";
+import {
+  COACH_CHAT_DAILY_LIMIT,
+  dateInTimeZone,
+  releaseDailyQuota,
+  reserveDailyQuota,
+} from "@/lib/coach-chat-quota";
 
 export const runtime = "nodejs";
 
 const dateOk = (x: any) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
 
-// Дневной лимит сообщений — защита от случайной цепочки запросов (баг в UI,
-// повторные клики, зависший ретрай), а не от обычного использования одним человеком.
-const DAILY_MESSAGE_LIMIT = 40;
 // Скользящее окно хранимой истории разговора — не бесконечный журнал,
 // только последние сообщения для контекста и отображения при перезагрузке.
 const STORED_MESSAGES_LIMIT = 40;
 
-function checkAndBumpDailyLimit(date: string): boolean {
-  const key = `coach_chat_count_${date}`;
-  const count = Number(getSetting(key)) || 0;
-  if (count >= DAILY_MESSAGE_LIMIT) return false;
-  setSetting(key, String(count + 1));
-  return true;
-}
+const quotaStore = { get: getSetting, set: setSetting };
+const reserveQuota = db.transaction((date: string) => reserveDailyQuota(quotaStore, date));
+const releaseQuota = db.transaction((date: string) => releaseDailyQuota(quotaStore, date));
 
 function loadConversation(limit: number): AiChatMessage[] {
   const rows = db.prepare("SELECT role,text FROM coach_conversation ORDER BY id DESC LIMIT ?").all(limit) as AiChatMessage[];
@@ -59,8 +58,6 @@ export async function POST(req: Request) {
   const date = dateOk(body.date) ? body.date : null;
   const question = typeof body.question === "string" ? body.question.trim().slice(0, 1000) : "";
   if (!date || !question) return Response.json({ error: "Укажите дату и вопрос" }, { status: 400 });
-  if (!checkAndBumpDailyLimit(date))
-    return Response.json({ error: `Дневной лимит сообщений тренеру исчерпан (${DAILY_MESSAGE_LIMIT}). Продолжите завтра.` }, { status: 429 });
 
   const plan =
     body.plan && typeof body.plan.title === "string" && typeof body.plan.type === "string"
@@ -95,11 +92,19 @@ export async function POST(req: Request) {
     activity: activity ? [{ date, ...activity }] : [],
   });
 
+  // Ключ лимита вычисляется на сервере в часовом поясе владельца. Клиентская
+  // дата нужна для контекста дня, но не может обойти лимит подстановкой другой даты.
+  const quotaDate = dateInTimeZone(new Date());
+  if (!reserveQuota(quotaDate))
+    return Response.json({ error: `Дневной лимит сообщений тренеру исчерпан (${COACH_CHAT_DAILY_LIMIT}). Продолжите завтра.` }, { status: 429 });
+
   try {
     const reply = await askAiCoach(key, context, history, question);
     appendMessages(question, reply.answer);
     return Response.json({ ok: true, ...reply });
   } catch (err) {
+    // Неудачный запрос не должен съедать пользовательский дневной лимит.
+    releaseQuota(quotaDate);
     if (err instanceof AiCoachError) return Response.json({ error: err.message }, { status: err.status });
     return Response.json({ error: "Не удалось получить ответ ИИ-тренера" }, { status: 500 });
   }
