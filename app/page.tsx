@@ -9,6 +9,11 @@ import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnal
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
 import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Route } from "lucide-react";
+import {
+  MEASUREMENT_KEYS, METRIC_LABELS, METRIC_UNITS, PERIODS, PERIOD_LABELS,
+  buildHistory, computeMetricCards, computeMetricStats, computeProgressSummary, computeTrendPoints, filterHistoryByPeriod, groupHistoryByMonth,
+  type HistoryEntry, type Measurement, type MetricCardData, type MetricKey, type MetricPoint, type MetricStats, type Period, type ProgressSummary,
+} from "./progress-model";
 
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
@@ -186,25 +191,58 @@ function Macro({label,value,goal,unit}:{label:string;value:number;goal:number;un
 
 function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  const [tab,setTab]=useState("Тело");
- const latest=data.measurements?.[0]||{}; const first=data.photos?.[0]; const last=data.photos?.[data.photos.length-1];
- const startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67), currentWeight=Number(latest.weight??startWeight);
- const goalPct=Math.max(0,Math.min(100,((startWeight-currentWeight)/(startWeight-targetWeight||1))*100));
  const [toast,setToast]=useState("");
- const submit=async(e:any,action:string)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,...b})});e.currentTarget.reset();refresh();if(action==="measurement"){setToast("Замер сохранён");setTimeout(()=>setToast(""),2500)}};
- const photo=async(e:any)=>{e.preventDefault();await fetch("/api/photos",{method:"POST",body:new FormData(e.currentTarget)});e.currentTarget.reset();refresh()};
+ const [formOpen,setFormOpen]=useState(false);
+ const [chartPeriod,setChartPeriod]=useState<Period>("3M");
+ const [historyPeriod,setHistoryPeriod]=useState<Period>("ALL");
+ const [historyOpen,setHistoryOpen]=useState(false);
+ const [historyVisible,setHistoryVisible]=useState(5);
+ const [editingId,setEditingId]=useState<number|null>(null);
+ const [menuOpenId,setMenuOpenId]=useState<number|null>(null);
+ const [photoVisible,setPhotoVisible]=useState(8);
+
+ const measurements:Measurement[]=useMemo(()=>data.measurements||[],[data.measurements]);
+ const workouts=useMemo(()=>data.workouts||[],[data.workouts]);
+ const photos=data.photos||[];
+ const profile=useMemo(()=>({name:data.profile?.name||"Илья",height:Number(data.profile?.height??167),startWeight:Number(data.profile?.startWeight??86),targetWeight:Number(data.profile?.targetWeight??67)}),[data.profile]);
+ const anchor=useMemo(()=>new Date(),[]);
+ const summary=useMemo(()=>computeProgressSummary(measurements,profile,workouts,anchor),[measurements,profile,workouts,anchor]);
+ const cards=useMemo(()=>computeMetricCards(measurements),[measurements]);
+ const history=useMemo(()=>buildHistory(measurements),[measurements]);
+ const historyFiltered=useMemo(()=>filterHistoryByPeriod(history,historyPeriod,anchor),[history,historyPeriod,anchor]);
+
+ const showToast=(msg:string)=>{setToast(msg);setTimeout(()=>setToast(""),2500)};
  const deletePhoto=async(id:number)=>{if(!confirm("Удалить это фото? Действие необратимо."))return;await fetch(`/api/photos?id=${id}`,{method:"DELETE"});refresh()};
- const deleteMeasurement=async(id:number)=>{if(!confirm("Удалить этот замер?"))return;await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteMeasurement",id})});refresh()};
- return <div className="detail-page">{toast&&<div className="toast">{toast}</div>}<Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={data.profile?.name||"Илья"} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
- <div className="progress-hero"><div className="big-ring"><div><b>{latest.weight||85.9}</b><span>кг сейчас</span></div></div><div><small>ЦЕЛЬ</small><h3>{data.profile?.startWeight||86} → {data.profile?.targetWeight||67} кг</h3><p>Старт: 21 июля 2026 · рост {data.profile?.height||167} см</p><div className="goal-progress"><i style={{width:`${goalPct}%`}}/></div><b>{data.workouts?.length||1} тренировка отмечена</b></div></div>
+ const deleteMeasurementRow=async(id:number)=>{if(!confirm("Удалить этот замер?"))return;await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteMeasurement",id})});refresh()};
+ const submitEdit=async(e:any,id:number)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"updateMeasurement",id,...b})});setEditingId(null);refresh();showToast("Замер обновлён")};
+ const submitProfile=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"profile",...b})});refresh()};
+
+ return <div className="detail-page">{toast&&<div className="toast">{toast}</div>}<Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={profile.name} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
  <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика"].map(x=><button key={x} type="button" className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
  {tab==="Тело"&&<>
- <h3 className="detail-title">Профиль</h3><form className="data-form" onSubmit={e=>submit(e,"profile")}><label>Имя<input name="name" defaultValue={data.profile?.name||"Илья"}/></label><label>Рост<input name="height" type="number" defaultValue={data.profile?.height||167}/></label><label>Стартовый вес<input name="startWeight" type="number" step="0.1" defaultValue={data.profile?.startWeight||86}/></label><label>Цель<input name="targetWeight" type="number" step="0.1" defaultValue={data.profile?.targetWeight||67}/></label><button>Сохранить профиль</button></form>
- <h3 className="detail-title">Динамика замеров</h3><MeasurementChart measurements={data.measurements||[]} target={targetWeight}/>
- <h3 className="detail-title">Новый замер</h3><form className="data-form measures" onSubmit={e=>submit(e,"measurement")}><label>Дата<input required name="date" type="date" defaultValue="2026-07-22"/></label>{[["weight","Вес, кг"],["waist","Талия, см"],["chest","Грудь, см"],["biceps","Бицепс, см"],["thigh","Бедро, см"],["neck","Шея, см"]].map(x=><label key={x[0]}>{x[1]}<input name={x[0]} type="number" step="0.1"/></label>)}<button>Сохранить замер</button></form>
- <div className="measure-table">{data.measurements?.map((m:any)=><article key={m.id}><b>{m.date}</b><span>{m.weight||"—"} кг</span><span>Талия {m.waist||"—"}</span><span>Грудь {m.chest||"—"}</span><span>Бицепс {m.biceps||"—"}</span><span>Бедро {m.thigh||"—"}</span><span>Шея {m.neck||"—"}</span><button type="button" onClick={()=>deleteMeasurement(m.id)} aria-label="Удалить замер" title="Удалить запись">×</button></article>)}</div>
- <h3 className="detail-title">Фото · до и после</h3><p className="detail-lead">«До» — самая первая фотография. «После» автоматически обновляется на последнюю загруженную. Фото скрыты по умолчанию — нажми, чтобы показать.</p><div className="photo-compare"><Photo item={first} title="ДО" onDelete={deletePhoto}/><Photo item={last} title="ПОСЛЕ" onDelete={deletePhoto}/></div><form className="photo-form" onSubmit={photo}><input name="date" type="date" defaultValue="2026-07-22"/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form>
+ <ProgressSummaryHero summary={summary} profile={profile}/>
+
+ <div className="section-head"><div><p className="eyebrow">ДИНАМИКА ЗАМЕРОВ</p><h3>Замеры</h3></div><button type="button" className="ghost-btn" onClick={()=>setFormOpen(v=>!v)}>{formOpen?"Закрыть":"+ Новый замер"}</button></div>
+ {formOpen&&<MeasurementForm previous={history[0]} onClose={()=>setFormOpen(false)} onSaved={()=>{setFormOpen(false);refresh();showToast("Замер сохранён")}}/>}
+ <MeasurementChart measurements={measurements} target={profile.targetWeight} period={chartPeriod} onPeriodChange={setChartPeriod} anchor={anchor}/>
+
+ <h3 className="detail-title">Карточки показателей</h3>
+ <MetricCardsGrid cards={cards}/>
+
+ <h3 className="detail-title">Фото · прогресс</h3><p className="detail-lead">Фото скрыты по умолчанию — нажми, чтобы показать.</p>
+ <PhotoCompareSection photos={photos} onDelete={deletePhoto} visible={photoVisible} onShowMore={()=>setPhotoVisible(v=>v+8)}/>
+ <form className="photo-form" onSubmit={async e=>{e.preventDefault();await fetch("/api/photos",{method:"POST",body:new FormData(e.currentTarget)});e.currentTarget.reset();refresh()}}><input name="date" type="date" defaultValue={localIso(new Date())}/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form>
+
+ <MeasurementHistory history={history} filtered={historyFiltered} period={historyPeriod} onPeriodChange={setHistoryPeriod}
+  open={historyOpen} onToggleOpen={()=>{setHistoryOpen(v=>!v);setHistoryVisible(5)}}
+  visible={historyVisible} onShowMore={()=>setHistoryVisible(v=>v+30)}
+  editingId={editingId} onStartEdit={setEditingId} onCancelEdit={()=>setEditingId(null)} onSaveEdit={submitEdit}
+  onDelete={deleteMeasurementRow} menuOpenId={menuOpenId} onToggleMenu={(id:number)=>setMenuOpenId(v=>v===id?null:id)}/>
+
  <BodyMap data={data} refresh={refresh}/>
  <Notice/>
+
+ <ProfileSection profile={profile} onSubmit={submitProfile}/>
  </>}
  {tab==="Тренировки"&&<>
  <WorkoutHistory workouts={data.workouts||[]} refresh={refresh}/>
@@ -219,15 +257,182 @@ function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  </>}
  </div>
 }
+
+function ProgressSummaryHero({summary,profile}:{summary:ProgressSummary;profile:{startWeight:number;targetWeight:number}}){
+ if(summary.state==="empty")return <div className="progress-hero empty-hero"><div><small>ПРОГРЕСС</small><h3>Пока нет замеров</h3><p>Добавь первый замер веса ниже, чтобы начать отслеживать прогресс.</p></div></div>;
+ const pct=summary.goalPct!=null?Math.round(summary.goalPct):null;
+ const fmt=(v:number|null)=>v==null?null:`${v>0?"+":""}${v.toFixed(1)} кг`;
+ const showMonthly=summary.state==="monthly"||summary.state==="long";
+ return <div className="progress-hero">
+  <div className="big-ring" style={pct!=null?{background:`conic-gradient(var(--lime) ${pct}%, #2a2e30 ${pct}%)`}:undefined}><div><b>{summary.currentWeight}</b><span>кг сейчас</span></div></div>
+  <div>
+   <small>ЦЕЛЬ</small><h3>{profile.startWeight} → {profile.targetWeight} кг</h3>
+   <div className="goal-progress"><i style={{width:`${pct??0}%`}}/></div>
+   <div className="progress-summary-facts">
+    {showMonthly&&<div><small>За 30 дней</small><b>{fmt(summary.change30d)??"—"}</b></div>}
+    {summary.state==="early"&&<div><small>Изменение</small><b>{fmt(summary.changeSinceStart)??"—"}</b></div>}
+    {(showMonthly)&&<div><small>С начала</small><b>{fmt(summary.changeSinceStart)??"—"}</b></div>}
+    <div><small>Осталось</small><b>{summary.remainingToGoal!=null?`${summary.remainingToGoal} кг`:"—"}</b></div>
+    <div><small>Последний замер</small><b>{summary.lastDate||"—"}</b></div>
+    <div><small>Тренировок / 30д</small><b>{summary.workoutsLast30d}</b></div>
+   </div>
+  </div>
+ </div>
+}
+
+function MeasurementForm({previous,onClose,onSaved}:{previous?:HistoryEntry;onClose:()=>void;onSaved:()=>void}){
+ const [expanded,setExpanded]=useState(false);
+ const [saving,setSaving]=useState(false);
+ const submit=async(e:any)=>{e.preventDefault();setSaving(true);const form=e.currentTarget,b=Object.fromEntries(new FormData(form));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"measurement",...b})});setSaving(false);onSaved()};
+ const prevOf=(key:string)=>previous?(previous as any)[key]:null;
+ return <form className="measure-form-card" onSubmit={submit}>
+  <div className="measure-form-primary">
+   <label>Дата<input required name="date" type="date" defaultValue={localIso(new Date())}/></label>
+   <label>Вес, кг{prevOf("weight")!=null&&<em>было {prevOf("weight")}</em>}<input name="weight" type="number" step="0.1" placeholder={prevOf("weight")!=null?String(prevOf("weight")):undefined}/></label>
+  </div>
+  <button type="button" className="measure-form-toggle" onClick={()=>setExpanded(v=>!v)}>{expanded?"− Скрыть обхваты":"+ Добавить обхваты"}</button>
+  {expanded&&<div className="measure-form-secondary">
+   {(["waist","chest","biceps","thigh","neck"] as const).map(key=><label key={key}>{METRIC_LABELS[key]}, {METRIC_UNITS[key]}{prevOf(key)!=null&&<em>было {prevOf(key)}</em>}<input name={key} type="number" step="0.1" placeholder={prevOf(key)!=null?String(prevOf(key)):undefined}/></label>)}
+  </div>}
+  <div className="measure-form-actions"><button type="button" className="ghost-btn" onClick={onClose}>Отмена</button><button type="submit" disabled={saving}>{saving?"Сохраняю…":"Сохранить замер"}</button></div>
+ </form>
+}
+
+function MeasurementChart({measurements,target,period,onPeriodChange,anchor}:{measurements:Measurement[];target:number;period:Period;onPeriodChange:(p:Period)=>void;anchor:Date}){
+ const [metric,setMetric]=useState<MetricKey>("weight");
+ const stats=useMemo(()=>computeMetricStats(measurements,metric,period,anchor),[measurements,metric,period,anchor]);
+ return <div>
+  <div className="metric-tabs" role="group" aria-label="Выбор замера">{MEASUREMENT_KEYS.map(key=><button key={key} type="button" className={metric===key?"active":""} onClick={()=>setMetric(key)}>{METRIC_LABELS[key]}</button>)}</div>
+  <div className="period-tabs" role="group" aria-label="Период графика">{PERIODS.map(p=><button key={p} type="button" className={period===p?"active":""} onClick={()=>onPeriodChange(p)}>{PERIOD_LABELS[p]}</button>)}</div>
+  <MetricStatsRow stats={stats} unit={METRIC_UNITS[metric]}/>
+  <SeriesChart points={stats.points} label={METRIC_LABELS[metric]} unit={METRIC_UNITS[metric]} target={metric==="weight"?target:undefined}/>
+ </div>
+}
+
+function MetricStatsRow({stats,unit}:{stats:MetricStats;unit:string}){
+ const fmtChange=(v:number|null)=>v==null?"—":`${v>0?"+":""}${v.toFixed(1)} ${unit}`;
+ return <div className="metric-stats-row">
+  <div><small>Сейчас</small><b>{stats.last!=null?`${stats.last} ${unit}`:"—"}</b></div>
+  <div><small>За период</small><b>{fmtChange(stats.changeInPeriod)}</b></div>
+  <div><small>С начала</small><b>{fmtChange(stats.changeSinceStart)}</b></div>
+  <div><small>Мин / Макс</small><b>{stats.min!=null?`${stats.min} / ${stats.max}`:"—"}</b></div>
+  <div><small>Замеров</small><b>{stats.count}</b></div>
+ </div>
+}
+
+function SeriesChart({points,label,unit,target}:{points:MetricPoint[];label:string;unit:string;target?:number}){
+ if(points.length<2)return <p className="detail-lead">{points.length===0?`Нет данных «${label}» за выбранный период.`:`Добавь ещё один замер «${label}», чтобы увидеть график.`}</p>;
+ const r1=(n:number)=>Math.round(n*10)/10;
+ const values=points.map(p=>p.value);
+ const min=Math.min(...values,...(target!=null?[target]:[])), max=Math.max(...values,...(target!=null?[target]:[]));
+ const padV=(max-min)*0.08||1, lo=min-padV, hi=max+padV;
+ const w=680,h=180,padX=10,padY=10;
+ const x=(i:number)=>padX+(i/(points.length-1))*(w-2*padX), y=(v:number)=>h-padY-((v-lo)/((hi-lo)||1))*(h-2*padY);
+ const path=points.map((p,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
+ const trend=computeTrendPoints(points);
+ return <div className="weight-chart">
+  <div className="chart-y-axis"><span>{hi.toFixed(1)}</span><span>{lo.toFixed(1)}</span></div>
+  <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`График «${label}» по замерам`}>
+   {target!=null&&<line x1={padX} y1={y(target)} x2={w-padX} y2={y(target)} stroke="var(--line)" strokeDasharray="4 4"/>}
+   {trend&&<line x1={x(0)} y1={y(trend[0].value)} x2={x(points.length-1)} y2={y(trend[1].value)} stroke="#5b6469" strokeWidth="1.5" strokeDasharray="2 4"/>}
+   <path d={path} fill="none" stroke="var(--lime)" strokeWidth="2.5"/>
+   {points.map((p,i)=>{const prev=points[i-1],diff=prev?r1(p.value-prev.value):null;return <circle key={p.id} cx={x(i)} cy={y(p.value)} r="3.5" fill="var(--lime)"><title>{`${p.date} · ${p.value} ${unit}${diff!=null?` (${diff>0?"+":""}${diff})`:""}`}</title></circle>})}
+  </svg>
+  <div className="weight-chart-labels"><span>{points[0].date}</span><span>{target!=null?`Цель ${target} ${unit}`:`${label}, ${unit}`}</span><span>{points[points.length-1].date}</span></div>
+ </div>
+}
+
+function MetricCardsGrid({cards}:{cards:MetricCardData[]}){
+ return <div className="metric-cards-grid">{cards.map(c=><article key={c.key} className="metric-card-item">
+  <small>{c.label}</small>
+  <b>{c.hasData?`${c.last} ${c.unit}`:"—"}</b>
+  <div className="metric-card-deltas">
+   <span>{c.change30d!=null?`${c.change30d>0?"+":""}${c.change30d} за 30д`:"— за 30д"}</span>
+   <span>{c.changeSinceStart!=null?`${c.changeSinceStart>0?"+":""}${c.changeSinceStart} с начала`:"— с начала"}</span>
+  </div>
+  <small className="metric-card-date">{c.lastDate?`Обновлено ${c.lastDate}`:"Нет данных"}</small>
+ </article>)}</div>
+}
+
+function PhotoCompareSection({photos,onDelete,visible,onShowMore}:{photos:any[];onDelete:(id:number)=>void;visible:number;onShowMore:()=>void}){
+ const sorted=useMemo(()=>[...photos].sort((a,b)=>a.date.localeCompare(b.date)),[photos]);
+ const [idxA,setIdxA]=useState<number|null>(null);
+ const [idxB,setIdxB]=useState<number|null>(null);
+ const resolvedA=Math.min(idxA??0,Math.max(0,sorted.length-1));
+ const resolvedB=Math.min(idxB??Math.max(0,sorted.length-1),Math.max(0,sorted.length-1));
+ const a=sorted[resolvedA], b=sorted[resolvedB];
+ const strip=useMemo(()=>[...sorted].reverse().slice(0,visible),[sorted,visible]);
+ return <div>
+  {sorted.length>0&&<div className="photo-date-picker">
+   <label>Дата «до»<select value={resolvedA} onChange={e=>setIdxA(Number(e.target.value))}>{sorted.map((p,i)=><option key={p.id} value={i}>{p.date}</option>)}</select></label>
+   <label>Дата «после»<select value={resolvedB} onChange={e=>setIdxB(Number(e.target.value))}>{sorted.map((p,i)=><option key={p.id} value={i}>{p.date}</option>)}</select></label>
+  </div>}
+  <div className="photo-compare"><Photo item={a} title="ДО" onDelete={onDelete}/><Photo item={b} title="ПОСЛЕ" onDelete={onDelete}/></div>
+  {sorted.length>2&&<div className="photo-strip">{strip.map(p=><Photo key={p.id} item={p} title={p.date} onDelete={onDelete} compact/>)}</div>}
+  {visible<sorted.length&&<button type="button" className="ghost-btn" onClick={onShowMore}>Показать ещё фото</button>}
+ </div>
+}
+
+function MeasurementHistory({history,filtered,period,onPeriodChange,open,onToggleOpen,visible,onShowMore,editingId,onStartEdit,onCancelEdit,onSaveEdit,onDelete,menuOpenId,onToggleMenu}:{
+ history:HistoryEntry[];filtered:HistoryEntry[];period:Period;onPeriodChange:(p:Period)=>void;open:boolean;onToggleOpen:()=>void;visible:number;onShowMore:()=>void;
+ editingId:number|null;onStartEdit:(id:number)=>void;onCancelEdit:()=>void;onSaveEdit:(e:any,id:number)=>void;onDelete:(id:number)=>void;menuOpenId:number|null;onToggleMenu:(id:number)=>void;
+}){
+ const shown=open?filtered.slice(0,visible):history.slice(0,5);
+ const rowProps={editingId,menuOpenId,onToggleMenu,onStartEdit,onCancelEdit,onSaveEdit,onDelete};
+ return <section>
+  <div className="section-head"><div><p className="eyebrow">ИСТОРИЯ ЗАМЕРОВ</p><h3>Записи{!open&&history.length>5?` (последние 5 из ${history.length})`:""}</h3></div>{history.length>5&&<button type="button" className="ghost-btn" onClick={onToggleOpen}>{open?"Свернуть":"Вся история"}</button>}</div>
+  {open&&<div className="period-tabs" role="group" aria-label="Период истории">{PERIODS.map(p=><button key={p} type="button" className={period===p?"active":""} onClick={()=>onPeriodChange(p)}>{PERIOD_LABELS[p]}</button>)}</div>}
+  {history.length===0?<p className="detail-lead">Пока нет ни одного замера.</p>:open?
+   <GroupedHistory groups={groupHistoryByMonth(shown)} {...rowProps}/>:
+   <div className="measure-table">{shown.map(entry=><HistoryRow key={entry.id} entry={entry} {...rowProps}/>)}</div>}
+  {open&&visible<filtered.length&&<button type="button" className="ghost-btn load-more" onClick={onShowMore}>Показать ещё ({Math.min(30,filtered.length-visible)})</button>}
+ </section>
+}
+
+function GroupedHistory({groups,...rowProps}:{groups:ReturnType<typeof groupHistoryByMonth>}&Omit<Parameters<typeof HistoryRow>[0],"entry">){
+ return <div className="history-grouped">{groups.map(y=><div key={y.year} className="history-year"><h4>{y.year}</h4>{y.months.map(mo=><div key={mo.key} className="history-month"><small>{mo.label}</small><div className="measure-table">{mo.entries.map(entry=><HistoryRow key={entry.id} entry={entry} {...rowProps}/>)}</div></div>)}</div>)}</div>
+}
+
+function HistoryRow({entry,editingId,menuOpenId,onToggleMenu,onStartEdit,onCancelEdit,onSaveEdit,onDelete}:{
+ entry:HistoryEntry;editingId:number|null;menuOpenId:number|null;onToggleMenu:(id:number)=>void;onStartEdit:(id:number)=>void;onCancelEdit:()=>void;onSaveEdit:(e:any,id:number)=>void;onDelete:(id:number)=>void;
+}){
+ if(editingId===entry.id)return <HistoryEditForm entry={entry} onCancel={onCancelEdit} onSave={onSaveEdit}/>;
+ return <article className="history-row">
+  <b>{entry.date}</b>
+  <span>{entry.weight??"—"} кг{entry.deltaWeight!=null&&<em className={`history-delta${entry.deltaWeight>0?" up":entry.deltaWeight<0?" down":""}`}>{entry.deltaWeight>0?"+":""}{entry.deltaWeight}</em>}</span>
+  <span>Талия {entry.waist??"—"}</span><span>Грудь {entry.chest??"—"}</span><span>Бицепс {entry.biceps??"—"}</span><span>Бедро {entry.thigh??"—"}</span><span>Шея {entry.neck??"—"}</span>
+  <div className="history-row-menu">
+   <button type="button" className="history-menu-btn" aria-label="Действия с записью" onClick={()=>onToggleMenu(entry.id)}>•••</button>
+   {menuOpenId===entry.id&&<div className="history-menu-pop">
+    <button type="button" onClick={()=>{onStartEdit(entry.id);onToggleMenu(entry.id)}}>Изменить</button>
+    <button type="button" className="danger" onClick={()=>{onDelete(entry.id);onToggleMenu(entry.id)}}>Удалить</button>
+   </div>}
+  </div>
+ </article>
+}
+
+function HistoryEditForm({entry,onCancel,onSave}:{entry:HistoryEntry;onCancel:()=>void;onSave:(e:any,id:number)=>void}){
+ return <form className="history-edit-form" onSubmit={e=>onSave(e,entry.id)}>
+  <label>Дата<input required name="date" type="date" defaultValue={entry.date}/></label>
+  {MEASUREMENT_KEYS.map(key=><label key={key}>{METRIC_LABELS[key]}<input name={key} type="number" step="0.1" defaultValue={(entry as any)[key]??""}/></label>)}
+  <div className="history-edit-actions"><button type="button" className="ghost-btn" onClick={onCancel}>Отмена</button><button type="submit">Сохранить</button></div>
+ </form>
+}
+
+function ProfileSection({profile,onSubmit}:{profile:{name:string;height:number;startWeight:number;targetWeight:number};onSubmit:(e:any)=>void}){
+ return <details className="profile-collapse"><summary><p className="eyebrow">ПРОФИЛЬ И ЦЕЛЬ</p><h3>{profile.name}</h3></summary>
+  <form className="data-form" onSubmit={onSubmit}><label>Имя<input name="name" defaultValue={profile.name}/></label><label>Рост<input name="height" type="number" defaultValue={profile.height}/></label><label>Стартовый вес<input name="startWeight" type="number" step="0.1" defaultValue={profile.startWeight}/></label><label>Цель<input name="targetWeight" type="number" step="0.1" defaultValue={profile.targetWeight}/></label><button>Сохранить профиль</button></form>
+ </details>
+}
 function WorkoutHistory({workouts,refresh}:{workouts:any[];refresh:()=>void}){
  const [message,setMessage]=useState(""); const clock=(n:number)=>`${Math.floor((Number(n)||0)/60)} мин ${String((Number(n)||0)%60).padStart(2,"0")} сек`;
  const save=async(e:any,w:any)=>{e.preventDefault();setMessage("");const form=e.currentTarget,raw:any=Object.fromEntries(new FormData(form)),details=(w.details||[]).map((x:any,i:number)=>({...x,value:Number(raw[`detail-${i}`])||0}));const body={action:"updateWorkout",id:w.id,date:raw.date,type:raw.type,title:raw.title,rounds:raw.rounds,durationSeconds:Math.round((Number(raw.durationMinutes)||0)*60),restSeconds:Math.round((Number(raw.restMinutes)||0)*60),minHeartRate:raw.minHeartRate,avgHeartRate:raw.avgHeartRate,maxHeartRate:raw.maxHeartRate,calories:raw.calories,distanceMeters:raw.distanceMeters,avgSpeed:raw.avgSpeed,details};const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(!r.ok){const j=await r.json();return setMessage(j.error||"Не удалось сохранить")};setMessage("Изменения сохранены");refresh()};
  return <section className="workout-history"><div className="section-head"><div><p className="eyebrow">ЖУРНАЛ ТРЕНИРОВОК</p><h3>Предыдущие тренировки</h3></div><b>{workouts.length}</b></div>{message&&<p className="history-message">{message}</p>}<div>{workouts.length===0?<p className="detail-lead">Завершённые тренировки появятся здесь.</p>:workouts.map(w=><details key={w.id} className="history-card"><summary><div><small>{w.date} · {w.type}</small><h4>{w.title}</h4></div><span><b>{clock(w.durationSeconds)}</b><em>Пульс {w.avgHeartRate||"—"}</em></span></summary><form onSubmit={e=>save(e,w)}><div className="history-fields"><label>Дата<input name="date" type="date" required defaultValue={w.date}/></label><label>Тип<select name="type" defaultValue={w.type}><option>Силовая</option><option>Кардио</option><option>Плавание</option><option>Восстановление</option></select></label><label>Название<input name="title" required defaultValue={w.title}/></label><label>Круги<input name="rounds" type="number" min="1" max="20" defaultValue={w.rounds}/></label><label>Активное время, мин<input name="durationMinutes" type="number" min="0" step="0.01" defaultValue={((w.durationSeconds||0)/60).toFixed(2)}/></label><label>Отдых, мин<input name="restMinutes" type="number" min="0" step="0.01" defaultValue={((w.restSeconds||0)/60).toFixed(2)}/></label><label>Мин. пульс<input name="minHeartRate" type="number" min="0" max="250" defaultValue={w.minHeartRate||0}/></label><label>Средний пульс<input name="avgHeartRate" type="number" min="0" max="250" defaultValue={w.avgHeartRate||0}/></label><label>Макс. пульс<input name="maxHeartRate" type="number" min="0" max="250" defaultValue={w.maxHeartRate||0}/></label><label>Калории<input name="calories" type="number" min="0" defaultValue={w.calories||0}/></label><label>Расстояние, м<input name="distanceMeters" type="number" min="0" step="0.1" defaultValue={w.distanceMeters||0}/></label><label>Скорость, км/ч<input name="avgSpeed" type="number" min="0" step="0.1" defaultValue={w.avgSpeed||0}/></label></div>{w.details?.length>0&&<div className="history-exercises"><h5>Фактически выполнено</h5>{w.details.map((x:any,i:number)=><label key={`${x.key}-${i}`}><span>{x.name}</span><input name={`detail-${i}`} type="number" min="0" defaultValue={x.value}/><em>{x.unit}</em></label>)}</div>}<button>Сохранить изменения</button></form></details>)}</div></section>
 }
-function Photo({item,title,onDelete}:{item:any;title:string;onDelete?:(id:number)=>void}){
+function Photo({item,title,onDelete,compact}:{item:any;title:string;onDelete?:(id:number)=>void;compact?:boolean}){
  const [revealed,setRevealed]=useState(false);
- if(!item) return <article><span>{title}</span><div>Фото ещё не загружено</div></article>;
- return <article className={`priv-wrap${revealed?" revealed":""}`}>
+ if(!item) return <article className={compact?"priv-wrap compact":undefined}><span>{title}</span><div>Фото ещё не загружено</div></article>;
+ return <article className={`priv-wrap${revealed?" revealed":""}${compact?" compact":""}`}>
   <span>{title}</span>
   <img className="priv-photo" src={item.url} alt={`Фото ${title.toLowerCase()}`}/>
   {!revealed&&<button type="button" className="priv-reveal" onClick={()=>setRevealed(true)}>👁 Показать фото</button>}
@@ -236,25 +441,6 @@ function Photo({item,title,onDelete}:{item:any;title:string;onDelete?:(id:number
  </article>
 }
 
-const measurementOptions=[["weight","Вес","кг"],["waist","Талия","см"],["chest","Грудь","см"],["biceps","Бицепс","см"],["thigh","Бедро","см"],["neck","Шея","см"]] as const;
-function MeasurementChart({measurements,target}:{measurements:any[];target:number}){
- const [metric,setMetric]=useState<string>("weight");
- const opt=measurementOptions.find(o=>o[0]===metric)||measurementOptions[0];
- return <div><div className="metric-tabs" role="group" aria-label="Выбор замера">{measurementOptions.map(([key,label])=><button key={key} type="button" className={metric===key?"active":""} onClick={()=>setMetric(key)}>{label}</button>)}</div><MetricChart measurements={measurements} dataKey={opt[0]} label={opt[1]} unit={opt[2]} target={opt[0]==="weight"?target:undefined}/></div>
-}
-function MetricChart({measurements,dataKey,label,unit,target}:{measurements:any[];dataKey:string;label:string;unit:string;target?:number}){
- const points=[...measurements].filter((m:any)=>m[dataKey]!=null).sort((a:any,b:any)=>a.date.localeCompare(b.date));
- if(points.length<2)return <p className="detail-lead">Добавь ещё один замер «{label}», чтобы увидеть график.</p>;
- const values=points.map((p:any)=>Number(p[dataKey])), min=Math.min(...values,...(target!=null?[target]:[]))-1, max=Math.max(...values,...(target!=null?[target]:[]))+1;
- const w=680,h=180,pad=10;
- const x=(i:number)=>pad+(i/(points.length-1))*(w-2*pad), y=(v:number)=>h-pad-((v-min)/(max-min||1))*(h-2*pad);
- const path=points.map((p:any,i:number)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(Number(p[dataKey])).toFixed(1)}`).join(" ");
- return <div className="weight-chart"><svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`График «${label}» по замерам`}>
-  {target!=null&&<line x1={pad} y1={y(target)} x2={w-pad} y2={y(target)} stroke="var(--line)" strokeDasharray="4 4"/>}
-  <path d={path} fill="none" stroke="var(--lime)" strokeWidth="2.5"/>
-  {points.map((p:any,i:number)=><circle key={p.id??i} cx={x(i)} cy={y(Number(p[dataKey]))} r="3.5" fill="var(--lime)"/>)}
- </svg><div className="weight-chart-labels"><span>{points[0].date}</span><span>{target!=null?`Цель ${target} ${unit}`:`${label}, ${unit}`}</span><span>{points[points.length-1].date}</span></div></div>
-}
 function StrengthLog({data,refresh}:{data:any;refresh:()=>void}){
  const logs=data.strengthLogs||[];
  const [exercise,setExercise]=useState(gymExercises[0]||"");
@@ -266,7 +452,7 @@ function StrengthLog({data,refresh}:{data:any;refresh:()=>void}){
  return <section className="strength-card card"><div className="section-head"><div><p className="eyebrow">ЗАЛ</p><h3>Рабочие веса</h3></div></div>
   <form onSubmit={submit} className="strength-form"><label>Упражнение<select name="exercise" value={exercise} onChange={e=>setExercise(e.target.value)}>{gymExercises.map(x=><option key={x} value={x}>{x}</option>)}</select></label><label>Дата<input name="date" type="date" required defaultValue={localIso(new Date())}/></label><label>Рабочий вес, кг<input name="weight" type="number" min="0" step="0.5" required/></label><label>Повторы<input name="reps" type="number" min="0"/></label><label>Сложность<select name="difficulty" defaultValue="Нормально"><option>Легко</option><option>Нормально</option><option>Тяжело</option><option>Боль</option></select></label><button>Записать</button></form>
   {history.length>0?<>
-   <MetricChart measurements={history} dataKey="weight" label={exercise} unit="кг"/>
+   <SeriesChart points={history.map((x:any)=>({id:x.id,date:x.date,value:Number(x.weight)}))} label={exercise} unit="кг"/>
    {trend!=null&&<p className="detail-lead">{trend>0?`+${trend.toFixed(1)} кг с прошлого раза — прогресс.`:trend<0?`${trend.toFixed(1)} кг с прошлого раза.`:"Вес не изменился с прошлого раза."}</p>}
    <div className="strength-history">{ordered.slice(0,10).map((x:any)=><article key={x.id}><b>{x.date}</b><span>{x.weight} кг{x.reps?` × ${x.reps}`:""}</span><button type="button" onClick={()=>remove(x.id)} aria-label="Удалить запись">×</button></article>)}</div>
   </>:<p className="detail-lead">Пока нет записей по «{exercise}».</p>}
