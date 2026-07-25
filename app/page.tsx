@@ -8,6 +8,7 @@ import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
+import { buildCoachResult, COACH_ACTION_LABELS, type CoachAction } from "../lib/coach";
 import { WhatsNewGate } from "./whats-new-gate";
 import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Route } from "lucide-react";
 import {
@@ -54,6 +55,9 @@ export default function Home() {
   const overrides=data.scheduleOverrides||[], movedToday=overrides.find((x:any)=>x.scheduledDate===today), regularToday=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0];
   const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
   const todayPlan=replacement||movedPlan||regularToday;
+  const coach=useMemo(()=>buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile}),[data,todayPlan,today,loaded]);
+  const coachAction:CoachAction|null=coach.decision?.action??null;
+  const goCoach=()=>{setNav("Сегодня");setMobileMenu(false);setTimeout(()=>document.getElementById("volt-coach")?.scrollIntoView({behavior:"smooth",block:"start"}),80)};
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
@@ -81,7 +85,7 @@ export default function Home() {
       <section className="content" id="top">
         <header className="topbar">
           <div><p className="eyebrow">{dateLabel}</p><h1>{greeting}, {data.profile?.name||"Илья"}</h1></div>
-          <div className="header-actions"><button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" aria-label="Открыть профиль и серии" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Прогресс")}>И</button></div>
+          <div className="header-actions">{loaded&&coachAction&&<button type="button" className={`coach-indicator ${COACH_ACTION_LABELS[coachAction].tone}`} aria-label={`VOLT Coach: ${COACH_ACTION_LABELS[coachAction].label}. Перейти к решению`} onClick={goCoach}><span className="coach-status-dot" aria-hidden="true"/><span className="coach-indicator-text">Coach: {COACH_ACTION_LABELS[coachAction].short}</span></button>}<button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" aria-label="Открыть профиль и серии" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Прогресс")}>И</button></div>
         </header>
 
         <button className="mobile-status-bar" onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌿 <b>{dryStreak}</b><small> без пива</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>
@@ -109,7 +113,7 @@ export default function Home() {
 
         <MoodCheckin data={data} refresh={load}/>
         <Readiness data={data} refresh={load}/>
-        <CoachCard data={data} plan={todayPlan} today={today} ready={loaded}/>
+        <CoachCard result={coach} plan={todayPlan} ready={loaded}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 
@@ -149,10 +153,10 @@ export default function Home() {
               </article>
             ))}
           </div>
-        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} /></>}
+        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction}/></>}
       </section>
 
-      {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
+      {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
       {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
       <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Прогресс"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={23} strokeWidth={2}/></span>{label}</button>})}</nav>
@@ -165,12 +169,12 @@ function Metric({ icon, color, label, value, unit, pct }: {icon:string;color:str
 }
 
 function Intro({k,t,p}:{k:string;t:string;p:string}){return <header className="detail-intro"><p className="eyebrow">{k}</p><h2>{t}</h2><p>{p}</p></header>}
-function Personal({section,data,refresh}:{section:string;data:any;refresh:()=>void}){
+function Personal({section,data,refresh,coachAction}:{section:string;data:any;refresh:()=>void;coachAction:CoachAction|null}){
  const homeWeek=buildHomeWeek(data.profile?.programStart);
  if(section==="План") return <div className="detail-page"><Intro k="ПЕРСОНАЛЬНАЯ ПРОГРАММА" t="Тренировки без ударной нагрузки" p="Недели 1–3 — дома. С 4-й недели основным становится расписание зала, бассейна и велосипеда."/><Notice/><h3 className="detail-title">Недели 1–3 · домашний план по дням</h3><p className="detail-lead">Неделя 1 — 2 круга; неделя 2 — 3; неделя 3 — прибавка веса или повторов.</p><div className="day-plan">{homeWeek.map((d:any)=><details key={d.d} open={d.day===(new Date().getDay()||7)}><summary><span>{d.d}</span><div><i>{d.type}</i><h4>{d.title}</h4></div><b>{d.time}</b></summary>{d.warmup&&<><h5 className="plan-block-title">Разминка · выполнить перед кругами</h5><PlanExercises items={d.warmup}/><h5 className="plan-block-title">Основная часть</h5></>}<PlanExercises items={d.exercises}/></details>)}</div><h3 className="detail-title">С недели 4 · зал + кардио</h3><p className="detail-lead">Открой нужный день: внутри — полный список, техника и фотопримеры.</p><div className="day-plan">{week.map(d=><details key={d.d}><summary><span>{d.d}</span><div><i>{d.t}</i><h4>{d.n}</h4></div><b>{d.time}</b></summary><PlanExercises items={d.x}/></details>)}</div></div>;
  if(section==="Дорожная карта") return <div className="detail-page"><Intro k="ЛИЧНАЯ ДОРОЖНАЯ КАРТА · 5–7 МЕСЯЦЕВ" t="86 → 67 кг" p="Рост 167 см. Быстро, но без потери мышц: до 1 кг в неделю на старте, после 75 кг — 0,5–0,7 кг."/><div className="road-stats">{[["0,8–1,0","кг в неделю"],["3","силовых"],["3–4","кардио"],["5–7","месяцев"]].map(x=><article key={x[1]}><b>{x[0]}</b><span>{x[1]}</span></article>)}</div><Notice/><div className="phases">{phases.map((p,i)=><article key={p.p}><span>{String(i+1).padStart(2,"0")}</span><div><small>{p.p}</small><h3>{p.n}</h3><p>{p.g}</p><ul>{p.x.map(x=><li key={x}>{x}</li>)}</ul></div></article>)}</div><h3 className="detail-title">Правила тяжёлых дней</h3><div className="motivation-grid">{rules.map((r,i)=><article key={r}><span>{String(i+1).padStart(2,"0")}</span><p>{r}</p></article>)}</div></div>;
  if(section==="Питание") return <div className="detail-page"><Intro k="ПИТАНИЕ · БЕЗ ЗАПРЕТОВ" t="≈ 1700 ккал · 150 г белка" p="Белок в каждом приёме пищи, овощи в обед и ужин, вода перед едой. Готовь курицу и крупу на 2–3 дня."/><NutritionDiary data={data} refresh={refresh}/><div className="meal-list">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-grid"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div>;
- return <ProgressPage data={data} refresh={refresh}/>
+ return <ProgressPage data={data} refresh={refresh} coachAction={coachAction}/>
 }
 function Notice(){return <div className="safety">✦ <span><b>Суставы под защитой</b>{safety}</span></div>}
 function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any)=><article key={x[0]}>{x[3]&&<img src={x[3]} alt={`Пример: ${x[0]}`}/>}<div><h4>{x[0]}</h4><p>{x[1]}</p><b>{x[2]}</b></div><ExerciseVideo name={x[0]}/></article>)}</div>}
@@ -191,7 +195,7 @@ function NutritionDiary({data,refresh}:{data:any;refresh:()=>void}){
 }
 function Macro({label,value,goal,unit}:{label:string;value:number;goal:number;unit:string}){const p=Math.min(100,Math.round(value/goal*100));return <article><div><span>{label}</span><b>{Math.round(value)} / {goal} {unit}</b></div><div className="macro-bar"><i style={{width:`${p}%`}}/></div><small>{p}%</small></article>}
 
-function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
+function ProgressPage({data,refresh,coachAction}:{data:any;refresh:()=>void;coachAction:CoachAction|null}){
  const [tab,setTab]=useState("Тело");
  const [toast,setToast]=useState("");
  const [formOpen,setFormOpen]=useState(false);
@@ -249,7 +253,7 @@ function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  {tab==="Тренировки"&&<>
  <WorkoutHistory workouts={data.workouts||[]} refresh={refresh}/>
  <StrengthLog data={data} refresh={refresh}/>
- <StrengthAdvice data={data}/>
+ <StrengthAdvice data={data} coachAction={coachAction}/>
  <PersonalRecords data={data}/>
  <GarminImport refresh={refresh}/>
  </>}

@@ -75,12 +75,34 @@ export type CoachDecision={
   reasonCode:string;
   title:string;
   explanation:string;
+  // Только реально использованные при принятии решения сигналы; пустой список
+  // означает, что решение принято без данных о состоянии.
+  usedSignals:string[];
+  // Нет сохранённого самочувствия за сегодня: решение основано на ограниченной информации.
+  limitedData:boolean;
   suggestedLoad:{
     title:string;
     type:CoachPlanKind;
     details:string;
   };
 };
+
+// Русское представление пяти действий Coach: внутренние action/reasonCode
+// пользователю на английском не показываются.
+export type CoachActionMeta={label:string;short:string;tone:CoachTone};
+export const COACH_ACTION_LABELS:Record<CoachAction,CoachActionMeta>={
+  proceed:{label:"Выполняй текущий план",short:"По плану",tone:"good"},
+  reduce:{label:"Облегчи нагрузку",short:"Облегчить",tone:"warn"},
+  replace:{label:"Замени на восстановление",short:"Замена",tone:"warn"},
+  rest:{label:"Сегодня отдых",short:"Отдых",tone:"stop"},
+  complete:{label:"План на сегодня выполнен",short:"Выполнено",tone:"good"},
+};
+
+// Решения, при которых прогрессия упражнения не предлагается как действие:
+// единственное основное тренировочное действие остаётся за Coach.
+export function progressionAllowed(action:CoachAction|null|undefined):boolean{
+  return action!=="reduce"&&action!=="replace"&&action!=="rest";
+}
 
 export type CoachInput={
   date:string;
@@ -341,15 +363,25 @@ const DECISION_PRIORITY:Record<CoachAction,number>={
 
 const proposed=(title:string,type:CoachPlanKind,details:string)=>({title,type,details});
 
+// Читаемые описания сигналов; null — данных нет, и сигнал не упоминается вовсе.
+const signalPain=(s:CoachSummary)=>s.pain!==null?`боль ${s.pain}/10`:null;
+const signalEnergy=(s:CoachSummary)=>s.energy!==null?`субъективная энергия ${s.energy}/5`:null;
+const signalSleep=(s:CoachSummary)=>s.sleepHours!==null?`сон ${round1(s.sleepHours)} ч`:null;
+const signalLastPain=(s:CoachSummary)=>s.lastWorkoutPain!==null?`боль после прошлой тренировки ${s.lastWorkoutPain}/10`:null;
+const signalLastEffort=(s:CoachSummary)=>s.lastWorkoutEffort?`прошлая тренировка: «${s.lastWorkoutEffort.toLowerCase()}»`:null;
+const presentSignals=(...values:(string|null)[])=>values.filter((x):x is string=>x!==null);
+
 export function decideCoach(summary:CoachSummary):CoachDecision|null{
   const plan=summary.plan;
   const kind=summary.planKind;
   if(!plan||!kind)return null;
+  const limitedData=!summary.hasWellness;
 
   if(summary.workoutDone)return {
     action:"complete",priority:DECISION_PRIORITY.complete,reasonCode:"planned-workout-completed",
     title:"План на сегодня выполнен",
     explanation:"Запись совпадает с сегодняшним планом по названию и типу. Повторять тренировку не нужно.",
+    usedSignals:["сохранённая запись сегодняшней тренировки"],limitedData:false,
     suggestedLoad:proposed(plan.title,kind,"Тренировка уже завершена; дополнительная нагрузка не предлагается."),
   };
 
@@ -357,26 +389,31 @@ export function decideCoach(summary:CoachSummary):CoachDecision|null{
     action:"rest",priority:DECISION_PRIORITY.rest,reasonCode:"pain-seven-or-higher",
     title:"Сегодня отдых без тренировочной нагрузки",
     explanation:`Боль ${summary.pain}/10 имеет высший приоритет над планом.`,
+    usedSignals:presentSignals(signalPain(summary)),limitedData,
     suggestedLoad:proposed("Отдых", "rest","Сон и обычная повседневная активность; тренировочную нагрузку сегодня не добавлять."),
   };
 
   if(summary.pain!==null&&summary.pain>=5){
+    const usedSignals=presentSignals(signalPain(summary));
     if(kind==="rest")return {
       action:"rest",priority:DECISION_PRIORITY.rest,reasonCode:"pain-five-six-rest-plan",
       title:"Сохрани запланированный отдых",
       explanation:`Боль ${summary.pain}/10: нагрузку добавлять нельзя.`,
+      usedSignals,limitedData,
       suggestedLoad:proposed(plan.title,"rest","Оставь исходный день отдыха без дополнительной активности."),
     };
     if(kind==="strength")return {
       action:"replace",priority:DECISION_PRIORITY.replace,reasonCode:"pain-five-six-strength",
       title:"Замени силовую на существующее восстановление",
       explanation:`Боль ${summary.pain}/10 исключает силовую тренировку.`,
+      usedSignals,limitedData,
       suggestedLoad:proposed("Прогулка и мобильность","recovery","Только спокойная прогулка и безболезненная мобильность из восстановительного плана."),
     };
     return {
       action:"reduce",priority:DECISION_PRIORITY.reduce,reasonCode:`pain-five-six-${kind}`,
       title:kind==="cardio"?"Сократи кардио до восстановительного темпа":"Сократи восстановительную сессию",
       explanation:`Боль ${summary.pain}/10: допустим только более лёгкий вариант исходного плана.`,
+      usedSignals,limitedData,
       suggestedLoad:proposed(plan.title,kind,kind==="cardio"
         ?"Сократи продолжительность примерно вдвое, держи спокойный разговорный темп и остановись при боли."
         :"Сократи продолжительность примерно вдвое и оставь только безболезненные движения."),
@@ -388,22 +425,31 @@ export function decideCoach(summary:CoachSummary):CoachDecision|null{
   const previousPainHigh=summary.lastWorkoutPain!==null&&summary.lastWorkoutPain>=5;
   const previousEffortPain=/боль/i.test(summary.lastWorkoutEffort);
   if(lowEnergy||shortSleep||previousPainHigh||previousEffortPain){
+    const usedSignals=presentSignals(
+      lowEnergy?signalEnergy(summary):null,
+      shortSleep?signalSleep(summary):null,
+      previousPainHigh?signalLastPain(summary):null,
+      previousEffortPain?signalLastEffort(summary):null,
+    );
     if(kind==="strength"&&(previousPainHigh||previousEffortPain))return {
       action:"replace",priority:DECISION_PRIORITY.replace,reasonCode:"low-readiness-strength-recovery",
       title:"Замени силовую на восстановление",
       explanation:"После предыдущей нагрузки была выраженная боль; сегодня силовую не продолжаем.",
+      usedSignals,limitedData,
       suggestedLoad:proposed("Прогулка и мобильность","recovery","Используй только спокойную прогулку и безболезненную мобильность из существующего плана."),
     };
     if(kind==="rest")return {
       action:"proceed",priority:DECISION_PRIORITY.proceed,reasonCode:"low-readiness-rest-plan",
       title:"Выполни текущий план отдыха",
       explanation:"Низкая готовность подтверждает день отдыха; дополнительная активность не нужна.",
+      usedSignals,limitedData,
       suggestedLoad:proposed(plan.title,"rest","Сохрани исходный план отдыха без добавления нагрузки."),
     };
     return {
       action:"reduce",priority:DECISION_PRIORITY.reduce,reasonCode:"low-readiness-reduce",
       title:"Выполни облегчённый вариант",
       explanation:"Низкая готовность по доступным данным требует уменьшить, а не наращивать нагрузку.",
+      usedSignals,limitedData,
       suggestedLoad:proposed(plan.title,kind,"Убери один круг или сократи длительность примерно на треть; сохрани прежнюю интенсивность или ниже и увеличь отдых."),
     };
   }
@@ -416,6 +462,12 @@ export function decideCoach(summary:CoachSummary):CoachDecision|null{
     action:"reduce",priority:DECISION_PRIORITY.reduce,reasonCode:"medium-readiness-reduce",
     title:"Сохрани план, но снизь объём",
     explanation:"Готовность средняя или предыдущая нагрузка далась тяжело; прогрессия сегодня не нужна.",
+    usedSignals:presentSignals(
+      mediumEnergy&&mediumSleep?signalEnergy(summary):null,
+      mediumEnergy&&mediumSleep?signalSleep(summary):null,
+      previousPain?signalLastPain(summary):null,
+      hardEffort?signalLastEffort(summary):null,
+    ),limitedData,
     suggestedLoad:proposed(plan.title,kind,kind==="rest"
       ?"Сохрани исходный отдых без добавления нагрузки."
       :"Убери один круг или сократи длительность примерно на четверть; веса и темп не повышай."),
@@ -425,6 +477,8 @@ export function decideCoach(summary:CoachSummary):CoachDecision|null{
     action:"proceed",priority:DECISION_PRIORITY.proceed,reasonCode:"readiness-good",
     title:kind==="rest"?"Следуй плану отдыха":"Выполни текущий план",
     explanation:"Доступные показатели не требуют менять сегодняшний план.",
+    usedSignals:presentSignals(signalPain(summary),signalEnergy(summary),signalSleep(summary),signalLastPain(summary)),
+    limitedData,
     suggestedLoad:proposed(plan.title,kind,"Выполни исходный план без увеличения объёма, веса, темпа или интенсивности."),
   };
 }

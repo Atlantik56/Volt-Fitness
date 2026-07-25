@@ -358,3 +358,71 @@ test("совместимые advice Sprint 3 сохранены и подчин�
   assert.equal(complete.advice.some(x=>x.id==="workout-todo"),false);
   assert.ok(complete.advice.some(x=>x.id==="keep-going"));
 });
+
+// ——— Sprint 6.5: роль и точка входа VOLT Coach ———
+
+test("6.5: все пять действий имеют русское представление без английских кодов", async ()=>{
+  const {COACH_ACTION_LABELS}=await import("../lib/coach.ts");
+  const actions=["proceed","reduce","replace","rest","complete"] as const;
+  for(const action of actions){
+    const meta=COACH_ACTION_LABELS[action];
+    assert.ok(meta,`нет лейбла для ${action}`);
+    for(const text of [meta.label,meta.short]){
+      assert.ok(text.trim().length>0);
+      assert.equal(/[a-z]/i.test(text),false,`«${text}» содержит латиницу`);
+    }
+    assert.ok(["stop","warn","good","info"].includes(meta.tone));
+  }
+});
+
+test("6.5: usedSignals перечисляет только реально использованные сигналы", ()=>{
+  // Решение по боли: единственный сигнал — боль; сон и энергия не упоминаются.
+  const pain=buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:4,pain:7,painArea:""}]});
+  assert.equal(pain.decision?.action,"rest");
+  assert.deepEqual(pain.decision?.usedSignals,["боль 7/10"]);
+
+  // Низкая готовность из-за сна: боль в сигналах не фигурирует.
+  const sleep=buildCoachResult({...normalDay(),activity:[{date:DATE,sleepHours:4,steps:8000,activeMinutes:60}]});
+  assert.equal(sleep.decision?.action,"reduce");
+  assert.deepEqual(sleep.decision?.usedSignals,["сон 4 ч"]);
+
+  // proceed: перечислены только доступные показатели, без выдуманных.
+  const ok=buildCoachResult(normalDay());
+  assert.equal(ok.decision?.action,"proceed");
+  assert.ok(ok.decision!.usedSignals.length>0);
+  assert.equal(ok.decision!.usedSignals.some(x=>/NaN|null|undefined/.test(x)),false);
+  // Энергия называется субъективной, а не измеренной усталостью.
+  assert.ok(ok.decision!.usedSignals.some(x=>x.includes("субъективная энергия")));
+});
+
+test("6.5: без самочувствия решение помечено как основанное на ограниченных данных", ()=>{
+  const result=buildCoachResult({date:DATE,plan:strengthPlan,activity:[{date:DATE,sleepHours:8,steps:9000,activeMinutes:70}]});
+  assert.equal(result.decision?.limitedData,true);
+  // С самочувствием пометки нет.
+  assert.equal(buildCoachResult(normalDay()).decision?.limitedData,false);
+  // complete основан на записи тренировки — пометка не нужна.
+  const done=buildCoachResult({date:DATE,plan:strengthPlan,workouts:[{date:DATE,type:"Силовая",title:"Гантели по кругу",painAfter:0}]});
+  assert.equal(done.decision?.action,"complete");
+  assert.equal(done.decision?.limitedData,false);
+});
+
+test("6.5: прогрессия не предлагается как действие при reduce, replace и rest", async ()=>{
+  const {progressionAllowed}=await import("../lib/coach.ts");
+  assert.equal(progressionAllowed("reduce"),false);
+  assert.equal(progressionAllowed("replace"),false);
+  assert.equal(progressionAllowed("rest"),false);
+  assert.equal(progressionAllowed("proceed"),true);
+  assert.equal(progressionAllowed("complete"),true);
+  // Нет решения (нет плана или данные не загружены) — прогрессия не блокируется.
+  assert.equal(progressionAllowed(null),true);
+  assert.equal(progressionAllowed(undefined),true);
+});
+
+test("6.5: одно состояние — одно основное тренировочное действие", ()=>{
+  // При щадящем решении advice не содержит конкурирующего «выполни тренировку».
+  const reduce=buildCoachResult({...normalDay(),wellnessLogs:[{date:DATE,energy:2,pain:0,painArea:""}]});
+  assert.equal(reduce.decision?.action,"reduce");
+  const training=reduce.advice.filter(x=>x.category==="training");
+  assert.equal(training.length,1);
+  assert.equal(training[0].id,"decision-reduce");
+});

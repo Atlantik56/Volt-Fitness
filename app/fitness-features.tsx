@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { buildHomeWeek } from "./personal-data";
 import { calculateReadiness } from "../lib/readiness";
+import { progressionAllowed, type CoachAction } from "../lib/coach";
 import {
   ANALYTICS_PERIODS, ANALYTICS_PERIOD_LABELS, buildHeatmap, buildWorkoutsCsv, buildWorkoutsJson,
   computePeriodSummary, computeWellnessSummary, groupVolumeByPeriod, localIso as analyticsLocalIso,
@@ -12,12 +13,21 @@ import {
 const iso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
 const post=(body:Record<string,unknown>)=>fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});
 
+// Readiness только оценивает текущее состояние. Решение по сегодняшнему плану
+// принимает VOLT Coach — здесь основного тренировочного действия нет.
+const READINESS_ASSESSMENT:Record<"good"|"low"|"stop",{title:string;text:string}>={
+ good:{title:"Готовность высокая",text:"По сохранённым данным сон, энергия и боль не ограничивают нагрузку."},
+ low:{title:"Готовность снижена",text:"По сохранённым данным восстановление неполное."},
+ stop:{title:"Боль ограничивает нагрузку",text:"Отмеченная боль — главный фактор сегодняшней оценки."},
+};
+
 export function Readiness({data,refresh}:{data:any;refresh:()=>void}){
  const today=iso(new Date()), current=(data.wellnessLogs||[]).find((x:any)=>x.date===today)||{}, sleep=Number((data.activity||[]).find((x:any)=>x.date===today)?.sleepHours)||0;
  const energy=Number(current.energy||3), pain=Number(current.pain||0), last=(data.workouts||[])[0];
  const {score,decision}=calculateReadiness({sleepHours:sleep,energy,pain,lastWorkoutPain:Number(last?.painAfter)||0});
+ const assessment=READINESS_ASSESSMENT[decision.tone];
  const save=async(e:any)=>{e.preventDefault();await post({action:"wellness",date:today,...Object.fromEntries(new FormData(e.currentTarget))});refresh()};
- return <section className={`readiness card ${decision.tone}`}><div className="readiness-score"><b>{score}</b><span>готовность</span></div><div><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><h3>{decision.title}</h3><p className="readiness-text">{decision.text}</p><small className="readiness-summary">Сон {sleep||"—"} ч · энергия {energy}/5 · боль {pain}/10</small><form onSubmit={save}><label>Энергия<select name="energy" defaultValue={current.energy||3}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Боль 0–10<input name="pain" type="number" min="0" max="10" defaultValue={current.pain||0}/></label><label>Где болит<input name="painArea" placeholder="Например, тазобедренный" defaultValue={current.painArea||""}/></label><label>Комментарий<input name="note" placeholder="Самочувствие сегодня" defaultValue={current.note||""}/></label><button>Оценить</button></form>{pain>0&&<small className="readiness-warning">При боли в тазобедренном суставе замени силовую на прогулку или упражнения для верха тела. При повторяющейся боли обратись к врачу.</small>}</div></section>
+ return <section className={`readiness card ${decision.tone}`}><div className="readiness-score"><b>{score}</b><span>готовность</span></div><div><p className="eyebrow">READINESS · ОЦЕНКА СОСТОЯНИЯ</p><h3>{assessment.title}</h3><p className="readiness-text">{assessment.text}</p><small className="readiness-summary">Сон {sleep||"—"} ч · энергия {energy}/5 (субъективная) · боль {pain}/10</small><a className="readiness-coach-link" href="#volt-coach">Решение по сегодняшнему плану — в карточке VOLT Coach ↓</a><form onSubmit={save}><label>Энергия<select name="energy" defaultValue={current.energy||3}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Боль 0–10<input name="pain" type="number" min="0" max="10" defaultValue={current.pain||0}/></label><label>Где болит<input name="painArea" placeholder="Например, тазобедренный" defaultValue={current.painArea||""}/></label><label>Комментарий<input name="note" placeholder="Самочувствие сегодня" defaultValue={current.note||""}/></label><button>Оценить</button></form>{pain>0&&<small className="readiness-warning">При боли в тазобедренном суставе замени силовую на прогулку или упражнения для верха тела. При повторяющейся боли обратись к врачу.</small>}</div></section>
 }
 
 function downloadText(filename:string,content:string,mime:string){
@@ -99,9 +109,12 @@ export function ScheduleEditor({data,refresh}:{data:any;refresh:()=>void}){
  const base=new Date();return <section className="schedule-editor card"><div><p className="eyebrow">ГИБКИЙ ПЛАН</p><h3>Перенести или заменить тренировку</h3><p>Приложение предупредит о двух силовых днях подряд.</p></div><form onSubmit={save}><label>Тренировка<select name="planTitle">{plans.map(x=><option key={`${x.day}-${x.title}`}>{x.title}</option>)}</select></label><label>Плановая дата<input name="originalDate" type="date" required defaultValue={iso(base)}/></label><label>Новая дата<input name="scheduledDate" type="date" required defaultValue={iso(base)}/></label><label>Замена<select name="replacementTitle"><option value="">Без замены</option><option>Прогулка и мобильность</option><option>Плавание в бассейне</option><option>Шоссейный велосипед</option></select></label><button>Сохранить</button></form>{message&&<small>{message}</small>}</section>
 }
 
-export function StrengthAdvice({data}:{data:any}){
- const groups=useMemo(()=>Object.groupBy((data.strengthLogs||[]) as any[],(x:any)=>x.exercise),[data.strengthLogs]);const advice=Object.entries(groups).map(([name,raw])=>{const list=(raw||[]).slice(0,2) as any[],last=list[0],related=(data.workouts||[]).find((w:any)=>w.details?.some((d:any)=>d.name===name));let text="Сохрани вес и технику";if(related?.effort==="Легко")text=`Можно добавить 1–2 повтора или ${Number(last?.weight||0)+1} кг`;if(related?.effort==="Тяжело")text="Сохрани вес, не добавляй нагрузку";if(related?.effort==="Боль"||Number(related?.painAfter)>=3)text="Останови прогрессию и замени упражнение";return {name,text}}).slice(0,5);
- if(!advice.length)return null;return <section className="advice card"><p className="eyebrow">ПРОГРЕССИЯ НАГРУЗКИ</p><h3>Рекомендации на следующую тренировку</h3>{advice.map(x=><article key={x.name}><b>{x.name}</b><span>{x.text}</span></article>)}</section>
+// Объяснение прогрессии по конкретным упражнениям. Не конкурирует с решением Coach:
+// при щадящем решении (reduce/replace/rest) шаги прогрессии не предлагаются как действие.
+export function StrengthAdvice({data,coachAction=null}:{data:any;coachAction?:CoachAction|null}){
+ const blocked=!progressionAllowed(coachAction);
+ const groups=useMemo(()=>Object.groupBy((data.strengthLogs||[]) as any[],(x:any)=>x.exercise),[data.strengthLogs]);const advice=Object.entries(groups).map(([name,raw])=>{const list=(raw||[]).slice(0,2) as any[],last=list[0],related=(data.workouts||[]).find((w:any)=>w.details?.some((d:any)=>d.name===name));let text="Сохрани вес и технику";if(related?.effort==="Легко")text=blocked?"Готов к прогрессии, но сегодня Coach рекомендует щадящий день — вернись к добавке на следующей полноценной силовой":`Можно добавить 1–2 повтора или ${Number(last?.weight||0)+1} кг`;if(related?.effort==="Тяжело")text="Сохрани вес, не добавляй нагрузку";if(related?.effort==="Боль"||Number(related?.painAfter)>=3)text="Останови прогрессию и замени упражнение";return {name,text}}).slice(0,5);
+ if(!advice.length)return null;return <section className="advice card"><p className="eyebrow">ПРОГРЕССИЯ УПРАЖНЕНИЙ</p><h3>Объяснение шага по каждому упражнению</h3><p className="detail-lead small">Это разбор следующего шага в конкретных упражнениях. Решение о сегодняшней нагрузке принимает VOLT Coach на вкладке «Сегодня».</p>{advice.map(x=><article key={x.name}><b>{x.name}</b><span>{x.text}</span></article>)}</section>
 }
 
 export function NutritionTools({data}:{data:any}){
