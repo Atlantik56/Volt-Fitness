@@ -49,7 +49,7 @@ export function activityKindOf(plan:Pick<WorkoutPlan,"type"|"title">):ActivityKi
   return "strength";
 }
 
-export function exerciseUnit(name:string){return name.toLowerCase().includes("планка")?"сек":"повт."}
+export function exerciseUnit(name:string,target?:string){if(name.toLowerCase().includes("планка"))return "сек";if(target&&/мин/i.test(target))return "мин";return "повт."}
 export function sessionClock(seconds:number){return `${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`}
 
 export function buildSessionSteps(plan:WorkoutPlan,restSeconds=DEFAULT_EXERCISE_REST_SECONDS):SessionStep[] {
