@@ -222,7 +222,7 @@ function ProgressPage({data,refresh}:{data:any;refresh:()=>void}){
  {tab==="Тело"&&<>
  <ProgressSummaryHero summary={summary} profile={profile}/>
 
- <div className="section-head"><div><p className="eyebrow">ДИНАМИКА ЗАМЕРОВ</p><h3>Замеры</h3></div><button type="button" className="ghost-btn" onClick={()=>setFormOpen(v=>!v)}>{formOpen?"Закрыть":"+ Новый замер"}</button></div>
+ <div className="section-head"><div><p className="eyebrow">ДИНАМИКА ЗАМЕРОВ</p><h3>Замеры</h3></div><button type="button" className={formOpen?"ghost-btn":"add-measurement-btn"} onClick={()=>setFormOpen(v=>!v)}>{formOpen?"Закрыть":"+ Новый замер"}</button></div>
  {formOpen&&<MeasurementForm previous={history[0]} onClose={()=>setFormOpen(false)} onSaved={()=>{setFormOpen(false);refresh();showToast("Замер сохранён")}}/>}
  <MeasurementChart measurements={measurements} target={profile.targetWeight} period={chartPeriod} onPeriodChange={setChartPeriod} anchor={anchor}/>
 
