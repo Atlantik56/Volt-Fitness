@@ -6,6 +6,7 @@ import "./advanced-features.css";
 import "./body-map-realistic.css";
 import "./mobile-shell.css";
 import PwaRegister from "./pwa-register";
+import { ToastProvider } from "./toast";
 
 export async function generateMetadata(): Promise<Metadata> {
   const incoming = await headers();
@@ -31,7 +32,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
-        {children}
+        <ToastProvider>{children}</ToastProvider>
         <PwaRegister />
       </body>
     </html>

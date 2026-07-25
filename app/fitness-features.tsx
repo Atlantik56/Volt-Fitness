@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { buildHomeWeek } from "./personal-data";
 import { calculateReadiness } from "../lib/readiness";
 import { progressionAllowed, type CoachAction } from "../lib/coach";
+import { useToast } from "./toast";
 import {
   ANALYTICS_PERIODS, ANALYTICS_PERIOD_LABELS, buildHeatmap, buildWorkoutsCsv, buildWorkoutsJson,
   computePeriodSummary, computeWellnessSummary, groupVolumeByPeriod, localIso as analyticsLocalIso,
@@ -22,11 +23,12 @@ const READINESS_ASSESSMENT:Record<"good"|"low"|"stop",{title:string;text:string}
 };
 
 export function Readiness({data,refresh}:{data:any;refresh:()=>void}){
+ const notify=useToast();
  const today=iso(new Date()), current=(data.wellnessLogs||[]).find((x:any)=>x.date===today)||{}, sleep=Number((data.activity||[]).find((x:any)=>x.date===today)?.sleepHours)||0;
  const energy=Number(current.energy||3), pain=Number(current.pain||0), last=(data.workouts||[])[0];
  const {score,decision}=calculateReadiness({sleepHours:sleep,energy,pain,lastWorkoutPain:Number(last?.painAfter)||0});
  const assessment=READINESS_ASSESSMENT[decision.tone];
- const save=async(e:any)=>{e.preventDefault();await post({action:"wellness",date:today,...Object.fromEntries(new FormData(e.currentTarget))});refresh()};
+ const save=async(e:any)=>{e.preventDefault();await post({action:"wellness",date:today,...Object.fromEntries(new FormData(e.currentTarget))});notify("Самочувствие сохранено");refresh()};
  return <section className={`readiness card ${decision.tone}`}><div className="readiness-score"><b>{score}</b><span>готовность</span></div><div><p className="eyebrow">READINESS · ОЦЕНКА СОСТОЯНИЯ</p><h3>{assessment.title}</h3><p className="readiness-text">{assessment.text}</p><small className="readiness-summary">Сон {sleep||"—"} ч · энергия {energy}/5 (субъективная) · боль {pain}/10</small><a className="readiness-coach-link" href="#volt-coach">Решение по сегодняшнему плану — в карточке VOLT Coach ↓</a><form onSubmit={save}><label>Энергия<select name="energy" defaultValue={current.energy||3}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Боль 0–10<input name="pain" type="number" min="0" max="10" defaultValue={current.pain||0}/></label><label>Где болит<input name="painArea" placeholder="Например, тазобедренный" defaultValue={current.painArea||""}/></label><label>Комментарий<input name="note" placeholder="Самочувствие сегодня" defaultValue={current.note||""}/></label><button>Оценить</button></form>{pain>0&&<small className="readiness-warning">При боли в тазобедренном суставе замени силовую на прогулку или упражнения для верха тела. При повторяющейся боли обратись к врачу.</small>}</div></section>
 }
 
@@ -104,8 +106,9 @@ export function TrainingCalendar({data}:{data:any}){
 }
 
 export function ScheduleEditor({data,refresh}:{data:any;refresh:()=>void}){
+ const notify=useToast();
  const [message,setMessage]=useState("");const plans=buildHomeWeek(data.profile?.programStart).filter(x=>x.type!=="Отдых");
- const save=async(e:any)=>{e.preventDefault();const raw:any=Object.fromEntries(new FormData(e.currentTarget)), selected=plans.find(x=>x.title===raw.planTitle)||plans[0], prev=new Date(`${raw.scheduledDate}T12:00:00`);prev.setDate(prev.getDate()-1);const next=new Date(`${raw.scheduledDate}T12:00:00`);next.setDate(next.getDate()+1);const collision=(data.scheduleOverrides||[]).some((x:any)=>x.planTitle.includes("Гантели")&&[iso(prev),iso(next)].includes(x.scheduledDate));if(selected.type==="Силовая"&&collision&&!confirm("Рядом уже стоит силовая тренировка. Всё равно сохранить?"))return;const r=await post({action:"schedule",...raw});setMessage(r.ok?"План обновлён":"Не удалось сохранить");refresh()};
+ const save=async(e:any)=>{e.preventDefault();const raw:any=Object.fromEntries(new FormData(e.currentTarget)), selected=plans.find(x=>x.title===raw.planTitle)||plans[0], prev=new Date(`${raw.scheduledDate}T12:00:00`);prev.setDate(prev.getDate()-1);const next=new Date(`${raw.scheduledDate}T12:00:00`);next.setDate(next.getDate()+1);const collision=(data.scheduleOverrides||[]).some((x:any)=>x.planTitle.includes("Гантели")&&[iso(prev),iso(next)].includes(x.scheduledDate));if(selected.type==="Силовая"&&collision&&!confirm("Рядом уже стоит силовая тренировка. Всё равно сохранить?"))return;const r=await post({action:"schedule",...raw});const ok=r.ok;setMessage(ok?"План обновлён":"Не удалось сохранить");notify(ok?"План обновлён":"Не удалось сохранить план",ok?"good":"warn");refresh()};
  const base=new Date();return <section className="schedule-editor card"><div><p className="eyebrow">ГИБКИЙ ПЛАН</p><h3>Перенести или заменить тренировку</h3><p>Приложение предупредит о двух силовых днях подряд.</p></div><form onSubmit={save}><label>Тренировка<select name="planTitle">{plans.map(x=><option key={`${x.day}-${x.title}`}>{x.title}</option>)}</select></label><label>Плановая дата<input name="originalDate" type="date" required defaultValue={iso(base)}/></label><label>Новая дата<input name="scheduledDate" type="date" required defaultValue={iso(base)}/></label><label>Замена<select name="replacementTitle"><option value="">Без замены</option><option>Прогулка и мобильность</option><option>Плавание в бассейне</option><option>Шоссейный велосипед</option></select></label><button>Сохранить</button></form>{message&&<small>{message}</small>}</section>
 }
 

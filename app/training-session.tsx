@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ExerciseVideo } from "./exercise-video";
 import { progressionDecision, type ProgressDecision } from "./exercise-progress";
 import { progressionAllowed, type CoachAction } from "../lib/coach";
+import { useToast } from "./toast";
 import { exerciseReplacement } from "./exercise-replacements";
 import {
   activityKindOf, buildSessionSteps, exerciseUnit, readWorkoutDraft, sessionClock,
@@ -68,6 +69,7 @@ const PROGRESSION_HOLD:ProgressDecision={kind:"keep",title:"Сегодня бе�
 const capProgression=(rec:ProgressDecision,allowed:boolean):ProgressDecision=>allowed||rec.kind==="deload"||rec.kind==="keep"||rec.kind==="start"?rec:PROGRESSION_HOLD;
 
 export function WorkoutSession({plan,strengthLogs,coachAction=null,close,done}:{plan:WorkoutPlan;strengthLogs:StrengthLog[];coachAction?:CoachAction|null;close:()=>void;done:()=>void}){
+  const notify=useToast();
   const session=useWorkoutSession(plan,strengthLogs);
   const rounds=Math.max(1,plan.rounds??1),activityKind=activityKindOf(plan),warmupCount=plan.warmup?.length??0;
   const showLoad=activityKind==="strength";
@@ -88,7 +90,8 @@ export function WorkoutSession({plan,strengthLogs,coachAction=null,close,done}:{
   const finish=async()=>{
     const completed=session.steps.slice(0,session.cursor).filter(step=>step.kind==="exercise").map(step=>step.key);
     const response=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed,durationSeconds:session.activeSeconds,restSeconds:session.restSecondsSpent,details,effort:session.effort,painAfter:session.painAfter,...session.metrics})});
-    if(!response.ok)return;
+    if(!response.ok){notify("Не удалось сохранить тренировку","warn");return}
+    notify("Тренировка сохранена");
     session.clearDraft();done();
   };
   const step=session.step;

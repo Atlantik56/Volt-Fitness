@@ -10,6 +10,7 @@ import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
 import { buildCoachResult, COACH_ACTION_LABELS, type CoachAction } from "../lib/coach";
 import { WhatsNewGate } from "./whats-new-gate";
+import { useToast } from "./toast";
 import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Route } from "lucide-react";
 import {
   MEASUREMENT_KEYS, METRIC_LABELS, METRIC_UNITS, PERIODS, PERIOD_LABELS,
@@ -31,6 +32,7 @@ const MOBILE_ICONS={
 } as const;
 
 export default function Home() {
+  const notify = useToast();
   const [filter, setFilter] = useState("Все");
   const [nav, setNav] = useState("Сегодня");
   const [mobileMenu,setMobileMenu]=useState(false);
@@ -60,7 +62,7 @@ export default function Home() {
   const goCoach=()=>{setNav("Сегодня");setMobileMenu(false);setTimeout(()=>document.getElementById("volt-coach")?.scrollIntoView({behavior:"smooth",block:"start"}),80)};
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
-  const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});load()};
+  const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});notify(r.ok?"Активность за сегодня обновлена":"Не удалось сохранить активность",r.ok?"good":"warn");load()};
 
   return (
     <AuthGate><main className="app-shell">
@@ -183,24 +185,26 @@ function Notice(){return <div className="safety">✦ <span><b>Суставы п�
 function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any)=><article key={x[0]}>{x[3]&&<img src={x[3]} alt={`Пример: ${x[0]}`}/>}<div><h4>{x[0]}</h4><p>{x[1]}</p><b>{x[2]}</b></div><ExerciseVideo name={x[0]}/></article>)}</div>}
 
 function AiKeySetup({onReady}:{onReady:()=>void}){
+ const notify=useToast();
  const [value,setValue]=useState(""),[busy,setBusy]=useState(false),[error,setError]=useState("");
- const save=async(e:any)=>{e.preventDefault();setError("");setBusy(true);const r=await fetch("/api/settings",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({anthropicKey:value})}),j=await r.json();setBusy(false);if(!r.ok)return setError(j.error||"Не удалось сохранить ключ");setValue("");onReady()};
+ const save=async(e:any)=>{e.preventDefault();setError("");setBusy(true);const r=await fetch("/api/settings",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({anthropicKey:value})}),j=await r.json();setBusy(false);if(!r.ok)return setError(j.error||"Не удалось сохранить ключ");setValue("");notify("Ключ сохранён");onReady()};
  return <form className="ai-key-setup" onSubmit={save}><p><b>Распознавание фото не настроено.</b> Вставьте ключ Claude API (console.anthropic.com) — это нужно один раз, дальше заработает сразу.</p><div><input type="password" placeholder="sk-ant-api03-…" value={value} onChange={(e:any)=>setValue(e.target.value)} required minLength={20}/><button type="submit" disabled={busy}>{busy?"Сохраняю…":"Сохранить"}</button></div>{error&&<div className="food-error">{error}</div>}</form>;
 }
 
 function NutritionDiary({data,refresh}:{data:any;refresh:()=>void}){
+ const notify=useToast();
  const [error,setError]=useState(""),[saving,setSaving]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiNote,setAiNote]=useState(""),[aiKeySet,setAiKeySet]=useState<boolean|null>(null);const today=localIso(new Date()),logs=data.foodLogs||[],todayLogs=logs.filter((x:any)=>x.date===today),sum=todayLogs.reduce((t:any,x:any)=>({calories:t.calories+x.calories,protein:t.protein+x.protein,fat:t.fat+x.fat,carbs:t.carbs+x.carbs}),{calories:0,protein:0,fat:0,carbs:0});
  useEffect(()=>{fetch("/api/settings").then(r=>r.json()).then(j=>setAiKeySet(!!j.anthropicKeySet)).catch(()=>setAiKeySet(true))},[]);
  const photoAI=async(e:any)=>{const input=e.currentTarget,files=[...(input.files||[])].slice(0,3),form=input.closest("form");if(!files.length)return;setError("");setAiBusy(true);try{const fd=new FormData();for(const f of files)fd.append("photo",f);const r=await fetch("/api/food-photo",{method:"POST",body:fd}),j=await r.json();if(!r.ok)setError(j.error||"Не удалось распознать фото");else{const ta=form?.elements.namedItem("rawText") as HTMLTextAreaElement;if(ta)ta.value=(ta.value.trim()?ta.value.trim()+"\n":"")+j.text;if(j.note)setAiNote(j.note)}}catch{setError("Не удалось распознать фото")}finally{setAiBusy(false);input.value=""}};
- const submit=async(e:any)=>{e.preventDefault();setError("");setSaving(true);const form=e.currentTarget,body=Object.fromEntries(new FormData(form));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"food",...body})}),j=await r.json();setSaving(false);if(!r.ok)return setError(j.error||"Не удалось сохранить");form.reset();setAiNote("");refresh()};
- const remove=async(id:number)=>{if(!confirm("Удалить этот приём пищи? Дневные показатели будут пересчитаны."))return;const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteFood",id})});if(r.ok)refresh();else setError("Не удалось удалить запись")};
+ const submit=async(e:any)=>{e.preventDefault();setError("");setSaving(true);const form=e.currentTarget,body=Object.fromEntries(new FormData(form));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"food",...body})}),j=await r.json();setSaving(false);if(!r.ok)return setError(j.error||"Не удалось сохранить");form.reset();setAiNote("");notify("Приём пищи сохранён");refresh()};
+ const remove=async(id:number)=>{if(!confirm("Удалить этот приём пищи? Дневные показатели будут пересчитаны."))return;const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteFood",id})});if(r.ok){notify("Запись удалена");refresh()}else setError("Не удалось удалить запись")};
  return <section className="food-diary"><div className="section-head"><div><p className="eyebrow">ДНЕВНИК ПИТАНИЯ</p><h3>Сегодня</h3></div><b>{Math.round(sum.calories)} / 1700 ккал</b></div><div className="macro-scales"><Macro label="Калории" value={sum.calories} goal={1700} unit="ккал"/><Macro label="Белки" value={sum.protein} goal={150} unit="г"/><Macro label="Жиры" value={sum.fat} goal={60} unit="г"/><Macro label="Углеводы" value={sum.carbs} goal={170} unit="г"/></div>{aiKeySet===false&&<AiKeySetup onReady={()=>setAiKeySet(true)}/>}<form onSubmit={submit}><label className="food-date">Дата<input name="date" type="date" defaultValue={today} required/></label><label className="food-kind">Приём пищи<select name="mealType" defaultValue="Завтрак"><option>Завтрак</option><option>Обед</option><option>Ужин</option><option>Перекус</option></select></label><div className="food-photo-row"><label className="food-photo">{aiBusy?"⏳ Распознаю…":"📷 Снять фото"}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={photoAI} disabled={aiBusy||!aiKeySet} hidden/></label><label className="food-photo">{aiBusy?"⏳ Распознаю…":"🖼 Из галереи"}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={photoAI} disabled={aiBusy||!aiKeySet} hidden/></label></div>{aiNote&&<p className="food-ai-note"><b>Оценка:</b> {aiNote}<input type="hidden" name="note" value={aiNote}/></p>}<label className="food-text">Вставьте описание приёма пищи<textarea name="rawText" rows={8} required placeholder={'🍲 Бульон говяжий с яйцом — 130 ккал (Б 10 / Ж 8 / У 2)\n🦃 Индейка запечённая — 350 ккал (Б 58 / Ж 11 / У 3)'}/></label>{error&&<div className="food-error">{error}</div>}<button type="submit" disabled={saving}><span>＋</span>{saving?"Обрабатываю…":"Отправить и рассчитать"}</button></form>{todayLogs.length>0&&<div className="food-log-list">{todayLogs.map((log:any)=><article key={log.id} className={`meal-${String(log.mealType).toLowerCase()}`}><header><div><em>{log.mealType}</em><b>{log.items.length} блюда</b></div><span>{Math.round(log.calories)} ккал · Б {log.protein} / Ж {log.fat} / У {log.carbs}</span><button onClick={()=>remove(log.id)} aria-label={`Удалить ${log.mealType}`} title="Удалить запись">×</button></header>{log.items.map((x:any)=><p key={x.name}><span>{x.name}</span><b>{x.calories} ккал</b></p>)}{log.note&&<footer className="food-note">💬 {log.note}</footer>}</article>)}</div>}</section>
 }
 function Macro({label,value,goal,unit}:{label:string;value:number;goal:number;unit:string}){const p=Math.min(100,Math.round(value/goal*100));return <article><div><span>{label}</span><b>{Math.round(value)} / {goal} {unit}</b></div><div className="macro-bar"><i style={{width:`${p}%`}}/></div><small>{p}%</small></article>}
 
 function ProgressPage({data,refresh,coachAction}:{data:any;refresh:()=>void;coachAction:CoachAction|null}){
+ const notify=useToast();
  const [tab,setTab]=useState("Тело");
- const [toast,setToast]=useState("");
  const [formOpen,setFormOpen]=useState(false);
  const [chartPeriod,setChartPeriod]=useState<Period>("3M");
  const [historyPeriod,setHistoryPeriod]=useState<Period>("ALL");
@@ -220,19 +224,18 @@ function ProgressPage({data,refresh,coachAction}:{data:any;refresh:()=>void;coac
  const history=useMemo(()=>buildHistory(measurements),[measurements]);
  const historyFiltered=useMemo(()=>filterHistoryByPeriod(history,historyPeriod,anchor),[history,historyPeriod,anchor]);
 
- const showToast=(msg:string)=>{setToast(msg);setTimeout(()=>setToast(""),2500)};
- const deletePhoto=async(id:number)=>{if(!confirm("Удалить это фото? Действие необратимо."))return;await fetch(`/api/photos?id=${id}`,{method:"DELETE"});refresh()};
- const deleteMeasurementRow=async(id:number)=>{if(!confirm("Удалить этот замер?"))return;await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteMeasurement",id})});refresh()};
- const submitEdit=async(e:any,id:number)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"updateMeasurement",id,...b})});setEditingId(null);refresh();showToast("Замер обновлён")};
- const submitProfile=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"profile",...b})});refresh()};
+ const deletePhoto=async(id:number)=>{if(!confirm("Удалить это фото? Действие необратимо."))return;await fetch(`/api/photos?id=${id}`,{method:"DELETE"});notify("Фото удалено");refresh()};
+ const deleteMeasurementRow=async(id:number)=>{if(!confirm("Удалить этот замер?"))return;await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteMeasurement",id})});notify("Замер удалён");refresh()};
+ const submitEdit=async(e:any,id:number)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"updateMeasurement",id,...b})});setEditingId(null);refresh();notify("Замер обновлён")};
+ const submitProfile=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"profile",...b})});notify("Профиль обновлён");refresh()};
 
- return <div className="detail-page">{toast&&<div className="toast">{toast}</div>}<Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={profile.name} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
+ return <div className="detail-page"><Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={profile.name} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
  <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика"].map(x=><button key={x} type="button" data-tour-id={x==="Аналитика"?"tab-analytics":undefined} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
  {tab==="Тело"&&<>
  <ProgressSummaryHero summary={summary} profile={profile}/>
 
  <div className="section-head"><div><p className="eyebrow">ДИНАМИКА ЗАМЕРОВ</p><h3>Замеры</h3></div><button type="button" className={formOpen?"ghost-btn":"add-measurement-btn"} onClick={()=>setFormOpen(v=>!v)}>{formOpen?"Закрыть":"+ Новый замер"}</button></div>
- {formOpen&&<MeasurementForm previous={history[0]} onClose={()=>setFormOpen(false)} onSaved={()=>{setFormOpen(false);refresh();showToast("Замер сохранён")}}/>}
+ {formOpen&&<MeasurementForm previous={history[0]} onClose={()=>setFormOpen(false)} onSaved={()=>{setFormOpen(false);refresh();notify("Замер сохранён")}}/>}
  <MeasurementChart measurements={measurements} target={profile.targetWeight} period={chartPeriod} onPeriodChange={setChartPeriod} anchor={anchor}/>
 
  <h3 className="detail-title">Карточки показателей</h3>
@@ -240,7 +243,7 @@ function ProgressPage({data,refresh,coachAction}:{data:any;refresh:()=>void;coac
 
  <h3 className="detail-title">Фото · прогресс</h3><p className="detail-lead">Фото скрыты по умолчанию — нажми, чтобы показать.</p>
  <PhotoCompareSection photos={photos} onDelete={deletePhoto} visible={photoVisible} onShowMore={()=>setPhotoVisible(v=>v+8)}/>
- <form className="photo-form" onSubmit={async e=>{e.preventDefault();await fetch("/api/photos",{method:"POST",body:new FormData(e.currentTarget)});e.currentTarget.reset();refresh()}}><input name="date" type="date" defaultValue={localIso(new Date())}/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form>
+ <form className="photo-form" onSubmit={async e=>{e.preventDefault();await fetch("/api/photos",{method:"POST",body:new FormData(e.currentTarget)});e.currentTarget.reset();notify("Фото добавлено");refresh()}}><input name="date" type="date" defaultValue={localIso(new Date())}/><input required name="photo" type="file" accept="image/*"/><button>+ Добавить фото</button></form>
 
  <MeasurementHistory history={history} filtered={historyFiltered} period={historyPeriod} onPeriodChange={setHistoryPeriod}
   open={historyOpen} onToggleOpen={()=>{setHistoryOpen(v=>!v);setHistoryVisible(5)}}
@@ -434,8 +437,9 @@ function ProfileSection({profile,onSubmit}:{profile:{name:string;height:number;s
  </details>
 }
 function WorkoutHistory({workouts,refresh}:{workouts:any[];refresh:()=>void}){
+ const notify=useToast();
  const [message,setMessage]=useState(""); const clock=(n:number)=>`${Math.floor((Number(n)||0)/60)} мин ${String((Number(n)||0)%60).padStart(2,"0")} сек`;
- const save=async(e:any,w:any)=>{e.preventDefault();setMessage("");const form=e.currentTarget,raw:any=Object.fromEntries(new FormData(form)),details=(w.details||[]).map((x:any,i:number)=>({...x,value:Number(raw[`detail-${i}`])||0}));const body={action:"updateWorkout",id:w.id,date:raw.date,type:raw.type,title:raw.title,rounds:raw.rounds,durationSeconds:Math.round((Number(raw.durationMinutes)||0)*60),restSeconds:Math.round((Number(raw.restMinutes)||0)*60),minHeartRate:raw.minHeartRate,avgHeartRate:raw.avgHeartRate,maxHeartRate:raw.maxHeartRate,calories:raw.calories,distanceMeters:raw.distanceMeters,avgSpeed:raw.avgSpeed,details};const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(!r.ok){const j=await r.json();return setMessage(j.error||"Не удалось сохранить")};setMessage("Изменения сохранены");refresh()};
+ const save=async(e:any,w:any)=>{e.preventDefault();setMessage("");const form=e.currentTarget,raw:any=Object.fromEntries(new FormData(form)),details=(w.details||[]).map((x:any,i:number)=>({...x,value:Number(raw[`detail-${i}`])||0}));const body={action:"updateWorkout",id:w.id,date:raw.date,type:raw.type,title:raw.title,rounds:raw.rounds,durationSeconds:Math.round((Number(raw.durationMinutes)||0)*60),restSeconds:Math.round((Number(raw.restMinutes)||0)*60),minHeartRate:raw.minHeartRate,avgHeartRate:raw.avgHeartRate,maxHeartRate:raw.maxHeartRate,calories:raw.calories,distanceMeters:raw.distanceMeters,avgSpeed:raw.avgSpeed,details};const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(!r.ok){const j=await r.json();notify(j.error||"Не удалось сохранить","warn");return setMessage(j.error||"Не удалось сохранить")};setMessage("Изменения сохранены");notify("Тренировка обновлена");refresh()};
  return <section className="workout-history"><div className="section-head"><div><p className="eyebrow">ЖУРНАЛ ТРЕНИРОВОК</p><h3>Предыдущие тренировки</h3></div><b>{workouts.length}</b></div>{message&&<p className="history-message">{message}</p>}<div>{workouts.length===0?<p className="detail-lead">Завершённые тренировки появятся здесь.</p>:workouts.map(w=><details key={w.id} className="history-card"><summary><div><small>{w.date} · {w.type}</small><h4>{w.title}</h4></div><span><b>{clock(w.durationSeconds)}</b><em>Пульс {w.avgHeartRate||"—"}</em></span></summary><form onSubmit={e=>save(e,w)}><div className="history-fields"><label>Дата<input name="date" type="date" required defaultValue={w.date}/></label><label>Тип<select name="type" defaultValue={w.type}><option>Силовая</option><option>Кардио</option><option>Плавание</option><option>Восстановление</option></select></label><label>Название<input name="title" required defaultValue={w.title}/></label><label>Круги<input name="rounds" type="number" min="1" max="20" defaultValue={w.rounds}/></label><label>Активное время, мин<input name="durationMinutes" type="number" min="0" step="0.01" defaultValue={((w.durationSeconds||0)/60).toFixed(2)}/></label><label>Отдых, мин<input name="restMinutes" type="number" min="0" step="0.01" defaultValue={((w.restSeconds||0)/60).toFixed(2)}/></label><label>Мин. пульс<input name="minHeartRate" type="number" min="0" max="250" defaultValue={w.minHeartRate||0}/></label><label>Средний пульс<input name="avgHeartRate" type="number" min="0" max="250" defaultValue={w.avgHeartRate||0}/></label><label>Макс. пульс<input name="maxHeartRate" type="number" min="0" max="250" defaultValue={w.maxHeartRate||0}/></label><label>Калории<input name="calories" type="number" min="0" defaultValue={w.calories||0}/></label><label>Расстояние, м<input name="distanceMeters" type="number" min="0" step="0.1" defaultValue={w.distanceMeters||0}/></label><label>Скорость, км/ч<input name="avgSpeed" type="number" min="0" step="0.1" defaultValue={w.avgSpeed||0}/></label></div>{w.details?.length>0&&<div className="history-exercises"><h5>Фактически выполнено</h5>{w.details.map((x:any,i:number)=><label key={`${x.key}-${i}`}><span>{x.name}</span><input name={`detail-${i}`} type="number" min="0" defaultValue={x.value}/><em>{x.unit}</em></label>)}</div>}<button>Сохранить изменения</button></form></details>)}</div></section>
 }
 function Photo({item,title,onDelete,compact}:{item:any;title:string;onDelete?:(id:number)=>void;compact?:boolean}){
@@ -451,10 +455,11 @@ function Photo({item,title,onDelete,compact}:{item:any;title:string;onDelete?:(i
 }
 
 function StrengthLog({data,refresh}:{data:any;refresh:()=>void}){
+ const notify=useToast();
  const logs=data.strengthLogs||[];
  const [exercise,setExercise]=useState(gymExercises[0]||"");
- const submit=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"strength",...b})});e.currentTarget.reset();refresh()};
- const remove=async(id:number)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteStrength",id})});refresh()};
+ const submit=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"strength",...b})});e.currentTarget.reset();notify("Рабочий вес записан");refresh()};
+ const remove=async(id:number)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteStrength",id})});notify("Запись удалена");refresh()};
  const history=logs.filter((x:any)=>x.exercise===exercise).sort((a:any,b:any)=>a.date.localeCompare(b.date));
  const ordered=[...history].reverse(), latest=ordered[0], prev=ordered[1];
  const trend=latest&&prev?Number(latest.weight)-Number(prev.weight):null;
@@ -489,10 +494,11 @@ function WeeklyDigest({data,weekWorkouts,weekDates,currentWeight}:{data:any;week
 }
 
 function MoodCheckin({data,refresh}:{data:any;refresh:()=>void}){
+ const notify=useToast();
  const [note,setNote]=useState(""), [saving,setSaving]=useState(false), today=localIso(new Date());
  const moods=["😊","🙂","😐","😔","😢","😡"];
- const log=async(mood:string)=>{setSaving(true);await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"mood",date:today,mood,note})});setNote("");setSaving(false);refresh()};
- const remove=async(id:number)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteMood",id})});refresh()};
+ const log=async(mood:string)=>{setSaving(true);await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"mood",date:today,mood,note})});setNote("");setSaving(false);notify("Состояние отмечено");refresh()};
+ const remove=async(id:number)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteMood",id})});notify("Запись удалена");refresh()};
  const recent=(data.moodLogs||[]).slice(0,5);
  return <section className="mood-card card"><div className="section-head"><div><p className="eyebrow">КАК ТЫ СЕЙЧАС</p><h3>Отметь состояние</h3></div></div>
   <div className="mood-picker">{moods.map(m=><button key={m} type="button" disabled={saving} onClick={()=>log(m)}>{m}</button>)}</div>
@@ -503,6 +509,7 @@ function MoodCheckin({data,refresh}:{data:any;refresh:()=>void}){
 
 function urlBase64ToUint8Array(base64:string){const padding="=".repeat((4-base64.length%4)%4);const b64=(base64+padding).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(b64);const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;++i)out[i]=raw.charCodeAt(i);return out}
 function PushToggle(){
+ const notify=useToast();
  const [enabled,setEnabled]=useState(false), [busy,setBusy]=useState(false), supported=typeof window!=="undefined"&&"serviceWorker" in navigator&&"PushManager" in window;
  useEffect(()=>{if(!supported)return;navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>setEnabled(!!sub)).catch(()=>{})},[supported]);
  if(!supported)return null;
@@ -514,6 +521,7 @@ function PushToggle(){
     const sub=await reg.pushManager.getSubscription();
     if(sub){await fetch("/api/push",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:sub.endpoint})});await sub.unsubscribe()}
     setEnabled(false);
+    notify("Напоминания выключены");
    }else{
     const perm=await Notification.requestPermission();
     if(perm!=="granted")return;
@@ -521,6 +529,7 @@ function PushToggle(){
     const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(key)});
     await fetch("/api/push",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(sub.toJSON())});
     setEnabled(true);
+    notify("Напоминания включены");
    }
   }finally{setBusy(false)}
  };
