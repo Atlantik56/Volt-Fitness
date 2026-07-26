@@ -170,7 +170,7 @@ async function callAnthropic(key:string,body:string){
 async function aiEstimateFood(raw:string,key:string){
  const prompt=`Ты нутрициолог. Пользователь описал приём пищи обычным текстом, без точных граммовок. Определи каждое блюдо и оцени его КБЖУ по типичному размеру порции. Ответь ТОЛЬКО строками строго в формате:\nНазвание блюда — 250 ккал (Б 20 / Ж 10 / У 15)\nОдна строка на блюдо, числа целые, названия по-русски. Больше никакого текста.\n\nОписание приёма пищи: ${raw}`;
  try{
-  const body=JSON.stringify({model:"claude-sonnet-5",max_tokens:2000,temperature:0.2,messages:[{role:"user",content:[{type:"text",text:prompt}]}]});
+  const body=JSON.stringify({model:"claude-sonnet-5",max_tokens:2000,messages:[{role:"user",content:[{type:"text",text:prompt}]}]});
   const r=await callAnthropic(key,body);
   if(!r.ok){console.error("aiEstimateFood: Anthropic вернул",r.status);return{items:[],calories:0,protein:0,fat:0,carbs:0}}
   const j=await r.json(),textOut=String((j.content||[]).map((p:any)=>p.text||"").join("\n")).trim();
