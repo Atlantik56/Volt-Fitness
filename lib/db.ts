@@ -91,6 +91,19 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
  // Links pre-existing strength_logs (workout_id IS NULL) to workout_logs, only where
  // unambiguous — see lib/strength-log-linking.ts. Runs once; safe to no-op on a fresh DB.
  {version:9,run:(database:Database.Database)=>{linkLegacyStrengthLogs(database)}},
+ // Sprint 7 — user-authored history of program stages (старт/дома/бассейн/зал/свой).
+ // Pure metadata: no FK to workout_logs/measurements, so editing a stage never
+ // rewrites past plans or results.
+ {version:10,sql:`CREATE TABLE IF NOT EXISTS program_stages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL CHECK(kind IN ('start','home','pool','gym','custom')),
+  title TEXT NOT NULL,
+  start_date TEXT NOT NULL,
+  end_date TEXT,
+  note TEXT NOT NULL DEFAULT '',
+  goal TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+ );`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

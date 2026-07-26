@@ -274,7 +274,7 @@ function ProgressPage({data,refresh,coachAction}:{data:any;refresh:()=>void;coac
 
  <div className="section-head"><div><p className="eyebrow">ДИНАМИКА ЗАМЕРОВ</p><h3>Замеры</h3></div><button type="button" className={formOpen?"ghost-btn":"add-measurement-btn"} onClick={()=>setFormOpen(v=>!v)}>{formOpen?"Закрыть":"+ Новый замер"}</button></div>
  {formOpen&&<MeasurementForm previous={history[0]} onClose={()=>setFormOpen(false)} onSaved={()=>{setFormOpen(false);refresh();notify("Замер сохранён")}}/>}
- <MeasurementChart measurements={measurements} target={profile.targetWeight} period={chartPeriod} onPeriodChange={setChartPeriod} anchor={anchor}/>
+ <MeasurementChart measurements={measurements} target={profile.targetWeight} period={chartPeriod} onPeriodChange={setChartPeriod} anchor={anchor} stages={data.programStages||[]}/>
 
  <h3 className="detail-title">Карточки показателей</h3>
  <MetricCardsGrid cards={cards}/>
@@ -292,6 +292,7 @@ function ProgressPage({data,refresh,coachAction}:{data:any;refresh:()=>void;coac
  <BodyMap data={data} refresh={refresh}/>
  <Notice/>
 
+ <ProgramStages stages={data.programStages||[]} refresh={refresh}/>
  <ProfileSection profile={profile} onSubmit={submitProfile}/>
  </>}
  {tab==="Тренировки"&&<>
@@ -348,14 +349,14 @@ function MeasurementForm({previous,onClose,onSaved}:{previous?:HistoryEntry;onCl
  </form>
 }
 
-function MeasurementChart({measurements,target,period,onPeriodChange,anchor}:{measurements:Measurement[];target:number;period:Period;onPeriodChange:(p:Period)=>void;anchor:Date}){
+function MeasurementChart({measurements,target,period,onPeriodChange,anchor,stages=[]}:{measurements:Measurement[];target:number;period:Period;onPeriodChange:(p:Period)=>void;anchor:Date;stages?:{title:string;startDate:string}[]}){
  const [metric,setMetric]=useState<MetricKey>("weight");
  const stats=useMemo(()=>computeMetricStats(measurements,metric,period,anchor),[measurements,metric,period,anchor]);
  return <div>
   <div className="metric-tabs" role="group" aria-label="Выбор замера">{MEASUREMENT_KEYS.map(key=><button key={key} type="button" className={metric===key?"active":""} onClick={()=>setMetric(key)}>{METRIC_LABELS[key]}</button>)}</div>
   <div className="period-tabs" role="group" aria-label="Период графика">{PERIODS.map(p=><button key={p} type="button" className={period===p?"active":""} onClick={()=>onPeriodChange(p)}>{PERIOD_LABELS[p]}</button>)}</div>
   <MetricStatsRow stats={stats} unit={METRIC_UNITS[metric]}/>
-  <SeriesChart points={stats.points} label={METRIC_LABELS[metric]} unit={METRIC_UNITS[metric]} target={metric==="weight"?target:undefined}/>
+  <SeriesChart points={stats.points} label={METRIC_LABELS[metric]} unit={METRIC_UNITS[metric]} target={metric==="weight"?target:undefined} stages={stages}/>
  </div>
 }
 
@@ -370,7 +371,7 @@ function MetricStatsRow({stats,unit}:{stats:MetricStats;unit:string}){
  </div>
 }
 
-function SeriesChart({points,label,unit,target}:{points:MetricPoint[];label:string;unit:string;target?:number}){
+function SeriesChart({points,label,unit,target,stages=[]}:{points:MetricPoint[];label:string;unit:string;target?:number;stages?:{title:string;startDate:string}[]}){
  if(points.length<2)return <p className="detail-lead">{points.length===0?`Нет данных «${label}» за выбранный период.`:`Добавь ещё один замер «${label}», чтобы увидеть график.`}</p>;
  const r1=(n:number)=>Math.round(n*10)/10;
  const values=points.map(p=>p.value);
@@ -380,14 +381,33 @@ function SeriesChart({points,label,unit,target}:{points:MetricPoint[];label:stri
  const x=(i:number)=>padX+(i/(points.length-1))*(w-2*padX), y=(v:number)=>h-padY-((v-lo)/((hi-lo)||1))*(h-2*padY);
  const path=points.map((p,i)=>`${i===0?"M":"L"}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(" ");
  const trend=computeTrendPoints(points);
+ // Sprint 7 — границы этапов программы на графике тела: интерполируем x по дате между
+ // соседними точками (точки на оси расположены по индексу, не строго пропорционально
+ // времени), поэтому дата этапа не обязана совпадать с датой замера.
+ const firstDate=points[0].date,lastDate=points[points.length-1].date;
+ const xForDate=(dateStr:string)=>{
+  if(dateStr<=firstDate)return x(0);
+  if(dateStr>=lastDate)return x(points.length-1);
+  for(let i=0;i<points.length-1;i++){
+   if(points[i].date<=dateStr&&dateStr<=points[i+1].date){
+    const d0=+new Date(points[i].date),d1=+new Date(points[i+1].date),d=+new Date(dateStr);
+    const frac=d1===d0?0:(d-d0)/(d1-d0);
+    return x(i)+(x(i+1)-x(i))*frac;
+   }
+  }
+  return x(0);
+ };
+ const visibleStages=stages.filter(s=>s.startDate>=firstDate&&s.startDate<=lastDate);
  return <div className="weight-chart">
   <div className="chart-y-axis"><span>{hi.toFixed(1)}</span><span>{lo.toFixed(1)}</span></div>
   <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" role="img" aria-label={`График «${label}» по замерам`}>
    {target!=null&&<line x1={padX} y1={y(target)} x2={w-padX} y2={y(target)} stroke="var(--line)" strokeDasharray="4 4"/>}
    {trend&&<line x1={x(0)} y1={y(trend[0].value)} x2={x(points.length-1)} y2={y(trend[1].value)} stroke="#5b6469" strokeWidth="1.5" strokeDasharray="2 4"/>}
+   {visibleStages.map(s=>{const sx=xForDate(s.startDate);return <g key={`${s.startDate}-${s.title}`} className="stage-boundary"><line x1={sx} y1={padY} x2={sx} y2={h-padY} stroke="#ffad73" strokeWidth="1" strokeDasharray="3 3"/><title>{`Этап: ${s.title} · с ${s.startDate}`}</title></g>})}
    <path d={path} fill="none" stroke="var(--lime)" strokeWidth="2.5"/>
    {points.map((p,i)=>{const prev=points[i-1],diff=prev?r1(p.value-prev.value):null;return <circle key={p.id} cx={x(i)} cy={y(p.value)} r="3.5" fill="var(--lime)"><title>{`${p.date} · ${p.value} ${unit}${diff!=null?` (${diff>0?"+":""}${diff})`:""}`}</title></circle>})}
   </svg>
+  {visibleStages.length>0&&<div className="stage-boundary-labels">{visibleStages.map(s=><span key={`${s.startDate}-${s.title}`}>{s.title}</span>)}</div>}
   <div className="weight-chart-labels"><span>{points[0].date}</span><span>{target!=null?`Цель ${target} ${unit}`:`${label}, ${unit}`}</span><span>{points[points.length-1].date}</span></div>
  </div>
 }
@@ -473,6 +493,65 @@ function ProfileSection({profile,onSubmit}:{profile:{name:string;height:number;s
  return <details className="profile-collapse"><summary><p className="eyebrow">ПРОФИЛЬ И ЦЕЛЬ</p><h3>{profile.name}</h3></summary>
   <form className="data-form" onSubmit={onSubmit}><label>Имя<input name="name" defaultValue={profile.name}/></label><label>Рост<input name="height" type="number" defaultValue={profile.height}/></label><label>Стартовый вес<input name="startWeight" type="number" step="0.1" defaultValue={profile.startWeight}/></label><label>Цель<input name="targetWeight" type="number" step="0.1" defaultValue={profile.targetWeight}/></label><button>Сохранить профиль</button></form>
  </details>
+}
+
+type Stage={id:number;kind:string;title:string;startDate:string;endDate:string|null;note:string;goal:string};
+const STAGE_KIND_LABELS:Record<string,string>={start:"Старт",home:"Дома",pool:"Бассейн",gym:"Зал",custom:"Свой этап"};
+
+// Sprint 7 — журнал реальных этапов программы (не путать со статичным планом-расписанием
+// personal-data.ts/phases). Чистая метадата: удаление/редактирование этапа не трогает
+// workout_logs/measurements.
+function ProgramStages({stages,refresh}:{stages:Stage[];refresh:()=>void}){
+ const notify=useToast();
+ const [adding,setAdding]=useState(false);
+ const [editingId,setEditingId]=useState<number|null>(null);
+ const sorted=useMemo(()=>[...stages].sort((a,b)=>b.startDate.localeCompare(a.startDate)),[stages]);
+
+ const submitCreate=async(e:any)=>{
+  e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));
+  const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"stage",...b})});
+  if(!r.ok){const j=await r.json().catch(()=>({}));return notify(j.error||"Не удалось сохранить этап","warn")}
+  notify("Этап добавлен");setAdding(false);refresh();
+ };
+ const submitEdit=async(e:any,id:number)=>{
+  e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));
+  const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"updateStage",id,...b})});
+  if(!r.ok){const j=await r.json().catch(()=>({}));return notify(j.error||"Не удалось сохранить этап","warn")}
+  notify("Этап обновлён");setEditingId(null);refresh();
+ };
+ const remove=async(id:number)=>{
+  if(!confirm("Удалить этот этап? Тренировки и замеры это не затронет."))return;
+  const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteStage",id})});
+  if(r.ok){notify("Этап удалён");refresh()}else notify("Не удалось удалить этап","warn");
+ };
+
+ return <details className="profile-collapse stage-collapse">
+  <summary><p className="eyebrow">ЭТАПЫ ПРОГРАММЫ</p><h3>{stages.length?`${stages.length} ${stages.length===1?"этап":"этапа"}`:"Пока нет этапов"}</h3></summary>
+  <div className="stage-list">{sorted.map(s=>editingId===s.id
+   ?<form key={s.id} className="data-form stage-form" onSubmit={e=>submitEdit(e,s.id)}>
+     <StageFields defaults={s}/>
+     <div className="measure-form-actions"><button type="button" className="ghost-btn" onClick={()=>setEditingId(null)}>Отмена</button><button type="submit">Сохранить</button></div>
+    </form>
+   :<article key={s.id} className="stage-card">
+     <div><b>{STAGE_KIND_LABELS[s.kind]||s.kind}</b><h4>{s.title}</h4><small>{s.startDate} — {s.endDate||"сейчас"}</small>{s.goal&&<p>{s.goal}</p>}{s.note&&<p className="stage-note">{s.note}</p>}</div>
+     <div className="stage-actions"><button type="button" onClick={()=>setEditingId(s.id)}>Изменить</button><button type="button" className="stage-delete" onClick={()=>remove(s.id)}>Удалить</button></div>
+    </article>
+  )}</div>
+  {adding
+   ?<form className="data-form stage-form" onSubmit={submitCreate}><StageFields/><div className="measure-form-actions"><button type="button" className="ghost-btn" onClick={()=>setAdding(false)}>Отмена</button><button type="submit">Добавить этап</button></div></form>
+   :<button type="button" className="add-measurement-btn" onClick={()=>setAdding(true)}>+ Новый этап</button>}
+ </details>
+}
+
+function StageFields({defaults}:{defaults?:Stage}){
+ return <div className="stage-fields">
+  <label>Тип<select name="kind" defaultValue={defaults?.kind||"custom"}>{Object.entries(STAGE_KIND_LABELS).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label>
+  <label>Название<input name="title" required defaultValue={defaults?.title} placeholder="Например, Дом: гантели"/></label>
+  <label>Начало<input name="startDate" type="date" required defaultValue={defaults?.startDate}/></label>
+  <label>Окончание (пусто — идёт сейчас)<input name="endDate" type="date" defaultValue={defaults?.endDate||""}/></label>
+  <label>Цель<input name="goal" defaultValue={defaults?.goal} placeholder="Например, привычка и подготовка к залу"/></label>
+  <label>Заметка<textarea name="note" defaultValue={defaults?.note}/></label>
+ </div>
 }
 function WorkoutHistory({workouts,refresh}:{workouts:any[];refresh:()=>void}){
  const notify=useToast();

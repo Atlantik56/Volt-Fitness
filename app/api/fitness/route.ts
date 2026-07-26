@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { requireAuth,sameOrigin } from "@/lib/auth";
 import { getSetting,setSetting } from "@/lib/settings";
 import { saveWorkout,updateWorkout,deleteWorkout,insertStrengthLog,deleteStrengthLog } from "@/lib/workout-service";
+import { createStage,updateStage,deleteStage } from "@/lib/program-stages";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const num=(x:any,min=0,max=100000)=>{const n=Number(x);return Number.isFinite(n)&&n>=min&&n<=max?n:null};
@@ -19,13 +20,14 @@ export async function GET(){
  const strengthLogs=db.prepare("SELECT id,date,exercise,weight,reps,difficulty,created_at createdAt FROM strength_logs ORDER BY date DESC,id DESC LIMIT 300").all();
  const wellnessLogs=db.prepare("SELECT id,date,energy,pain,pain_area painArea,note FROM wellness_logs ORDER BY date DESC LIMIT 120").all();
  const scheduleOverrides=db.prepare("SELECT * FROM (SELECT id,original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle FROM schedule_overrides ORDER BY scheduled_date DESC,id DESC LIMIT 200) ORDER BY scheduledDate ASC,id ASC").all();
+ const programStages=db.prepare("SELECT id,kind,title,start_date startDate,end_date endDate,note,goal FROM program_stages ORDER BY start_date ASC,id ASC").all();
  const whatsNewSeenVersion=Number(getSetting("whats_new_seen_version"))||0;
  // Принятые предложения прогрессии (Sprint 6.12) — влияют только на стартовый вес/повторы
  // следующей сессии, историю тренировок не переписывают. Override перестаёт отдаваться,
  // как только по упражнению появилась более новая сохранённая попытка — предложение уже сработало.
  const progressionOverrides=Object.fromEntries((db.prepare(`SELECT o.exercise,o.weight,o.reps FROM exercise_load_overrides o
   WHERE NOT EXISTS (SELECT 1 FROM strength_logs s WHERE s.exercise=o.exercise AND s.created_at>o.created_at)`).all() as any[]).map(x=>[x.exercise,{weight:x.weight,reps:x.reps}]));
- return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
+ return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -69,6 +71,12 @@ export async function POST(req:Request){
   db.prepare("INSERT INTO food_logs(date,meal_type,raw_text,items_json,calories,protein,fat,carbs,note) VALUES(?,?,?,?,?,?,?,?,?)").run(b.date,mealType,raw,JSON.stringify(parsed.items),parsed.calories,parsed.protein,parsed.fat,parsed.carbs,text(b.note,600));return Response.json({ok:true,parsed})
  }else if(b.action==="deleteFood"){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM food_logs WHERE id=?").run(id)
+ }else if(b.action==="stage"){
+  const result=createStage(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
+ }else if(b.action==="updateStage"){
+  const result=updateStage(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
+ }else if(b.action==="deleteStage"){
+  const result=deleteStage(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="markWhatsNewSeen"){
   const version=Number(b.version);if(!Number.isSafeInteger(version)||version<0)return Response.json({error:"Некорректная версия"},{status:400});
   const current=Number(getSetting("whats_new_seen_version"))||0;if(version>current)setSetting("whats_new_seen_version",String(version))
