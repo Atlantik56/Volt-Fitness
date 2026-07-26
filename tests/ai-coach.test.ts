@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "../lib/coach-weekly.ts";
 import { buildAiCoachContext, renderAiCoachContextText } from "../lib/ai-context.ts";
-import { askAiCoach, AiCoachError } from "../lib/ai-coach.ts";
+import { askAiCoach, askMwsAiCoach, AiCoachError } from "../lib/ai-coach.ts";
+import { askAiHub } from "../lib/ai-hub.ts";
 import {
   dateInTimeZone,
   releaseDailyQuota,
@@ -120,6 +121,59 @@ test("6.8: сетевая ошибка/таймаут превращается �
     throw new Error("network down");
   };
   await assert.rejects(() => askAiCoach("key", fakeContext, [], "?", fetchMock as any), AiCoachError);
+});
+
+test("AI Hub: MWS использует OpenAI-совместимый endpoint и разбирает ответ",async()=>{
+  let calledUrl="";
+  let auth="";
+  const fetchMock=async(url:string,init:RequestInit)=>{
+    calledUrl=url;auth=String((init.headers as Record<string,string>).authorization);
+    return new Response(JSON.stringify({choices:[{message:{content:'{"answer":"Резерв работает","mainRecommendation":null}'}}]}),{status:200});
+  };
+  const reply=await askMwsAiCoach("secret","project-avatar-aang5615","qwen3-6-35b-a3b",fakeContext,[],"?",fetchMock);
+  assert.equal(reply.answer,"Резерв работает");
+  assert.ok(calledUrl.endsWith("/projects/project-avatar-aang5615/openai/v1/chat/completions"));
+  assert.equal(auth,"Bearer secret");
+});
+
+test("AI Hub: Anthropic остаётся основным, когда он доступен",async()=>{
+  let mwsCalls=0;
+  const reply=await askAiHub({anthropicKey:"a",mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","auto",{
+    anthropic:async()=>({answer:"Anthropic",mainRecommendation:null}),
+    mws:async()=>{mwsCalls++;return {answer:"MWS",mainRecommendation:null}},
+  });
+  assert.equal(reply.provider,"anthropic");
+  assert.equal(reply.routeReason,"primary");
+  assert.equal(mwsCalls,0);
+});
+
+test("AI Hub: при сбое Anthropic запрос автоматически уходит в MWS",async()=>{
+  const reply=await askAiHub({anthropicKey:"a",mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","auto",{
+    anthropic:async()=>{throw new AiCoachError("timeout",504)},
+    mws:async()=>({answer:"MWS",mainRecommendation:"Резерв"}),
+  });
+  assert.equal(reply.provider,"mws");
+  assert.equal(reply.routeReason,"fallback");
+});
+
+test("AI Hub: ошибка настройки не маскируется переключением провайдера",async()=>{
+  let mwsCalls=0;
+  await assert.rejects(()=>askAiHub({anthropicKey:"a",mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","auto",{
+    anthropic:async()=>{throw new AiCoachError("bad request",400)},
+    mws:async()=>{mwsCalls++;return {answer:"MWS",mainRecommendation:null}},
+  }),AiCoachError);
+  assert.equal(mwsCalls,0);
+});
+
+test("AI Hub: ручной выбор MWS не вызывает Anthropic",async()=>{
+  let anthropicCalls=0;
+  const reply=await askAiHub({anthropicKey:"a",mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","mws",{
+    anthropic:async()=>{anthropicCalls++;return {answer:"Anthropic",mainRecommendation:null}},
+    mws:async()=>({answer:"MWS вручную",mainRecommendation:null}),
+  });
+  assert.equal(reply.provider,"mws");
+  assert.equal(reply.answer,"MWS вручную");
+  assert.equal(anthropicCalls,0);
 });
 
 test("6.11: дневной лимит использует серверную московскую дату", () => {

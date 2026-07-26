@@ -28,7 +28,7 @@ const SYSTEM_PROMPT=`Ты — VOLT Coach, локальный ИИ-помощни
 Формат ответа — строго JSON без markdown-обёртки:
 {"answer": "текст ответа", "mainRecommendation": "одна короткая рекомендация или null"}`;
 
-function parseStructuredReply(raw:string):AiCoachReply{
+export function parseStructuredReply(raw:string):AiCoachReply{
   let jsonText=raw.trim();
   const fence=jsonText.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if(fence)jsonText=fence[1].trim();
@@ -85,5 +85,40 @@ export async function askAiCoach(
   const body=await response.json();
   const text=String((body.content||[]).map((p:any)=>p.text||"").join("\n")).trim();
   if(!text)throw new AiCoachError("Пустой ответ от сервиса ИИ-тренера",502);
+  return parseStructuredReply(text);
+}
+
+export async function askMwsAiCoach(
+  apiKey:string,
+  project:string,
+  model:string,
+  context:AiCoachContext,
+  history:AiChatMessage[],
+  question:string,
+  fetchImpl:AnthropicFetch=fetch,
+):Promise<AiCoachReply>{
+  if(!/^[a-zA-Z0-9][a-zA-Z0-9_-]{1,80}$/.test(project)||!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,100}$/.test(model))
+    throw new AiCoachError("Настройки MWS GPT имеют неверный формат",400);
+  const contextText=renderAiCoachContextText(context);
+  const messages=[
+    {role:"system",content:SYSTEM_PROMPT},
+    ...history.slice(-MAX_HISTORY_MESSAGES).map(m=>({role:m.role,content:m.text.slice(0,MAX_HISTORY_MESSAGE_CHARS)})),
+    {role:"user" as const,content:`Контекст пользователя на сегодня (${context.date}):\n${contextText}\n\nВопрос пользователя: ${question}`},
+  ];
+  let response:Response;
+  try{
+    response=await fetchImpl(`https://gpt.mwsapis.ru/projects/${encodeURIComponent(project)}/openai/v1/chat/completions`,{
+      method:"POST",
+      headers:{"content-type":"application/json","authorization":`Bearer ${apiKey}`},
+      signal:AbortSignal.timeout(30000),
+      body:JSON.stringify({model,messages,temperature:0.2,max_tokens:MAX_REPLY_TOKENS}),
+    });
+  }catch{
+    throw new AiCoachError("Резервный сервис MWS GPT не ответил",504);
+  }
+  if(!response.ok)throw new AiCoachError(`Резервный сервис MWS GPT недоступен (${response.status})`,502);
+  const body=await response.json();
+  const text=String(body?.choices?.[0]?.message?.content||"").trim();
+  if(!text)throw new AiCoachError("Пустой ответ от MWS GPT",502);
   return parseStructuredReply(text);
 }

@@ -2,7 +2,8 @@ import { db } from "@/lib/db";
 import { requireAuth, sameOrigin } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/settings";
 import { buildAiCoachContext } from "@/lib/ai-context";
-import { askAiCoach, AiCoachError, type AiChatMessage } from "@/lib/ai-coach";
+import { AiCoachError, type AiChatMessage } from "@/lib/ai-coach";
+import { askAiHub } from "@/lib/ai-hub";
 import {
   COACH_CHAT_DAILY_LIMIT,
   dateInTimeZone,
@@ -57,6 +58,7 @@ export async function POST(req: Request) {
 
   const date = dateOk(body.date) ? body.date : null;
   const question = typeof body.question === "string" ? body.question.trim().slice(0, 1000) : "";
+  const provider=body.provider==="anthropic"||body.provider==="mws"?body.provider:"auto";
   if (!date || !question) return Response.json({ error: "Укажите дату и вопрос" }, { status: 400 });
 
   const plan =
@@ -66,8 +68,14 @@ export async function POST(req: Request) {
 
   const history = loadConversation(6);
 
-  const key = getSetting("anthropic_api_key") || process.env.ANTHROPIC_API_KEY;
-  if (!key) return Response.json({ error: "ИИ-тренер не настроен на сервере" }, { status: 503 });
+  const hubConfig={
+    anthropicKey:getSetting("anthropic_api_key")||process.env.ANTHROPIC_API_KEY,
+    mwsKey:getSetting("mws_api_key")||process.env.MWS_API_KEY,
+    mwsProject:getSetting("mws_project")||process.env.MWS_PROJECT,
+    mwsModel:getSetting("mws_model")||process.env.MWS_MODEL,
+  };
+  if(!hubConfig.anthropicKey&&!(hubConfig.mwsKey&&hubConfig.mwsProject&&hubConfig.mwsModel))
+    return Response.json({error:"AI Hub не настроен на сервере"},{status:503});
 
   // Данные принадлежат единственному профилю приложения (id=1); requireAuth уже
   // защищает эндпоинт от неавторизованных запросов — доступа к «чужим» данным нет.
@@ -99,7 +107,7 @@ export async function POST(req: Request) {
     return Response.json({ error: `Дневной лимит сообщений тренеру исчерпан (${COACH_CHAT_DAILY_LIMIT}). Продолжите завтра.` }, { status: 429 });
 
   try {
-    const reply = await askAiCoach(key, context, history, question);
+    const reply=await askAiHub(hubConfig,context,history,question,provider);
     appendMessages(question, reply.answer);
     return Response.json({ ok: true, ...reply });
   } catch (err) {
