@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 import { requireAuth,sameOrigin } from "@/lib/auth";
 import { getSetting,setSetting } from "@/lib/settings";
-import { saveWorkout,updateWorkout,insertStrengthLog,deleteStrengthLog } from "@/lib/workout-service";
+import { saveWorkout,updateWorkout,deleteWorkout,insertStrengthLog,deleteStrengthLog } from "@/lib/workout-service";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const num=(x:any,min=0,max=100000)=>{const n=Number(x);return Number.isFinite(n)&&n>=min&&n<=max?n:null};
@@ -45,6 +45,8 @@ export async function POST(req:Request){
   const result=saveWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="updateWorkout"){
   const result=updateWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
+ }else if(b.action==="deleteWorkout"){
+  const result=deleteWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="activity"){
   if(!dateOk(b.date))return Response.json({error:"Некорректная дата"},{status:400});db.prepare("INSERT INTO daily_activity (date,steps,active_minutes,calories,beers,sleep_hours) VALUES (?,?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET steps=excluded.steps,active_minutes=excluded.active_minutes,calories=excluded.calories,beers=excluded.beers,sleep_hours=excluded.sleep_hours").run(b.date,num(b.steps)||0,num(b.activeMinutes,0,1440)||0,num(b.calories,0,20000)||0,num(b.beers,0,100)||0,num(b.sleepHours,0,24)||0)
  }else if(b.action==="wellness"){

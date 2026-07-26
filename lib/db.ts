@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import { mkdirSync } from "node:fs";
 import path from "node:path";
+import { linkLegacyStrengthLogs } from "./strength-log-linking.ts";
 
 // DATA_DIR is a runtime-only persistent volume; it must not be bundled into the standalone trace.
 const buildDatabase = process.env.VOLT_BUILD_DATABASE === "1";
@@ -47,7 +48,7 @@ try{db.exec("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL NOT NULL DEF
 try{db.exec("CREATE TABLE IF NOT EXISTS strength_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, exercise TEXT NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")}catch{}
 
 db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
-const migrations=[
+const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>void}[]=[
  {version:1,sql:`CREATE TABLE IF NOT EXISTS wellness_logs (id INTEGER PRIMARY KEY AUTOINCREMENT,date TEXT NOT NULL UNIQUE,energy INTEGER NOT NULL DEFAULT 3,pain INTEGER NOT NULL DEFAULT 0,pain_area TEXT NOT NULL DEFAULT '',note TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
  CREATE TABLE IF NOT EXISTS schedule_overrides (id INTEGER PRIMARY KEY AUTOINCREMENT,original_date TEXT NOT NULL UNIQUE,scheduled_date TEXT NOT NULL,plan_title TEXT NOT NULL,replacement_title TEXT NOT NULL DEFAULT '',created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`},
  {version:2,sql:`ALTER TABLE workout_logs ADD COLUMN effort TEXT NOT NULL DEFAULT '';ALTER TABLE workout_logs ADD COLUMN pain_after INTEGER NOT NULL DEFAULT 0;`},
@@ -87,10 +88,17 @@ const migrations=[
   );
  `},
  {version:8,sql:`ALTER TABLE strength_logs ADD COLUMN workout_id INTEGER REFERENCES workout_logs(id) ON DELETE CASCADE;`},
+ // Links pre-existing strength_logs (workout_id IS NULL) to workout_logs, only where
+ // unambiguous — see lib/strength-log-linking.ts. Runs once; safe to no-op on a fresh DB.
+ {version:9,run:(database:Database.Database)=>{linkLegacyStrengthLogs(database)}},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
-  const apply=db.transaction(()=>{for(const statement of migration.sql.split(";").map(x=>x.trim()).filter(Boolean)){try{db.exec(statement)}catch(error){if(!String(error).includes("duplicate column"))throw error}}db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)").run(migration.version)});
+  const apply=db.transaction(()=>{
+   if(migration.sql)for(const statement of migration.sql.split(";").map(x=>x.trim()).filter(Boolean)){try{db.exec(statement)}catch(error){if(!String(error).includes("duplicate column"))throw error}}
+   if(migration.run)migration.run(db);
+   db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)").run(migration.version);
+  });
   apply();
  }
 }

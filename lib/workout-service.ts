@@ -121,6 +121,22 @@ export function saveWorkout(b: any): ActionResult {
  return { ok: true };
 }
 
+function parseJsonArray(raw: any): any[] {
+ try { const value = JSON.parse(raw); return Array.isArray(value) ? value : [] } catch { return [] }
+}
+
+// Удаляет progression_decisions, посчитанные для прежней версии тренировки, и
+// exercise_load_overrides, созданные из этих решений (у override нет FK на decision,
+// поэтому порядок важен: сперва overrides, потом decisions). Используется и при
+// редактировании (updateWorkout), и при удалении (deleteWorkout) тренировки.
+function purgeProgressionForWorkout(workoutId: number) {
+ const staleIds = (db.prepare("SELECT id FROM progression_decisions WHERE workout_id=?").all(workoutId) as { id: number }[]).map(r => r.id);
+ if (!staleIds.length) return;
+ const placeholders = staleIds.map(() => "?").join(",");
+ db.prepare(`DELETE FROM exercise_load_overrides WHERE source_decision_id IN (${placeholders})`).run(...staleIds);
+ db.prepare(`DELETE FROM progression_decisions WHERE id IN (${placeholders})`).run(...staleIds);
+}
+
 export function updateWorkout(b: any): ActionResult {
  const id = Number(b.id), duration = num(b.durationSeconds, 0, 86400), rest = num(b.restSeconds, 0, 86400), rounds = num(b.rounds, 1, 20), minHr = num(b.minHeartRate, 0, 250), avgHr = num(b.avgHeartRate, 0, 250), maxHr = num(b.maxHeartRate, 0, 250), calories = num(b.calories, 0, 10000), distance = num(b.distanceMeters, 0, 1000000), speed = num(b.avgSpeed, 0, 200), details = parseDetails(b.details);
  if (!Number.isSafeInteger(id) || id < 1 || !dateOk(b.date) || !text(b.title) || duration === null || rest === null || rounds === null) return { ok: false, error: "Некорректные данные тренировки", status: 400 };
@@ -133,11 +149,36 @@ export function updateWorkout(b: any): ActionResult {
   // Силовые логи пересобираются заново из отредактированных данных, чтобы не
   // расходиться с ними (были не связаны с тренировкой вовсе до этого спринта).
   db.prepare("DELETE FROM strength_logs WHERE workout_id=?").run(id);
+  // Предложения прогрессии, посчитанные для старой версии тренировки, больше не
+  // отражают отредактированные данные — удаляем их и пересчитываем заново ниже.
+  purgeProgressionForWorkout(id);
   if (workoutType === "Силовая") {
    const grouped = groupStrengthDetails(details);
    const insert = db.prepare("INSERT INTO strength_logs (date,exercise,weight,reps,difficulty,workout_id) VALUES (?,?,?,?,?,?)");
    for (const [exercise, item] of grouped) insert.run(b.date, exercise, item.weight, item.reps, item.difficulty, id);
+   // completed/effort/painAfter не редактируются формой UI — берём исходные
+   // сохранённые значения тренировки, а не подставляем пустые/нулевые.
+   const existing = db.prepare("SELECT completed,effort,pain_after painAfter FROM workout_logs WHERE id=?").get(id) as { completed: string; effort: string; painAfter: number };
+   generateProgressionProposals({
+    workoutId: id, date: b.date, plan: { title: text(b.title), type: workoutType },
+    painAfter: existing.painAfter, effort: existing.effort, workoutComplete: parseJsonArray(existing.completed).length >= details.length,
+    exercises: grouped,
+   });
   }
+ })();
+ if (!changed) return { ok: false, error: "Тренировка не найдена", status: 404 };
+ return { ok: true };
+}
+
+export function deleteWorkout(b: any): ActionResult {
+ const id = Number(b.id);
+ if (!Number.isSafeInteger(id) || id < 1) return { ok: false, error: "Некорректная тренировка", status: 400 };
+ let changed = 0;
+ db.transaction(() => {
+  purgeProgressionForWorkout(id);
+  db.prepare("DELETE FROM strength_logs WHERE workout_id=?").run(id);
+  const result = db.prepare("DELETE FROM workout_logs WHERE id=?").run(id);
+  changed = result.changes;
  })();
  if (!changed) return { ok: false, error: "Тренировка не найдена", status: 404 };
  return { ok: true };

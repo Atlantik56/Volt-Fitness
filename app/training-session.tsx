@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createSubmissionGuard } from "./submission-guard";
 import { ExerciseVideo } from "./exercise-video";
 import { progressionDecision, type ProgressDecision } from "./exercise-progress";
 import { progressionAllowed, type CoachAction } from "../lib/coach";
@@ -98,16 +99,28 @@ export function WorkoutSession({plan,strengthLogs,coachAction=null,loadOverrides
   const heartRateEntered=Number(session.metrics.minHeartRate)>0&&Number(session.metrics.avgHeartRate)>0&&Number(session.metrics.maxHeartRate)>0;
   const metricsValid=!heartRateEntered||(Number(session.metrics.minHeartRate)<=Number(session.metrics.avgHeartRate)&&Number(session.metrics.avgHeartRate)<=Number(session.metrics.maxHeartRate));
   const discard=useCallback(()=>{if(!confirm("Прервать тренировку? Прогресс будет потерян."))return;session.clearDraft();close()},[session,close]);
+  // Синхронный guard вне React state (app/submission-guard.ts) — на быстрый двойной
+  // клик/тап React state ещё не успевает перерендерить disabled-кнопку между двумя
+  // вызовами finish(), а guard.pending уже установлен в тот же тик.
+  const guard=useRef(createSubmissionGuard()).current;
+  const [saving,setSaving]=useState(false);
   const finish=async()=>{
-    const completed=session.steps.slice(0,session.cursor).filter(step=>step.kind==="exercise").map(step=>step.key);
-    const response=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed,durationSeconds:session.activeSeconds,restSeconds:session.restSecondsSpent,details,effort:session.effort,painAfter:session.painAfter,...session.metrics})});
-    if(!response.ok){notify("Не удалось сохранить тренировку","warn");return}
-    notify("Тренировка сохранена");
-    session.clearDraft();done();
+    await guard.run(async()=>{
+      setSaving(true);
+      try{
+        const completed=session.steps.slice(0,session.cursor).filter(step=>step.kind==="exercise").map(step=>step.key);
+        const response=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"workout",date:localIso(new Date()),type:plan.type,title:plan.title,rounds,completed,durationSeconds:session.activeSeconds,restSeconds:session.restSecondsSpent,details,effort:session.effort,painAfter:session.painAfter,...session.metrics})});
+        if(!response.ok){notify("Не удалось сохранить тренировку","warn");return}
+        notify("Тренировка сохранена");
+        session.clearDraft();done();
+      }finally{
+        setSaving(false);
+      }
+    });
   };
   const step=session.step;
   return <div className="modal-backdrop focus-mode session-mode">
-    {session.finished?<WorkoutFinishView plan={plan} rounds={rounds} activeSeconds={session.activeSeconds} reps={reps} plank={plank} nextDecisions={nextDecisions} activityKind={activityKind} metricFields={metricFields} metrics={session.metrics} onMetric={(key,value)=>session.setMetrics(current=>({...current,[key]:value}))} effort={session.effort} onEffort={session.setEffort} painAfter={session.painAfter} onPainAfter={session.setPainAfter} metricsValid={metricsValid} streak={streak} onSave={finish} onClose={discard}/>
+    {session.finished?<WorkoutFinishView plan={plan} rounds={rounds} activeSeconds={session.activeSeconds} reps={reps} plank={plank} nextDecisions={nextDecisions} activityKind={activityKind} metricFields={metricFields} metrics={session.metrics} onMetric={(key,value)=>session.setMetrics(current=>({...current,[key]:value}))} effort={session.effort} onEffort={session.setEffort} painAfter={session.painAfter} onPainAfter={session.setPainAfter} metricsValid={metricsValid} saving={saving} streak={streak} onSave={finish} onClose={discard}/>
     :step?.kind==="rest"?<RestStepView key={step.key} totalSeconds={step.durationSeconds} nextName={step.nextExerciseName} onAdvance={session.advance} onDiscard={discard}/>
     :step?<ExerciseStepView key={step.key} step={step} showLoad={showLoad} allowSubstitution={activityKind!=="recovery"} positionLabel={step.phase==="warmup"?`Разминка · ${step.exerciseIndex+1} из ${warmupCount}`:`Упражнение ${step.roundIndex*plan.exercises.length+step.exerciseIndex+1} из ${rounds*plan.exercises.length}${rounds>1?` · Круг ${step.roundIndex+1} из ${rounds}`:""}`} activeSeconds={session.activeSeconds} value={session.values[step.key]||""} onValue={value=>session.setValues(current=>({...current,[step.key]:value}))} weight={session.weights[String(step.exerciseIndex)]||""} onWeight={value=>session.setWeights(current=>({...current,[String(step.exerciseIndex)]:value}))} difficulty={session.difficulties[String(step.exerciseIndex)]||"Нормально"} onDifficulty={value=>session.setDifficulties(current=>({...current,[String(step.exerciseIndex)]:value}))} substituted={!!session.substitutions[String(step.exerciseIndex)]} onSubstitute={()=>session.setSubstitutions(current=>({...current,[String(step.exerciseIndex)]:!current[String(step.exerciseIndex)]}))} recommendation={capProgression(progressionDecision(step.exercise[0],step.exercise[2],strengthLogs),progressionAllowed(coachAction))} onDone={session.advance} onDiscard={discard}/>:null}
   </div>;
@@ -144,13 +157,13 @@ function RestStepView({totalSeconds,nextName,onAdvance,onDiscard}:{totalSeconds:
   return <section className="session-card rest-card"><header className="session-card-head"><div><p className="eyebrow">ОТДЫХ</p><h2>Дыши спокойно</h2></div><button aria-label="Прервать тренировку" onClick={onDiscard}>×</button></header><div className="rest-body"><div className="rest-clock">{secondsLeft}</div><div className="rest-progress"><i style={{width:`${pct}%`}}/></div><p className="rest-next">Дальше: <b>{nextName}</b></p></div><footer className="session-card-foot"><button className="session-primary" onClick={onAdvance}>Пропустить отдых</button></footer></section>;
 }
 
-function WorkoutFinishView({plan,rounds,activeSeconds,reps,plank,nextDecisions,activityKind,metricFields,metrics,onMetric,effort,onEffort,painAfter,onPainAfter,metricsValid,streak,onSave,onClose}:{plan:WorkoutPlan;rounds:number;activeSeconds:number;reps:number;plank:number;nextDecisions:(ProgressDecision&{name:string})[];activityKind:ActivityKind;metricFields:readonly MetricField[];metrics:Record<MetricKey,string>;onMetric:(k:MetricKey,v:string)=>void;effort:string;onEffort:(v:string)=>void;painAfter:string;onPainAfter:(v:string)=>void;metricsValid:boolean;streak:number;onSave:()=>void;onClose:()=>void}){
+function WorkoutFinishView({plan,rounds,activeSeconds,reps,plank,nextDecisions,activityKind,metricFields,metrics,onMetric,effort,onEffort,painAfter,onPainAfter,metricsValid,saving,streak,onSave,onClose}:{plan:WorkoutPlan;rounds:number;activeSeconds:number;reps:number;plank:number;nextDecisions:(ProgressDecision&{name:string})[];activityKind:ActivityKind;metricFields:readonly MetricField[];metrics:Record<MetricKey,string>;onMetric:(k:MetricKey,v:string)=>void;effort:string;onEffort:(v:string)=>void;painAfter:string;onPainAfter:(v:string)=>void;metricsValid:boolean;saving:boolean;streak:number;onSave:()=>void;onClose:()=>void}){
   const feedback=buildPostWorkoutFeedback({effort,painAfter:Number(painAfter)||0,streak,planType:plan.type,planTitle:plan.title});
   return <section className="workout-modal workout-summary"><header><div><p className="eyebrow">ТРЕНИРОВКА ЗАВЕРШЕНА</p><h2>Отличная работа</h2></div><button aria-label="Закрыть и сбросить тренировку" onClick={onClose}>×</button></header><div className="summary-grid"><article><b>{sessionClock(activeSeconds)}</b><span>активное время</span></article><article><b>{reps}</b><span>повторений</span></article><article><b>{plank}</b><span>секунд планки</span></article><article><b>{rounds}</b><span>{rounds===1?"круг":"круга"}</span></article></div><p>{plan.exercises.length} упражнений в каждом круге.</p>
     {activityKind==="strength"&&<div className="progress-decisions"><div><p className="eyebrow">ПРОГРЕССИЯ УПРАЖНЕНИЙ</p><h3>Следующая тренировка</h3></div>{nextDecisions.map(item=><article className={item.kind} key={item.name}><span>{item.kind==="weight"?"↑":item.kind==="reps"?"+":item.kind==="deload"?"↓":"="}</span><div><b>{item.name}</b><strong>{item.title}</strong><small>{item.text}</small></div></article>)}</div>}
     <div className="result-metrics"><div><p className="eyebrow">САМОЧУВСТВИЕ</p><h3>Как прошла нагрузка</h3></div><div className="result-fields"><label><span>Нагрузка</span><select value={effort} onChange={event=>onEffort(event.target.value)}>{["Легко","Нормально","Тяжело","Боль"].map(value=><option key={value}>{value}</option>)}</select></label><label><span>Боль в суставах после, 0–10</span><input type="number" min="0" max="10" inputMode="numeric" value={painAfter} onChange={event=>onPainAfter(event.target.value)}/></label></div></div>
     <div className="result-coach-note"><span className="result-coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>{feedback}</b></div></div>
-    {metricFields.length>0&&<div className="result-metrics"><div><p className="eyebrow">ДАННЫЕ С ЧАСОВ</p><h3>{activityKind==="swim"?"Плавание":activityKind==="bike"?"Велотренировка":"Нагрузка и пульс"}</h3></div><div className="result-fields">{metricFields.map(([key,label,unit])=><label key={key}><span>{label}</span><div><input type="number" min="1" step={key==="avgSpeed"?"0.1":"1"} inputMode="decimal" value={metrics[key]} onChange={event=>onMetric(key,event.target.value)}/><em>{unit}</em></div></label>)}</div>{!metricsValid&&<small>Проверь пульс: минимальный ≤ средний ≤ максимальный.</small>}</div>}<p className="result-metrics-hint">Данные с часов необязательны — можно сохранить тренировку и без них.</p><button className="save-workout" disabled={!metricsValid} onClick={onSave}>{metricsValid?"Сохранить тренировку":"Проверь пульс и сохрани"}</button>
+    {metricFields.length>0&&<div className="result-metrics"><div><p className="eyebrow">ДАННЫЕ С ЧАСОВ</p><h3>{activityKind==="swim"?"Плавание":activityKind==="bike"?"Велотренировка":"Нагрузка и пульс"}</h3></div><div className="result-fields">{metricFields.map(([key,label,unit])=><label key={key}><span>{label}</span><div><input type="number" min="1" step={key==="avgSpeed"?"0.1":"1"} inputMode="decimal" value={metrics[key]} onChange={event=>onMetric(key,event.target.value)}/><em>{unit}</em></div></label>)}</div>{!metricsValid&&<small>Проверь пульс: минимальный ≤ средний ≤ максимальный.</small>}</div>}<p className="result-metrics-hint">Данные с часов необязательны — можно сохранить тренировку и без них.</p><button className="save-workout" disabled={!metricsValid||saving} onClick={onSave}>{saving?"Сохраняю…":metricsValid?"Сохранить тренировку":"Проверь пульс и сохрани"}</button>
   </section>;
 }
 

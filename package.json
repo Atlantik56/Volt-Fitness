@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
-    "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "test": "node --experimental-strip-types --import ./tests/register-alias.mjs --test tests/*.test.ts",
     "mcp": "node --experimental-strip-types mcp-server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern data"
