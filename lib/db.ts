@@ -86,6 +86,7 @@ const migrations=[
    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
  `},
+ {version:8,sql:`ALTER TABLE strength_logs ADD COLUMN workout_id INTEGER REFERENCES workout_logs(id) ON DELETE CASCADE;`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

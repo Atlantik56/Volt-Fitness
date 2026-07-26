@@ -1,9 +1,7 @@
 import { db } from "@/lib/db";
 import { requireAuth,sameOrigin } from "@/lib/auth";
 import { getSetting,setSetting } from "@/lib/settings";
-import { buildCoachSummary,decideCoach } from "@/lib/coach";
-import { buildExerciseProgression,shouldSuppressRepeat,type ProgressionAction,type ProgressionStatus } from "@/lib/progression-engine";
-import { targetMaxRepsFor } from "@/app/exercise-catalog";
+import { saveWorkout,updateWorkout,insertStrengthLog,deleteStrengthLog } from "@/lib/workout-service";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const num=(x:any,min=0,max=100000)=>{const n=Number(x);return Number.isFinite(n)&&n>=min&&n<=max?n:null};
@@ -44,32 +42,9 @@ export async function POST(req:Request){
  }else if(b.action==="deleteMeasurement"){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM measurements WHERE id=?").run(id)
  }else if(b.action==="workout"){
-  const duration=num(b.durationSeconds,0,86400),rest=num(b.restSeconds,0,86400),minHr=num(b.minHeartRate,0,250),avgHr=num(b.avgHeartRate,0,250),maxHr=num(b.maxHeartRate,0,250),calories=num(b.calories,0,10000),distance=num(b.distanceMeters,0,1000000),speed=num(b.avgSpeed,0,200),details=Array.isArray(b.details)?b.details.slice(0,200).map((x:any)=>({key:text(x.key,40),name:text(x.name,120),originalName:text(x.originalName,120)||text(x.name,120),value:num(x.value,0,100000)||0,weight:num(x.weight,0,500)||0,difficulty:["Легко","Нормально","Тяжело","Боль"].includes(x.difficulty)?x.difficulty:"Нормально",unit:x.unit==="сек"?"сек":x.unit==="мин"?"мин":"повт."})):[];
-  if(!dateOk(b.date)||!text(b.title)||!Array.isArray(b.completed)||duration===null||rest===null)return Response.json({error:"Некорректная тренировка"},{status:400});
-  const workoutType=text(b.type,40),painAfter=num(b.painAfter,0,10)||0,effort=["Легко","Нормально","Тяжело","Боль"].includes(b.effort)?b.effort:"";
-  let workoutId=0,groupedExercises:Map<string,{weight:number;reps:number;difficulty:string}>|null=null;
-  db.transaction(()=>{
-   const workout=db.prepare("INSERT INTO workout_logs (date,type,title,completed,rounds,duration_seconds,rest_seconds,details) VALUES (?,?,?,?,?,?,?,?)").run(b.date,workoutType,text(b.title),JSON.stringify(b.completed.slice(0,200)),num(b.rounds,1,20)||1,duration,rest,JSON.stringify(details));
-   workoutId=Number(workout.lastInsertRowid);
-   db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=? WHERE id=?").run(minHr||0,avgHr||0,maxHr||0,calories||0,distance||0,speed||0,effort,painAfter,workoutId);
-   if(workoutType==="Силовая"){
-    const grouped=new Map<string,{weight:number;reps:number;difficulty:string}>();
-    const difficultyRank:Record<string,number>={Легко:0,Нормально:1,Тяжело:2,Боль:3};
-    for(const item of details){const current=grouped.get(item.originalName);if(!current)grouped.set(item.originalName,{weight:item.weight,reps:item.value,difficulty:item.difficulty});else{current.weight=Math.max(current.weight,item.weight);current.reps=Math.max(current.reps,item.value);if(difficultyRank[item.difficulty]>difficultyRank[current.difficulty])current.difficulty=item.difficulty}}
-    const insert=db.prepare("INSERT INTO strength_logs (date,exercise,weight,reps,difficulty) VALUES (?,?,?,?,?)");
-    for(const [exercise,item] of grouped)insert.run(b.date,exercise,item.weight,item.reps,item.difficulty);
-    groupedExercises=grouped;
-   }
-  })()
-  if(groupedExercises)generateProgressionProposals({
-   workoutId,date:b.date,plan:{title:text(b.title),type:workoutType},
-   painAfter,effort,workoutComplete:Array.isArray(b.completed)&&b.completed.length>=details.length,
-   exercises:groupedExercises,
-  });
+  const result=saveWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="updateWorkout"){
-  const id=Number(b.id),duration=num(b.durationSeconds,0,86400),rest=num(b.restSeconds,0,86400),rounds=num(b.rounds,1,20),minHr=num(b.minHeartRate,0,250),avgHr=num(b.avgHeartRate,0,250),maxHr=num(b.maxHeartRate,0,250),calories=num(b.calories,0,10000),distance=num(b.distanceMeters,0,1000000),speed=num(b.avgSpeed,0,200),details=Array.isArray(b.details)?b.details.slice(0,200).map((x:any)=>({key:text(x.key,40),name:text(x.name,120),originalName:text(x.originalName,120)||text(x.name,120),value:num(x.value,0,100000)||0,weight:num(x.weight,0,500)||0,difficulty:["Легко","Нормально","Тяжело","Боль"].includes(x.difficulty)?x.difficulty:"Нормально",unit:x.unit==="сек"?"сек":x.unit==="мин"?"мин":"повт."})):[];
-  if(!Number.isSafeInteger(id)||id<1||!dateOk(b.date)||!text(b.title)||duration===null||rest===null||rounds===null)return Response.json({error:"Некорректные данные тренировки"},{status:400});
-  const result=db.prepare("UPDATE workout_logs SET date=?,type=?,title=?,rounds=?,duration_seconds=?,rest_seconds=?,details=?,min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=? WHERE id=?").run(b.date,text(b.type,40),text(b.title),rounds,duration,rest,JSON.stringify(details),minHr||0,avgHr||0,maxHr||0,calories||0,distance||0,speed||0,id);if(!result.changes)return Response.json({error:"Тренировка не найдена"},{status:404})
+  const result=updateWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="activity"){
   if(!dateOk(b.date))return Response.json({error:"Некорректная дата"},{status:400});db.prepare("INSERT INTO daily_activity (date,steps,active_minutes,calories,beers,sleep_hours) VALUES (?,?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET steps=excluded.steps,active_minutes=excluded.active_minutes,calories=excluded.calories,beers=excluded.beers,sleep_hours=excluded.sleep_hours").run(b.date,num(b.steps)||0,num(b.activeMinutes,0,1440)||0,num(b.calories,0,20000)||0,num(b.beers,0,100)||0,num(b.sleepHours,0,24)||0)
  }else if(b.action==="wellness"){
@@ -77,9 +52,9 @@ export async function POST(req:Request){
  }else if(b.action==="schedule"){
   if(!dateOk(b.originalDate)||!dateOk(b.scheduledDate)||!text(b.planTitle))return Response.json({error:"Проверьте даты"},{status:400});db.prepare("INSERT INTO schedule_overrides(original_date,scheduled_date,plan_title,replacement_title) VALUES(?,?,?,?) ON CONFLICT(original_date) DO UPDATE SET scheduled_date=excluded.scheduled_date,replacement_title=excluded.replacement_title").run(b.originalDate,b.scheduledDate,text(b.planTitle),text(b.replacementTitle))
  }else if(b.action==="strength"){
-  const weight=num(b.weight,0,500),reps=num(b.reps,0,200),difficulty=["Легко","Нормально","Тяжело","Боль"].includes(b.difficulty)?b.difficulty:"Нормально";if(!dateOk(b.date)||!text(b.exercise)||weight===null)return Response.json({error:"Укажите дату, упражнение и вес"},{status:400});db.prepare("INSERT INTO strength_logs (date,exercise,weight,reps,difficulty) VALUES (?,?,?,?,?)").run(b.date,text(b.exercise,120),weight,reps||0,difficulty)
+  const result=insertStrengthLog(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="deleteStrength"){
-  const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM strength_logs WHERE id=?").run(id)
+  const result=deleteStrengthLog(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="mood"){
   const moods=["😊","🙂","😐","😔","😢","😡"];if(!dateOk(b.date)||!moods.includes(b.mood))return Response.json({error:"Некорректная запись настроения"},{status:400});db.prepare("INSERT INTO mood_logs (date,mood,note) VALUES (?,?,?)").run(b.date,b.mood,text(b.note,300))
  }else if(b.action==="deleteMood"){
@@ -97,59 +72,6 @@ export async function POST(req:Request){
   const current=Number(getSetting("whats_new_seen_version"))||0;if(version>current)setSetting("whats_new_seen_version",String(version))
  }else return Response.json({error:"Неизвестное действие"},{status:400});
  return Response.json({ok:true})
-}
-
-// Sprint 6.12 — коуч-решение на дату уже сохранённой тренировки, для проверки,
-// не щадящее ли оно (reduce/replace/rest блокируют увеличение нагрузки).
-function computeCoachActionForDate(date:string,plan:{title:string;type:string}):string|null{
- const profile=db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight FROM profile WHERE id=1").get() as any;
- const measurements=db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
- const foodLogs=db.prepare("SELECT date,calories,protein,fat,carbs FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
- const workouts=db.prepare("SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 20").all(date) as any[];
- const wellnessRow=db.prepare("SELECT energy,pain,pain_area painArea FROM wellness_logs WHERE date=?").get(date) as any;
- const activityRow=db.prepare("SELECT steps,active_minutes activeMinutes,sleep_hours sleepHours FROM daily_activity WHERE date=?").get(date) as any;
- const summary=buildCoachSummary({
-  date,plan,profile,measurements,foodLogs,workouts,
-  wellnessLogs:wellnessRow?[{date,...wellnessRow}]:[],
-  activity:activityRow?[{date,...activityRow}]:[],
- });
- return decideCoach(summary)?.action??null;
-}
-
-// Строит и сохраняет предложения прогрессии по каждому силовому упражнению только что
-// сохранённой тренировки. Само предложение считается детерминированно в
-// lib/progression-engine.ts; здесь — только сборка входных данных и запись в БД.
-function generateProgressionProposals(params:{
- workoutId:number;date:string;plan:{title:string;type:string};
- painAfter:number;effort:string;workoutComplete:boolean;
- exercises:Map<string,{weight:number;reps:number;difficulty:string}>;
-}){
- const coachAction=computeCoachActionForDate(params.date,params.plan);
- const insertDecision=db.prepare(`INSERT INTO progression_decisions
-  (workout_id,exercise,action,reason_code,reason,used_signals,limited_data,from_weight,from_reps,to_weight,to_reps,pain_after,effort,workout_complete,coach_action,target_max_reps,status)
-  VALUES (@workoutId,@exercise,@action,@reasonCode,@reason,@usedSignals,@limitedData,@fromWeight,@fromReps,@toWeight,@toReps,@painAfter,@effort,@workoutComplete,@coachAction,@targetMaxReps,'pending')`);
- for(const exercise of params.exercises.keys()){
-  const history=db.prepare("SELECT date,weight,reps,difficulty FROM strength_logs WHERE exercise=? ORDER BY date DESC,id DESC LIMIT 10").all(exercise) as {date:string;weight:number;reps:number;difficulty:string}[];
-  const targetMaxReps=targetMaxRepsFor(exercise);
-  const proposal=buildExerciseProgression({
-   exercise,painAfter:params.painAfter,effort:params.effort,workoutComplete:params.workoutComplete,
-   coachAction:coachAction as any,history,targetMaxReps,
-  });
-  if(proposal.action==="no-change")continue;
-  const previous=db.prepare("SELECT status,action,reason_code reasonCode,from_weight fromWeight,from_reps fromReps,to_weight toWeight,to_reps toReps FROM progression_decisions WHERE exercise=? ORDER BY id DESC LIMIT 1").get(exercise) as any;
-  const previousDecision=previous?{
-   status:previous.status as ProgressionStatus,action:previous.action as ProgressionAction,reasonCode:previous.reasonCode,
-   from:{weight:previous.fromWeight,reps:previous.fromReps},to:{weight:previous.toWeight,reps:previous.toReps},
-  }:null;
-  if(shouldSuppressRepeat(previousDecision,proposal))continue;
-  insertDecision.run({
-   workoutId:params.workoutId,exercise,action:proposal.action,reasonCode:proposal.reasonCode,reason:proposal.reason,
-   usedSignals:JSON.stringify(proposal.usedSignals),limitedData:proposal.limitedData?1:0,
-   fromWeight:proposal.from.weight,fromReps:proposal.from.reps,toWeight:proposal.to.weight,toReps:proposal.to.reps,
-   painAfter:params.painAfter,effort:params.effort,workoutComplete:params.workoutComplete?1:0,
-   coachAction:coachAction||"",targetMaxReps:targetMaxReps,
-  });
- }
 }
 
 async function callAnthropic(key:string,body:string){
