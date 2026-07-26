@@ -176,6 +176,19 @@ test("AI Hub: ручной выбор MWS не вызывает Anthropic",async
   assert.equal(anthropicCalls,0);
 });
 
+test("AI Hub: консилиум делает ровно по одному короткому вызову каждой модели",async()=>{
+  let anthropicCalls=0,mwsCalls=0,reviewPrompt="";
+  const reply=await askAiHub({anthropicKey:"a",mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"Можно тренироваться?","consensus",{
+    anthropic:async()=>{anthropicCalls++;return {answer:"Черновик",mainRecommendation:"Отдохни"}},
+    mws:async(_key,_project,_model,_context,_history,question)=>{mwsCalls++;reviewPrompt=question;return {answer:"Итог",mainRecommendation:"Отдохни"}},
+  });
+  assert.equal(reply.provider,"anthropic+mws");
+  assert.equal(reply.routeReason,"consensus");
+  assert.equal(anthropicCalls,1);
+  assert.equal(mwsCalls,1);
+  assert.ok(reviewPrompt.includes("Черновик"));
+});
+
 test("6.11: дневной лимит использует серверную московскую дату", () => {
   const instant = new Date("2026-07-25T21:30:00Z");
   assert.equal(dateInTimeZone(instant), "2026-07-26");

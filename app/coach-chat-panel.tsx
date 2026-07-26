@@ -18,8 +18,8 @@ export function CoachChatPanel({ open, onClose, plan, today }: { open: boolean; 
   const [loaded, setLoaded] = useState(false);
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
-  const [provider,setProvider]=useState<"anthropic"|"mws"|null>(null);
-  const [providerChoice,setProviderChoice]=useState<"auto"|"anthropic"|"mws">("auto");
+  const [provider,setProvider]=useState<"anthropic"|"mws"|"anthropic+mws"|null>(null);
+  const [providerChoice,setProviderChoice]=useState<"auto"|"anthropic"|"mws"|"consensus">("auto");
   const [hubSettings,setHubSettings]=useState<HubSettings|null>(null);
   const [settingsOpen,setSettingsOpen]=useState(false);
   const listRef = useRef<HTMLDivElement>(null);
@@ -60,7 +60,7 @@ export function CoachChatPanel({ open, onClose, plan, today }: { open: boolean; 
         setQuestion(text);
         return;
       }
-      setProvider(j.provider==="mws"?"mws":"anthropic");
+      setProvider(j.provider==="anthropic+mws"?"anthropic+mws":j.provider==="mws"?"mws":"anthropic");
       setMessages((current) => [...current, { role: "assistant", text: j.answer, recommendation: j.mainRecommendation }]);
     } catch {
       notify("Тренер не ответил — проверьте соединение", "warn");
@@ -74,7 +74,7 @@ export function CoachChatPanel({ open, onClose, plan, today }: { open: boolean; 
   return (
     <div className="coach-chat-panel card" role="dialog" aria-label="Чат с VOLT Coach">
       <header className="coach-chat-head">
-        <div><p className="eyebrow">VOLT COACH · AI HUB</p><small>{provider?`Последний ответ: ${provider==="mws"?"MWS GPT":"Anthropic"}`:"Anthropic основной · MWS резервный"}</small></div>
+        <div><p className="eyebrow">VOLT COACH · AI HUB</p><small>{provider?`Последний ответ: ${provider==="anthropic+mws"?"Консилиум":provider==="mws"?"MWS GPT":"Anthropic"}`:"Anthropic основной · MWS резервный"}</small></div>
         <div className="coach-chat-head-actions"><button type="button" aria-label="Настроить AI Hub" title="Настроить AI Hub" onClick={()=>setSettingsOpen(v=>!v)}>⚙</button><button type="button" aria-label="Закрыть чат" onClick={onClose}>×</button></div>
       </header>
       {settingsOpen&&<MwsSetup settings={hubSettings} onSaved={(next)=>{setHubSettings(next);setSettingsOpen(false);notify("MWS GPT подключён как резерв","good")}}/>}
@@ -82,6 +82,7 @@ export function CoachChatPanel({ open, onClose, plan, today }: { open: boolean; 
         <button type="button" className={providerChoice==="auto"?"active":""} onClick={()=>setProviderChoice("auto")}>Авто</button>
         <button type="button" className={providerChoice==="anthropic"?"active":""} onClick={()=>setProviderChoice("anthropic")}>Anthropic</button>
         <button type="button" className={providerChoice==="mws"?"active":""} onClick={()=>setProviderChoice("mws")} disabled={hubSettings?.mwsKeySet===false}>MWS GPT</button>
+        <button type="button" className={providerChoice==="consensus"?"active":""} onClick={()=>setProviderChoice("consensus")} disabled={hubSettings?.mwsKeySet===false||hubSettings?.anthropicKeySet===false}>Консилиум</button>
       </div>
       <div className="coach-chat-list" ref={listRef}>
         {!loaded && <p className="coach-chat-empty">Загружаю историю…</p>}

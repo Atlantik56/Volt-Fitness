@@ -58,7 +58,7 @@ export async function POST(req: Request) {
 
   const date = dateOk(body.date) ? body.date : null;
   const question = typeof body.question === "string" ? body.question.trim().slice(0, 1000) : "";
-  const provider=body.provider==="anthropic"||body.provider==="mws"?body.provider:"auto";
+  const provider=body.provider==="anthropic"||body.provider==="mws"||body.provider==="consensus"?body.provider:"auto";
   if (!date || !question) return Response.json({ error: "Укажите дату и вопрос" }, { status: 400 });
 
   const plan =
