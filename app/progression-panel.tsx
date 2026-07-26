@@ -55,35 +55,43 @@ export function ProgressionPanel({proposals,refresh}:{proposals:ProgressionPropo
 
   const pending=proposals.filter(p=>p.status==="pending");
   const accepted=proposals.filter(p=>p.status==="accepted");
+  const decided=proposals.filter(p=>p.status==="rejected"||p.status==="cancelled");
+  const active=[...pending,...accepted];
+  if(!active.length&&!decided.length)return null;
+
+  const renderItem=(p:ProgressionProposal,actionable:boolean)=>{
+    const meta=ACTION_META[p.action];
+    return <li key={p.id} className={`coach-item ${meta.tone}`}>
+      <span className="coach-icon" aria-hidden="true">{meta.icon}</span>
+      <div>
+        <b>{p.exercise} — {meta.label}</b>
+        <div className="coach-decision" style={{margin:"6px 0"}}>
+          <div><small>БЫЛО</small><b>{formatLoad(p.from)}</b></div>
+          <i aria-hidden="true">→</i>
+          <div><small>СТАНЕТ</small><b>{formatLoad(p.to)}</b></div>
+        </div>
+        <small>{p.reason}</small>
+        {p.usedSignals.length>0&&<p className="coach-signals"><span>Использовано:</span> {p.usedSignals.join(" · ")}</p>}
+        {actionable&&explain[p.id]&&<p className="coach-limited">{explain[p.id]}</p>}
+        {!actionable&&<p className="coach-limited">{p.status==="rejected"?"Отклонено":"Отменено"}{p.decidedAt?` · ${p.decidedAt}`:""}</p>}
+        {actionable&&<div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
+          {p.status==="pending"&&<>
+            <button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>act(p.id,"accept")}>Применить</button>
+            <button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>act(p.id,"reject")}>Оставить как есть</button>
+          </>}
+          {p.status==="accepted"&&<button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>act(p.id,"cancel")}>Отменить</button>}
+          {!explain[p.id]&&<button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>askAi(p.id)}>Спросить у ИИ, почему</button>}
+        </div>}
+      </div>
+    </li>;
+  };
 
   return <section className="progression-panel card" aria-label="Предложения прогрессии нагрузки">
     <div className="coach-head"><p className="eyebrow">ПРОГРЕССИЯ НАГРУЗКИ</p><small>Считается локально · подтверждение за тобой</small></div>
-    <ol className="coach-list">
-      {[...pending,...accepted].map(p=>{
-        const meta=ACTION_META[p.action];
-        return <li key={p.id} className={`coach-item ${meta.tone}`}>
-          <span className="coach-icon" aria-hidden="true">{meta.icon}</span>
-          <div>
-            <b>{p.exercise} — {meta.label}</b>
-            <div className="coach-decision" style={{margin:"6px 0"}}>
-              <div><small>БЫЛО</small><b>{formatLoad(p.from)}</b></div>
-              <i aria-hidden="true">→</i>
-              <div><small>СТАНЕТ</small><b>{formatLoad(p.to)}</b></div>
-            </div>
-            <small>{p.reason}</small>
-            {p.usedSignals.length>0&&<p className="coach-signals"><span>Использовано:</span> {p.usedSignals.join(" · ")}</p>}
-            {explain[p.id]&&<p className="coach-limited">{explain[p.id]}</p>}
-            <div style={{display:"flex",gap:8,marginTop:8,flexWrap:"wrap"}}>
-              {p.status==="pending"&&<>
-                <button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>act(p.id,"accept")}>Применить</button>
-                <button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>act(p.id,"reject")}>Оставить как есть</button>
-              </>}
-              {p.status==="accepted"&&<button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>act(p.id,"cancel")}>Отменить</button>}
-              {!explain[p.id]&&<button type="button" className="ask-coach-btn" disabled={busyId===p.id} onClick={()=>askAi(p.id)}>Спросить у ИИ, почему</button>}
-            </div>
-          </div>
-        </li>;
-      })}
-    </ol>
+    {active.length>0&&<ol className="coach-list">{active.map(p=>renderItem(p,true))}</ol>}
+    {decided.length>0&&<details className="coach-about" style={{marginTop:active.length?12:0}}>
+      <summary>История решений ({decided.length})</summary>
+      <ol className="coach-list" style={{marginTop:8}}>{decided.map(p=>renderItem(p,false))}</ol>
+    </details>}
   </section>;
 }

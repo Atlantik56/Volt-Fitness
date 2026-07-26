@@ -31,7 +31,9 @@ function jsonArray(raw:any){try{const value=JSON.parse(raw);return Array.isArray
 
 export async function GET(){
  const denied=await requireAuth();if(denied)return denied;
- const rows=db.prepare("SELECT * FROM progression_decisions WHERE status IN ('pending','accepted') ORDER BY id DESC LIMIT 30").all() as any[];
+ // pending/accepted — то, что ещё требует или уже получило решение; rejected/cancelled —
+ // короткая история для CoachMemory (видно, что уже отклонялось и почему).
+ const rows=db.prepare("SELECT * FROM progression_decisions ORDER BY id DESC LIMIT 40").all() as any[];
  return Response.json({proposals:rows.map(mapRow)},{headers:{"cache-control":"no-store"}});
 }
 

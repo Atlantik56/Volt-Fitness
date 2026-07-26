@@ -11,8 +11,12 @@ type StrengthLog = {
   difficulty?: string;
 };
 
+// Формат цели: необязательное "N ×" (число подходов) перед диапазоном повторов,
+// например "3 × 10–12" или "2 × 12 / нога". Подходы — не часть диапазона повторов,
+// поэтому берём числа только после "×", если он есть.
 export function targetReps(raw: string): [number, number] {
-  const numbers = raw.match(/\d+/g)?.map(Number) || [];
+  const afterSets = raw.split("×")[1] ?? raw;
+  const numbers = afterSets.match(/\d+/g)?.map(Number) || [];
   if (!numbers.length) return [1, 99];
   return numbers.length > 1 ? [numbers[0], numbers[1]] : [numbers[0], numbers[0]];
 }
