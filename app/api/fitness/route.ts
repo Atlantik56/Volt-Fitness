@@ -86,13 +86,9 @@ export async function POST(req:Request){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM mood_logs WHERE id=?").run(id)
  }else if(b.action==="food"){
   const raw=typeof b.rawText==="string"?b.rawText.trim().slice(0,12000):"",mealType=["Завтрак","Обед","Ужин","Перекус"].includes(b.mealType)?b.mealType:"Перекус";if(!dateOk(b.date)||!raw)return Response.json({error:"Добавьте дату и текст приёма пищи"},{status:400});
-  let parsed:any=parseFood(raw);
-  if(!parsed.items.length){
-   const key=getSetting("anthropic_api_key")||process.env.ANTHROPIC_API_KEY;
-   if(!key)return Response.json({error:"[debug] ключ ИИ не настроен на сервере"},{status:400});
-   parsed=await aiEstimateFood(raw,key);
-  }
-  if(!parsed.items.length)return Response.json({error:`[debug] ${parsed.debug||"неизвестная причина"}`},{status:400});
+  let parsed=parseFood(raw);
+  if(!parsed.items.length){const key=getSetting("anthropic_api_key")||process.env.ANTHROPIC_API_KEY;if(key)parsed=await aiEstimateFood(raw,key)}
+  if(!parsed.items.length)return Response.json({error:"Не удалось распознать приём пищи. Опишите блюда словами или в формате: Блюдо — 130 ккал (Б 10 / Ж 8 / У 2)"},{status:400});
   db.prepare("INSERT INTO food_logs(date,meal_type,raw_text,items_json,calories,protein,fat,carbs,note) VALUES(?,?,?,?,?,?,?,?,?)").run(b.date,mealType,raw,JSON.stringify(parsed.items),parsed.calories,parsed.protein,parsed.fat,parsed.carbs,text(b.note,600));return Response.json({ok:true,parsed})
  }else if(b.action==="deleteFood"){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM food_logs WHERE id=?").run(id)
@@ -156,16 +152,30 @@ function generateProgressionProposals(params:{
  }
 }
 
+async function callAnthropic(key:string,body:string){
+ // Долгоживущий Node-процесс переиспользует keep-alive сокеты; после простоя
+ // они иногда рвутся на стороне сети (ECONNRESET), и fetch падает с generic
+ // "TypeError: fetch failed". Один быстрый повтор на свежем сокете лечит это.
+ for(let attempt=0;attempt<2;attempt++){
+  try{
+   return await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},signal:AbortSignal.timeout(30000),body});
+  }catch(err){
+   if(attempt===1)throw err;
+   await new Promise(r=>setTimeout(r,300));
+  }
+ }
+ throw new Error("unreachable");
+}
+
 async function aiEstimateFood(raw:string,key:string){
  const prompt=`Ты нутрициолог. Пользователь описал приём пищи обычным текстом, без точных граммовок. Определи каждое блюдо и оцени его КБЖУ по типичному размеру порции. Ответь ТОЛЬКО строками строго в формате:\nНазвание блюда — 250 ккал (Б 20 / Ж 10 / У 15)\nОдна строка на блюдо, числа целые, названия по-русски. Больше никакого текста.\n\nОписание приёма пищи: ${raw}`;
  try{
-  const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"content-type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01"},signal:AbortSignal.timeout(30000),body:JSON.stringify({model:"claude-sonnet-5",max_tokens:2000,temperature:0.2,messages:[{role:"user",content:[{type:"text",text:prompt}]}]})});
-  if(!r.ok){const body=await r.text().catch(()=>"");console.error("aiEstimateFood: Anthropic вернул",r.status,body.slice(0,500));return{items:[],calories:0,protein:0,fat:0,carbs:0,debug:`http ${r.status}: ${body.slice(0,200)}`}}
+  const body=JSON.stringify({model:"claude-sonnet-5",max_tokens:2000,temperature:0.2,messages:[{role:"user",content:[{type:"text",text:prompt}]}]});
+  const r=await callAnthropic(key,body);
+  if(!r.ok){console.error("aiEstimateFood: Anthropic вернул",r.status);return{items:[],calories:0,protein:0,fat:0,carbs:0}}
   const j=await r.json(),textOut=String((j.content||[]).map((p:any)=>p.text||"").join("\n")).trim();
-  const parsed=parseFood(textOut);
-  if(!parsed.items.length){console.error("aiEstimateFood: не распарсили ответ модели:",textOut.slice(0,500));return{items:[],calories:0,protein:0,fat:0,carbs:0,debug:`ответ ИИ не распознан: ${textOut.slice(0,200)}`}}
-  return parsed;
- }catch(err){console.error("aiEstimateFood: fetch упал",err);return{items:[],calories:0,protein:0,fat:0,carbs:0,debug:`сеть/исключение: ${String(err).slice(0,200)}`}}
+  return parseFood(textOut);
+ }catch(err){console.error("aiEstimateFood:",err);return{items:[],calories:0,protein:0,fat:0,carbs:0}}
 }
 function parseFood(raw:string){const items:any[]=[];for(const line of raw.split(/\r?\n/)){const clean=line.replace(/\*\*/g,"").trim(),kcal=clean.match(/(.+?)(?:—|-)\s*[≈~]?\s*(\d+(?:[.,]\d+)?)\s*ккал/i),macros=clean.match(/\(\s*Б\s*(\d+(?:[.,]\d+)?)\s*\/\s*Ж\s*(\d+(?:[.,]\d+)?)\s*\/\s*У\s*(\d+(?:[.,]\d+)?)\s*\)/i);if(kcal&&macros){const n=(s:string)=>Number(s.replace(",","."));items.push({name:kcal[1].replace(/^[^\p{L}\p{N}]+/u,"").trim(),calories:n(kcal[2]),protein:n(macros[1]),fat:n(macros[2]),carbs:n(macros[3])})}}return items.reduce((t,x)=>({items,calories:t.calories+x.calories,protein:t.protein+x.protein,fat:t.fat+x.fat,carbs:t.carbs+x.carbs}),{items,calories:0,protein:0,fat:0,carbs:0})}
 function jsonArray(raw:any){try{const value=JSON.parse(raw);return Array.isArray(value)?value:[]}catch{return[]}}
