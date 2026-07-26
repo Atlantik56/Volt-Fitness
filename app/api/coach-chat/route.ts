@@ -79,7 +79,7 @@ export async function POST(req: Request) {
 
   // Данные принадлежат единственному профилю приложения (id=1); requireAuth уже
   // защищает эндпоинт от неавторизованных запросов — доступа к «чужим» данным нет.
-  const profile = db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight FROM profile WHERE id=1").get() as any;
+  const profile = db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1").get() as any;
   const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
   const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
   const workouts = db

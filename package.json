@@ -10,16 +10,19 @@
     "build": "next build --webpack",
     "start": "next start",
     "test": "node --experimental-strip-types --test tests/*.test.ts",
+    "mcp": "node --experimental-strip-types mcp-server.ts",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --ignore-pattern .next --ignore-pattern data"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^13.0.1",
     "lucide-react": "^1.26.0",
     "next": "16.2.12",
     "react": "19.2.6",
     "react-dom": "19.2.6",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "4.2.1",

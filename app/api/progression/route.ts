@@ -101,7 +101,7 @@ export async function POST(req:Request){
    return Response.json({error:"AI Hub не настроен на сервере"},{status:503});
 
   const today=dateInTimeZone(new Date());
-  const profile=db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight FROM profile WHERE id=1").get() as any;
+  const profile=db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1").get() as any;
   const context=buildAiCoachContext({date:today,ready:true,plan:null,profile,measurements:[],foodLogs:[],workouts:[],wellnessLogs:[],activity:[]});
   const proposal=mapRow(row);
   const question=`Объясни человеку простым языком это уже посчитанное локально предложение по прогрессии нагрузки. Ничего не пересчитывай и не придумывай новых чисел — только объясни, почему разумно так поступить, и что делать дальше.\n`

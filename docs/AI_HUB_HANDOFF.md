@@ -140,3 +140,70 @@ Anthropic и тем самым скрыть неработающий MWS.
 - консилиум не должен незаметно превращаться в многократный дорогой диалог;
 - изменение тренировочного плана должно проходить через валидируемые правила
   домена, а не через свободную запись LLM в SQLite.
+
+## Дополнение 26 июля 2026 — контекст роадмапа и MCP-сервер
+
+До этого изменения `buildAiCoachContext`/`renderAiCoachContextText` не передавали
+модели дорожную карту программы: фазы, ограничение по тазобедренному суставу,
+шаблон питания и принципы программы жили только в `app/personal-data.ts` и не
+попадали в промпт чата. Из-за этого VOLT Coach в диалоге не знал ни текущую фазу
+программы, ни травматическое ограничение.
+
+### Что изменилось
+
+- `lib/ai-context.ts` — `AiCoachContext` дополнен полями `programWeek` и `phase`.
+  `buildAiCoachContext` считает текущую неделю через
+  `currentProgramWeek(profile.programStart)` и берёт нужную фазу из `phases`.
+  `renderAiCoachContextText` добавляет четыре строки: фазу и её цель,
+  ограничение по здоровью (`safety`), шаблон питания (`meals`) и принципы
+  программы (`rules`). Сам роадмап (`app/personal-data.ts`) не менялся — он
+  остаётся источником истины, контекст его только читает.
+- `app/api/coach-chat/route.ts` и `app/api/progression/route.ts` — в SQL-запрос
+  профиля добавлено поле `program_start programStart` (без него фаза не
+  считается).
+- `mcp-server.ts` (новый файл, корень репозитория) — MCP-сервер на
+  stdio-транспорте для внешнего Клода (Claude Desktop/Code): открывает БД в
+  режиме read-only, переиспользует тот же `buildAiCoachContext`/
+  `renderAiCoachContextText`, отдаёт снимок через ресурс `volt://snapshot` и
+  тул `get_volt_context`. Запуск: `npm run mcp`. Зависимости
+  `@modelcontextprotocol/sdk` и `zod` добавлены в `package.json`.
+
+Прогрессия по фазам программы намеренно не автоматизировалась и не менялась —
+по решению пользователя её будет отслеживать сам AI-коуч в диалоге, а не
+детерминированный код.
+
+### Как подключить MCP к Claude Desktop
+
+```json
+{
+  "mcpServers": {
+    "volt-fitness": {
+      "command": "node",
+      "args": ["--experimental-strip-types", "/Users/igoncharov/Volt-Fitness/mcp-server.ts"],
+      "env": { "DATA_DIR": "/Users/igoncharov/Volt-Fitness/data" }
+    }
+  }
+}
+```
+
+Для доступа к прод-данным вместо dev — указать `DATA_DIR` на путь тома
+`volt-data` на сервере, а не на локальную dev-папку.
+
+### Проверено
+
+- `npm run typecheck` — чисто.
+- `npm test` — 149/149 проходят, регрессий нет.
+- Панель «Спросить тренера» открывается и уходит в `/api/coach-chat` (живой
+  ответ ИИ не проверялся — в этой машине не настроен ключ Anthropic/MWS).
+- `renderAiCoachContextText` напрямую и MCP-тул `get_volt_context` через
+  `@modelcontextprotocol/inspector` — оба возвращают текст с фазой,
+  ограничением по здоровью и шаблоном питания на реальных dev-данных.
+
+### Откат
+
+Изменения точечные и находятся в одном коммите — искать по сообщению
+«AI-коуч: добавить контекст роадмапа и MCP-сервер» в `git log`. Откат:
+`git revert <hash>` этого коммита, либо вручную —
+`git checkout <предыдущий-коммит> -- lib/ai-context.ts app/api/coach-chat/route.ts app/api/progression/route.ts`
+и удалить `mcp-server.ts` и связанные строки (`mcp` script,
+`@modelcontextprotocol/sdk`, `zod`) из `package.json`.

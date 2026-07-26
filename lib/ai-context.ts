@@ -4,10 +4,13 @@
 
 import { buildCoachResult, type CoachInput, type CoachResult } from "./coach.ts";
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend, type NutritionWeeklyStats, type WeightWeeklyTrend } from "./coach-weekly.ts";
+import { phases, meals, rules, safety, currentProgramWeek } from "../app/personal-data.ts";
 
 export type AiCoachContext={
   date:string;
   profile:{name:string;height:number|null;startWeight:number|null;targetWeight:number|null};
+  programWeek:number;
+  phase:{p:string;n:string;g:string};
   weight:CoachResult["summary"]["weight"];
   weightWeekly:WeightWeeklyTrend;
   nutritionToday:CoachResult["summary"]["nutrition"];
@@ -23,6 +26,8 @@ export function buildAiCoachContext(input:CoachInput):AiCoachContext{
   const measurements=(input.measurements??[]).filter((m:any)=>m&&typeof m.date==="string");
   const foodLogs=input.foodLogs??[];
   const workouts=(input.workouts??[]) as any[];
+  const programWeek=currentProgramWeek(input.profile?.programStart);
+  const phase=phases[programWeek<=3?0:programWeek<=14?1:2];
   return {
     date:input.date,
     profile:{
@@ -31,6 +36,8 @@ export function buildAiCoachContext(input:CoachInput):AiCoachContext{
       startWeight:Number(input.profile?.startWeight)||null,
       targetWeight:Number(input.profile?.targetWeight)||null,
     },
+    programWeek,
+    phase:{p:phase.p,n:phase.n,g:phase.g},
     weight:result.summary.weight,
     weightWeekly:computeWeightWeeklyTrend(measurements,input.date),
     nutritionToday:result.summary.nutrition,
@@ -57,7 +64,11 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
   if(ctx.nutritionToday.logged)lines.push(`Сегодня записано: ${Math.round(ctx.nutritionToday.calories??0)} ккал из ${ctx.targets.calories}, белка ${Math.round(ctx.nutritionToday.protein??0)} г из ${ctx.targets.protein}.`);
   else lines.push("Питание за сегодня ещё не записано.");
   if(ctx.nutritionWeekly.daysLogged7d>0)lines.push(`За 7 дней в среднем ${ctx.nutritionWeekly.avgCalories7d} ккал и ${ctx.nutritionWeekly.avgProtein7d} г белка (записей: ${ctx.nutritionWeekly.daysLogged7d} из 7), в цель по калориям попадали ${ctx.nutritionWeekly.planAdherencePct}% дней.`);
+  lines.push(`Шаблон питания программы: ${meals.map(m=>`${m[0]} — ${m[1]} (${m[2]})`).join("; ")}.`);
   lines.push(ctx.plan?`План на сегодня: «${ctx.plan.title}» (${ctx.plan.type}).`:"На сегодня плана нет.");
+  lines.push(`Фаза программы (неделя ${ctx.programWeek}): «${ctx.phase.p}» — ${ctx.phase.n}. Цель фазы: ${ctx.phase.g}.`);
+  lines.push(`Ограничение по здоровью: ${safety}`);
+  lines.push(`Принципы программы: ${rules.join("; ")}.`);
   if(ctx.coachDecision)lines.push(`Решение VOLT Coach на сегодня: ${ctx.coachDecision.title}. ${ctx.coachDecision.explanation}`);
   if(ctx.recentWorkouts.length){
     lines.push("Последние тренировки:");
