@@ -125,6 +125,21 @@ function newRecordInsight(input: CoachInsightsInput): CoachInsight | null {
   return null;
 }
 
+// Sprint 6.13 — только позитивная ветка: сравнение с прошлой неделей не должно
+// звучать как упрёк, поэтому здесь нет warn-варианта на спад ритма.
+function activityRhythmInsight(input: CoachInsightsInput): CoachInsight | null {
+  const distinctDays = (from: number, to: number) => new Set(
+    input.workouts.filter(w => { const gap = daysBetween(w.date, input.date); return gap != null && gap >= from && gap < to; }).map(w => w.date),
+  ).size;
+  const thisWeek = distinctDays(0, 7), prevWeek = distinctDays(7, 14);
+  if (thisWeek < 2 || thisWeek <= prevWeek) return null;
+  return {
+    id: "activity-rhythm-up", category: "consistency", tone: "good", priority: 4.2,
+    title: "Ритм активности вырос",
+    text: `На этой неделе тренировок было ${thisWeek} (дней с активностью), на прошлой — ${prevWeek}.`,
+  };
+}
+
 function dayWord(n: number) {
   const mod10 = n % 10, mod100 = n % 100;
   if (mod10 === 1 && mod100 !== 11) return "день";
@@ -141,6 +156,7 @@ export function buildCoachInsights(input: CoachInsightsInput, anchor: Date = new
     nutritionInsight(input),
     newRecordInsight(input),
     planCompletionInsight(input, anchor),
+    activityRhythmInsight(input),
   ].filter((x): x is CoachInsight => x !== null);
   return candidates.sort((a, b) => a.priority - b.priority).slice(0, COACH_INSIGHTS_MAX);
 }

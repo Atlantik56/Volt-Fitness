@@ -158,6 +158,38 @@ test("6.9: результат не превышает COACH_INSIGHTS_MAX и от
   for (let i = 1; i < insights.length; i++) assert.ok(insights[i - 1].priority <= insights[i].priority);
 });
 
+test("6.13: ритм активности вырос — больше дней с тренировкой, чем на прошлой неделе", () => {
+  const insights = buildCoachInsights({
+    ...base(),
+    workouts: [
+      { date: "2026-07-25", type: "Силовая", title: "Гантели по кругу" } as any,
+      { date: "2026-07-23", type: "Кардио", title: "Ходьба" } as any,
+      { date: "2026-07-21", type: "Силовая", title: "Гантели по кругу" } as any,
+      { date: "2026-07-18", type: "Силовая", title: "Гантели по кругу" } as any,
+    ],
+  });
+  const rhythm = insights.find(x => x.id === "activity-rhythm-up");
+  assert.ok(rhythm);
+  assert.equal(rhythm!.tone, "good");
+  assert.match(rhythm!.text, /3.*1/);
+});
+
+test("6.13: ритм активности не комментируется, если недели одинаковые или данных мало", () => {
+  const flat = buildCoachInsights({
+    ...base(),
+    workouts: [
+      { date: "2026-07-25", type: "Силовая", title: "Гантели по кругу" } as any,
+      { date: "2026-07-18", type: "Силовая", title: "Гантели по кругу" } as any,
+    ],
+  });
+  assert.ok(!flat.some(x => x.id === "activity-rhythm-up"));
+  const single = buildCoachInsights({
+    ...base(),
+    workouts: [{ date: "2026-07-25", type: "Силовая", title: "Гантели по кругу" } as any],
+  });
+  assert.ok(!single.some(x => x.id === "activity-rhythm-up"));
+});
+
 test("6.9: одинаковый вход даёт одинаковый результат (детерминизм)", () => {
   const input: CoachInsightsInput = {
     ...base(),

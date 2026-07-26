@@ -18,6 +18,7 @@
 /* Sprint 6.5 — роль и точка входа VOLT Coach */
 .coach-status{display:flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid var(--line);border-radius:12px;background:#0d1112;margin-bottom:12px}.coach-status b{font-size:13px}.coach-status-dot{width:9px;height:9px;border-radius:50%;background:#5b656a;flex:none}.coach-status.good .coach-status-dot{background:var(--lime)}.coach-status.warn .coach-status-dot{background:#ffae42}.coach-status.stop .coach-status-dot{background:#ff665e}.coach-status.good{border-color:#2c3a17}.coach-status.warn{border-color:#3a2d14}.coach-status.stop{border-color:#3a1b19}
 .coach-note-line{margin:0 0 10px;color:#8d959a;font-size:10.5px;line-height:1.5}
+.coach-explanation{margin:0 0 10px;color:#c6cdd0;font-size:12px;line-height:1.5}
 .coach-signals{margin:0 0 8px;color:#9aa2a6;font-size:10px;line-height:1.55}.coach-signals span{color:#6d757a;letter-spacing:.05em;text-transform:uppercase;font-size:8.5px}
 .coach-limited{margin:0 0 10px;padding:8px 11px;border:1px dashed #3a3f42;border-radius:10px;color:#aab2b6;font-size:10px;line-height:1.5}
 .coach-about{margin-top:12px;border-top:1px solid var(--line);padding-top:10px}.coach-about summary{cursor:pointer;color:#8d959a;font-size:10.5px;letter-spacing:.04em;list-style:none}.coach-about summary::before{content:"ⓘ ";color:#6d757a}.coach-about[open] summary{color:#c3cbce}.coach-about div{display:grid;gap:7px;margin-top:9px}.coach-about p{margin:0;color:#8d959a;font-size:10.5px;line-height:1.6}

@@ -39,6 +39,7 @@ export function CoachCard({result,plan,insights=[],ready=true,onAskCoach}:{resul
     <i aria-hidden="true">→</i>
     <div><small>РЕКОМЕНДАЦИЯ</small><b>{decision.suggestedLoad.title}</b><span>{decision.suggestedLoad.details}</span></div>
    </div>}
+   <p className="coach-explanation">{decision.explanation}</p>
    <p className="coach-note-line">Рекомендация не применяется к плану автоматически — решение за тобой.</p>
    {decision.usedSignals.length>0&&<p className="coach-signals"><span>Использовано:</span> {decision.usedSignals.join(" · ")}</p>}
    {decision.limitedData&&<p className="coach-limited">Самочувствие за сегодня не отмечено — решение основано на ограниченной информации.</p>}

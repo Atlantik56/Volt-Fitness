@@ -111,7 +111,7 @@ export default function Home() {
              <button className="repeat-btn" onClick={() => setActiveWorkout(todayPlan)}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
             </>:<button className="start-btn" onClick={() => setActiveWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
           </div>
-          <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>Держи темп. Сегодня ты сильнее.</b></div></div>
+          <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>{motivation}</b></div></div>
         </section>
 
         <section className="metrics" aria-label="Дневной прогресс">
@@ -169,7 +169,7 @@ export default function Home() {
         </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction}/></>}
       </section>
 
-      {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} loadOverrides={data.progressionOverrides||{}} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load();loadProgression()}}/>}
+      {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} loadOverrides={data.progressionOverrides||{}} streak={streak} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load();loadProgression()}}/>}
       {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
       <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today} onFoodSaved={load} quickActions={[
         {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");setActiveWorkout(todayPlan)}},
