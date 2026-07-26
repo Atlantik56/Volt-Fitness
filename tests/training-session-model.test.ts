@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  activityKindOf,
   buildSessionSteps,
+  hasNumericTarget,
   parseWorkoutDraft,
   WORKOUT_DRAFT_VERSION,
   type WorkoutPlan,
@@ -44,4 +46,21 @@ test("invalid, expired and incompatible drafts are rejected",()=>{
   assert.equal(parseWorkoutDraft("{","x"),null);
   assert.equal(parseWorkoutDraft(JSON.stringify({version:3,title:"x",savedAt:100}),"x",101),null);
   assert.equal(parseWorkoutDraft(JSON.stringify({version:5,title:"x",savedAt:100}),"x",50_000_000),null);
+});
+
+test("activityKindOf: план типа «Отдых»/«Восстановление» — recovery, не strength",()=>{
+  assert.equal(activityKindOf({type:"Отдых",title:"Полный отдых"}),"recovery");
+  assert.equal(activityKindOf({type:"Восстановление",title:"Прогулка и мобильность"}),"recovery");
+});
+
+test("activityKindOf: плавание и велосипед определяются по названию, остальное — strength",()=>{
+  assert.equal(activityKindOf({type:"Кардио",title:"Бассейн"}),"swim");
+  assert.equal(activityKindOf({type:"Кардио",title:"Ходьба или велосипед"}),"bike");
+  assert.equal(activityKindOf({type:"Силовая",title:"Гантели по кругу"}),"strength");
+});
+
+test("hasNumericTarget: качественная цель без цифр — нечего вводить",()=>{
+  assert.equal(hasNumericTarget("По самочувствию"),false);
+  assert.equal(hasNumericTarget("3 × 10–12"),true);
+  assert.equal(hasNumericTarget("20–30 мин"),true);
 });

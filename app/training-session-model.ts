@@ -4,7 +4,7 @@ export const WORKOUT_DRAFT_VERSION=5;
 export const WORKOUT_DRAFT_TTL_MS=12*60*60*1000;
 
 export type ExerciseTuple=readonly [name:string,note:string,target:string,image?:string];
-export type ActivityKind="strength"|"swim"|"bike";
+export type ActivityKind="strength"|"swim"|"bike"|"recovery";
 export type WorkoutPlan={
   type:string;
   title:string;
@@ -44,12 +44,16 @@ export type WorkoutDraft={
 };
 
 export function activityKindOf(plan:Pick<WorkoutPlan,"type"|"title">):ActivityKind {
+  if(/отдых|восстановлен/i.test(plan.type))return "recovery";
   if(/плав|бассейн/i.test(plan.title))return "swim";
   if(/велосип/i.test(plan.title))return "bike";
   return "strength";
 }
 
 export function exerciseUnit(name:string,target?:string){if(name.toLowerCase().includes("планка"))return "сек";if(target&&/мин/i.test(target))return "мин";return "повт."}
+// «По самочувствию» и подобные качественные цели без числа — вводить фактический
+// результат нечем и незачем, шаг просто отмечается выполненным.
+export function hasNumericTarget(target:string){return /\d/.test(target)}
 export function sessionClock(seconds:number){return `${String(Math.floor(seconds/60)).padStart(2,"0")}:${String(seconds%60).padStart(2,"0")}`}
 
 export function buildSessionSteps(plan:WorkoutPlan,restSeconds=DEFAULT_EXERCISE_REST_SECONDS):SessionStep[] {
