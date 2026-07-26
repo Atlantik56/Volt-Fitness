@@ -55,6 +55,37 @@ const migrations=[
  {version:4,sql:`ALTER TABLE strength_logs ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'Нормально';`},
  {version:5,sql:`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);`},
  {version:6,sql:`CREATE TABLE IF NOT EXISTS coach_conversation (id INTEGER PRIMARY KEY AUTOINCREMENT, role TEXT NOT NULL CHECK(role IN ('user','assistant')), text TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);`},
+ {version:7,sql:`
+  CREATE TABLE IF NOT EXISTS progression_decisions (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   workout_id INTEGER NOT NULL,
+   exercise TEXT NOT NULL,
+   action TEXT NOT NULL CHECK(action IN ('increase','maintain','decrease','deload','no-change')),
+   reason_code TEXT NOT NULL,
+   reason TEXT NOT NULL,
+   used_signals TEXT NOT NULL DEFAULT '[]',
+   limited_data INTEGER NOT NULL DEFAULT 0,
+   from_weight REAL NOT NULL,
+   from_reps INTEGER NOT NULL,
+   to_weight REAL NOT NULL,
+   to_reps INTEGER NOT NULL,
+   pain_after REAL NOT NULL DEFAULT 0,
+   effort TEXT NOT NULL DEFAULT '',
+   workout_complete INTEGER NOT NULL DEFAULT 1,
+   coach_action TEXT NOT NULL DEFAULT '',
+   target_max_reps INTEGER,
+   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected','cancelled')),
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   decided_at TEXT
+  );
+  CREATE TABLE IF NOT EXISTS exercise_load_overrides (
+   exercise TEXT PRIMARY KEY,
+   weight REAL NOT NULL,
+   reps INTEGER NOT NULL,
+   source_decision_id INTEGER NOT NULL,
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

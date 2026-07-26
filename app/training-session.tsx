@@ -23,16 +23,25 @@ const METRIC_FIELDS:Record<ActivityKind,readonly MetricField[]>={
   strength:[["minHeartRate","Мин. пульс","уд/мин"],["avgHeartRate","Средний пульс","уд/мин"],["maxHeartRate","Макс. пульс","уд/мин"],["calories","Сожжено","ккал"]],
 };
 
-function initialWeights(plan:WorkoutPlan,logs:StrengthLog[]){
-  return Object.fromEntries(plan.exercises.map((exercise,index)=>[String(index),String(logs.find(log=>log.exercise===exercise[0])?.weight||"")]));
+type LoadOverride={weight:number;reps:number};
+
+// Принятое предложение прогрессии (Sprint 6.12) подсказывает стартовый вес следующей
+// сессии. Сервер отдаёт override только пока по упражнению не появилась более новая
+// сохранённая попытка — то есть только пока предложение ещё не «сработало».
+function initialWeights(plan:WorkoutPlan,logs:StrengthLog[],overrides:Record<string,LoadOverride>={}){
+  return Object.fromEntries(plan.exercises.map((exercise,index)=>{
+    const override=overrides[exercise[0]];
+    const weight=override?override.weight:logs.find(log=>log.exercise===exercise[0])?.weight;
+    return [String(index),String(weight||"")];
+  }));
 }
 
-function useWorkoutSession(plan:WorkoutPlan,strengthLogs:StrengthLog[]){
+function useWorkoutSession(plan:WorkoutPlan,strengthLogs:StrengthLog[],loadOverrides:Record<string,LoadOverride>={}){
   const steps=useMemo(()=>buildSessionSteps(plan),[plan]);
   const [draft]=useState(()=>readWorkoutDraft(plan.title));
   const [cursor,setCursor]=useState(()=>Math.min(draft?.cursor??0,steps.length));
   const [values,setValues]=useState<Record<string,string>>(draft?.values??{});
-  const [weights,setWeights]=useState<Record<string,string>>(draft?.weights??initialWeights(plan,strengthLogs));
+  const [weights,setWeights]=useState<Record<string,string>>(draft?.weights??initialWeights(plan,strengthLogs,loadOverrides));
   const [difficulties,setDifficulties]=useState<Record<string,string>>(draft?.difficulties??{});
   const [substitutions,setSubstitutions]=useState<Record<string,boolean>>(draft?.substitutions??{});
   const [activeSeconds,setActiveSeconds]=useState(draft?.activeSeconds??0);
@@ -68,9 +77,9 @@ function useWorkoutSession(plan:WorkoutPlan,strengthLogs:StrengthLog[]){
 const PROGRESSION_HOLD:ProgressDecision={kind:"keep",title:"Сегодня без прогрессии",text:"VOLT Coach рекомендует щадящий день: сохрани прежний вес и повторы."};
 const capProgression=(rec:ProgressDecision,allowed:boolean):ProgressDecision=>allowed||rec.kind==="deload"||rec.kind==="keep"||rec.kind==="start"?rec:PROGRESSION_HOLD;
 
-export function WorkoutSession({plan,strengthLogs,coachAction=null,close,done}:{plan:WorkoutPlan;strengthLogs:StrengthLog[];coachAction?:CoachAction|null;close:()=>void;done:()=>void}){
+export function WorkoutSession({plan,strengthLogs,coachAction=null,loadOverrides={},close,done}:{plan:WorkoutPlan;strengthLogs:StrengthLog[];coachAction?:CoachAction|null;loadOverrides?:Record<string,LoadOverride>;close:()=>void;done:()=>void}){
   const notify=useToast();
-  const session=useWorkoutSession(plan,strengthLogs);
+  const session=useWorkoutSession(plan,strengthLogs,loadOverrides);
   const rounds=Math.max(1,plan.rounds??1),activityKind=activityKindOf(plan),warmupCount=plan.warmup?.length??0;
   const showLoad=activityKind==="strength";
   const details=useMemo<Details[]>(()=>Array.from({length:rounds}).flatMap((_,roundIndex)=>plan.exercises.map((exercise,exerciseIndex)=>{

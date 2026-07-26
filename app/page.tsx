@@ -9,6 +9,7 @@ import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnal
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
 import { CoachChatPanel } from "./coach-chat-panel";
+import { ProgressionPanel, type ProgressionProposal } from "./progression-panel";
 import { buildCoachResult, COACH_ACTION_LABELS, COACH_TARGETS, type CoachAction } from "../lib/coach";
 import { buildCoachInsights } from "../lib/coach-insights";
 import { WhatsNewGate } from "./whats-new-gate";
@@ -42,8 +43,10 @@ export default function Home() {
   const [activeWorkout,setActiveWorkout]=useState<any>(null);
   const [coachChatOpen,setCoachChatOpen]=useState(false);
   const [loaded,setLoaded]=useState(false);
+  const [progressionProposals,setProgressionProposals]=useState<ProgressionProposal[]>([]);
+  const loadProgression=()=>fetch("/api/progression").then(r=>r.json()).then(d=>setProgressionProposals(d.proposals||[])).catch(()=>{});
   const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true)}).catch(()=>{});
-  useEffect(()=>{load()},[]);
+  useEffect(()=>{load();loadProgression()},[]);
   const streak=useMemo(()=>calcStreak(data.workouts||[]),[data.workouts]);
   const dryStreak=useMemo(()=>calcDryStreak(data.activity||[]),[data.activity]);
   const today=localIso(new Date()), todayActivity=(data.activity||[]).find((x:any)=>x.date===today)||{};
@@ -123,6 +126,7 @@ export default function Home() {
         <MoodCheckin data={data} refresh={load}/>
         <Readiness data={data} refresh={load}/>
         <CoachCard result={coach} plan={todayPlan} insights={coachInsights} ready={loaded} onAskCoach={()=>setCoachChatOpen(true)}/>
+        <ProgressionPanel proposals={progressionProposals} refresh={loadProgression}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 
@@ -165,8 +169,13 @@ export default function Home() {
         </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction}/></>}
       </section>
 
-      {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load()}}/>}
-      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today}/>
+      {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} loadOverrides={data.progressionOverrides||{}} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load();loadProgression()}}/>}
+      {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
+      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today} quickActions={[
+        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");setActiveWorkout(todayPlan)}},
+        {label:"Записать питание",icon:"🍽",onClick:()=>{setCoachChatOpen(false);setNav("Питание");setMobileMenu(false)}},
+        {label:"Отметить самочувствие",icon:"❤",onClick:()=>{setCoachChatOpen(false);goCoach()}},
+      ]}/>
       {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
       <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Прогресс"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={23} strokeWidth={2}/></span>{label}</button>})}</nav>

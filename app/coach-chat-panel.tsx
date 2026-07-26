@@ -12,7 +12,9 @@ import { useToast } from "./toast";
 type ChatMessage = { role: "user" | "assistant"; text: string; recommendation?: string | null };
 type HubSettings={anthropicKeySet:boolean;mwsKeySet:boolean;mwsProject:string;mwsModel:string};
 
-export function CoachChatPanel({ open, onClose, plan, today }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string }) {
+type QuickAction={label:string;icon?:string;onClick:()=>void};
+
+export function CoachChatPanel({ open, onClose, plan, today, quickActions=[] }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string; quickActions?: QuickAction[] }) {
   const notify = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -78,6 +80,10 @@ export function CoachChatPanel({ open, onClose, plan, today }: { open: boolean; 
         <div className="coach-chat-head-actions"><button type="button" aria-label="Настроить AI Hub" title="Настроить AI Hub" onClick={()=>setSettingsOpen(v=>!v)}>⚙</button><button type="button" aria-label="Закрыть чат" onClick={onClose}>×</button></div>
       </header>
       {settingsOpen&&<MwsSetup settings={hubSettings} onSaved={(next)=>{setHubSettings(next);setSettingsOpen(false);notify("MWS GPT подключён как резерв","good")}}/>}
+      {quickActions.length>0&&<div className="coach-quick-actions" role="group" aria-label="Быстрые действия без ИИ">
+        <small>Без ИИ, сразу:</small>
+        {quickActions.map(a=><button key={a.label} type="button" onClick={a.onClick}>{a.icon&&<span aria-hidden="true">{a.icon} </span>}{a.label}</button>)}
+      </div>}
       <div className="coach-provider-choice" role="group" aria-label="Выбор AI-модели">
         <button type="button" className={providerChoice==="auto"?"active":""} onClick={()=>setProviderChoice("auto")}>Авто</button>
         <button type="button" className={providerChoice==="anthropic"?"active":""} onClick={()=>setProviderChoice("anthropic")}>Anthropic</button>
