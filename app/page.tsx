@@ -171,7 +171,7 @@ export default function Home() {
 
       {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} loadOverrides={data.progressionOverrides||{}} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load();loadProgression()}}/>}
       {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
-      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today} quickActions={[
+      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today} onFoodSaved={load} quickActions={[
         {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");setActiveWorkout(todayPlan)}},
         {label:"Записать питание",icon:"🍽",onClick:()=>{setCoachChatOpen(false);setNav("Питание");setMobileMenu(false)}},
         {label:"Отметить самочувствие",icon:"❤",onClick:()=>{setCoachChatOpen(false);goCoach()}},

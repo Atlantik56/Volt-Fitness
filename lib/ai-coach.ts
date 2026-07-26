@@ -6,9 +6,12 @@ import { renderAiCoachContextText, type AiCoachContext } from "./ai-context.ts";
 
 export type AiChatMessage={role:"user"|"assistant";text:string};
 
+export type AiFoodItem={name:string;calories:number;protein:number;fat:number;carbs:number};
+
 export type AiCoachReply={
   answer:string;
   mainRecommendation:string|null;
+  food?:AiFoodItem[]|null;
 };
 
 export class AiCoachError extends Error{
@@ -25,8 +28,19 @@ const SYSTEM_PROMPT=`Ты — VOLT Coach, локальный ИИ-помощни
 - Не меняй план тренировок и не утверждай, что изменил его — только предлагай, окончательное решение за пользователем.
 - Отвечай коротко и по делу на понятном русском языке.
 - В конце ответа, если уместно, выдели ОДНУ главную рекомендацию.
+- Если пользователь описывает съеденную еду (а не задаёт вопрос), оцени КБЖУ каждого блюда по типичному размеру порции и заполни поле "food". Если сообщение не про съеденную еду — food строго null. Ты никогда не записываешь еду в дневник сам — только предлагаешь оценку, пользователь подтверждает сохранение отдельным действием.
 Формат ответа — строго JSON без markdown-обёртки:
-{"answer": "текст ответа", "mainRecommendation": "одна короткая рекомендация или null"}`;
+{"answer": "текст ответа", "mainRecommendation": "одна короткая рекомендация или null", "food": [{"name":"Название блюда","calories":250,"protein":20,"fat":10,"carbs":15}] или null}`;
+
+function sanitizeFood(value:any):AiFoodItem[]|null{
+  if(!Array.isArray(value)||!value.length)return null;
+  const num=(x:any)=>{const n=Number(x);return Number.isFinite(n)&&n>=0&&n<=5000?Math.round(n):0};
+  const items=value.slice(0,10).map(x=>({
+    name:typeof x?.name==="string"?x.name.trim().slice(0,120):"",
+    calories:num(x?.calories),protein:num(x?.protein),fat:num(x?.fat),carbs:num(x?.carbs),
+  })).filter(x=>x.name&&x.calories>0);
+  return items.length?items:null;
+}
 
 export function parseStructuredReply(raw:string):AiCoachReply{
   let jsonText=raw.trim();
@@ -39,7 +53,7 @@ export function parseStructuredReply(raw:string):AiCoachReply{
     throw new AiCoachError("Ответ ИИ имеет неверный формат",502);
   const mainRecommendation=typeof parsed.mainRecommendation==="string"&&parsed.mainRecommendation.trim()
     ?parsed.mainRecommendation.trim():null;
-  return {answer:parsed.answer.trim(),mainRecommendation};
+  return {answer:parsed.answer.trim(),mainRecommendation,food:sanitizeFood(parsed.food)};
 }
 
 export type AnthropicFetch=(url:string,init:RequestInit)=>Promise<Response>;

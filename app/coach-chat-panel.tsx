@@ -9,14 +9,16 @@
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "./toast";
 
-type ChatMessage = { role: "user" | "assistant"; text: string; recommendation?: string | null };
+type FoodItem={name:string;calories:number;protein:number;fat:number;carbs:number};
+type ChatMessage = { role: "user" | "assistant"; text: string; recommendation?: string | null; food?: FoodItem[] | null; foodSaved?: boolean };
 type HubSettings={anthropicKeySet:boolean;mwsKeySet:boolean;mwsProject:string;mwsModel:string};
 
 type QuickAction={label:string;icon?:string;onClick:()=>void};
 
-export function CoachChatPanel({ open, onClose, plan, today, quickActions=[] }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string; quickActions?: QuickAction[] }) {
+export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], onFoodSaved }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string; quickActions?: QuickAction[]; onFoodSaved?: () => void }) {
   const notify = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [savingFood, setSavingFood] = useState<number|null>(null);
   const [loaded, setLoaded] = useState(false);
   const [question, setQuestion] = useState("");
   const [sending, setSending] = useState(false);
@@ -63,13 +65,30 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[] }: 
         return;
       }
       setProvider(j.provider==="anthropic+mws"?"anthropic+mws":j.provider==="mws"?"mws":"anthropic");
-      setMessages((current) => [...current, { role: "assistant", text: j.answer, recommendation: j.mainRecommendation }]);
+      setMessages((current) => [...current, { role: "assistant", text: j.answer, recommendation: j.mainRecommendation, food: j.food }]);
     } catch {
       notify("Тренер не ответил — проверьте соединение", "warn");
       setMessages((current) => current.slice(0, -1));
       setQuestion(text);
     } finally {
       setSending(false);
+    }
+  };
+
+  const saveFood = async (index: number, items: FoodItem[]) => {
+    setSavingFood(index);
+    const rawText = items.map(f => `${f.name} — ${f.calories} ккал (Б ${f.protein} / Ж ${f.fat} / У ${f.carbs})`).join("\n");
+    try {
+      const r = await fetch("/api/fitness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "food", date: today, mealType: "Перекус", rawText }) });
+      const j = await r.json();
+      if (!r.ok) { notify(j.error || "Не удалось сохранить в дневник", "warn"); return }
+      setMessages(current => current.map((m, i) => i === index ? { ...m, foodSaved: true } : m));
+      notify("Добавлено в дневник питания", "good");
+      onFoodSaved?.();
+    } catch {
+      notify("Не удалось сохранить в дневник", "warn");
+    } finally {
+      setSavingFood(null);
     }
   };
 
@@ -97,6 +116,14 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[] }: 
           <div key={i} className={`coach-chat-bubble ${m.role}`}>
             <p>{m.text}</p>
             {m.recommendation && <b className="coach-chat-recommendation">→ {m.recommendation}</b>}
+            {m.food&&m.food.length>0&&(
+              <div className="coach-chat-food">
+                {m.food.map((f,fi)=><p key={fi}><span>{f.name}</span><b>{f.calories} ккал</b></p>)}
+                <button type="button" disabled={m.foodSaved||savingFood===i} onClick={()=>saveFood(i,m.food!)}>
+                  {m.foodSaved?"Добавлено ✓":savingFood===i?"Сохраняю…":"Добавить в дневник"}
+                </button>
+              </div>
+            )}
           </div>
         ))}
         {sending && <div className="coach-chat-bubble assistant pending"><p>Думаю…</p></div>}

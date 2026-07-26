@@ -111,6 +111,28 @@ test("6.8: ответ без обязательного поля answer откл
   await assert.rejects(() => askAiCoach("key", fakeContext, [], "?", fetchMock as any), AiCoachError);
 });
 
+test("чат-коуч: описание еды разбирается в food, вопрос без еды даёт null", async () => {
+  const fetchMock = async () =>
+    new Response(JSON.stringify({ content: [{ text: '{"answer":"Записал","mainRecommendation":null,"food":[{"name":"Омлет из 5 яиц","calories":400,"protein":33,"fat":28,"carbs":5}]}' }] }), { status: 200 });
+  const reply = await askAiCoach("key", fakeContext, [], "Съел омлет из 5 яиц", fetchMock as any);
+  assert.equal(reply.food?.length, 1);
+  assert.equal(reply.food?.[0].name, "Омлет из 5 яиц");
+  assert.equal(reply.food?.[0].calories, 400);
+});
+
+test("чат-коуч: food отсутствует в ответе — не ломает разбор, остаётся null", async () => {
+  const fetchMock = async () => new Response(JSON.stringify({ content: [{ text: '{"answer":"Сегодня отдых","mainRecommendation":null}' }] }), { status: 200 });
+  const reply = await askAiCoach("key", fakeContext, [], "Что по плану?", fetchMock as any);
+  assert.equal(reply.food ?? null, null);
+});
+
+test("чат-коуч: мусорные элементы food (без названия или калорий) отфильтровываются", async () => {
+  const fetchMock = async () =>
+    new Response(JSON.stringify({ content: [{ text: '{"answer":"ок","mainRecommendation":null,"food":[{"name":"","calories":100,"protein":1,"fat":1,"carbs":1},{"name":"Чай","calories":0,"protein":0,"fat":0,"carbs":0}]}' }] }), { status: 200 });
+  const reply = await askAiCoach("key", fakeContext, [], "?", fetchMock as any);
+  assert.equal(reply.food ?? null, null);
+});
+
 test("6.8: недоступность AI API обрабатывается безопасно, а не падает", async () => {
   const fetchMock = async () => new Response("", { status: 503 });
   await assert.rejects(() => askAiCoach("key", fakeContext, [], "?", fetchMock as any), AiCoachError);

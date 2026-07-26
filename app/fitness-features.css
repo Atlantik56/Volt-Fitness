@@ -44,6 +44,11 @@
 .coach-chat-bubble.assistant{align-self:flex-start}
 .coach-chat-bubble.pending{color:#8d959a;font-style:italic}
 .coach-chat-recommendation{display:block;margin-top:7px;color:var(--lime);font-size:11px}
+.coach-chat-food{margin-top:9px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:#0f1315}
+.coach-chat-food p{display:flex;justify-content:space-between;gap:10px;margin:0 0 4px;font-size:11px;color:#c7cdd0}
+.coach-chat-food p b{color:#fff;font-weight:700}
+.coach-chat-food button{width:100%;margin-top:6px;border:0;border-radius:8px;background:var(--lime);color:#111;font-weight:800;padding:8px;font-size:11px;cursor:pointer}
+.coach-chat-food button:disabled{opacity:.6;cursor:default}
 .coach-chat-form{display:flex;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
 .coach-chat-form input{flex:1;min-width:0;background:#0c0f11;border:1px solid var(--line);border-radius:10px;color:#fff;padding:11px 13px;font-size:12px}
 .coach-chat-form button{border:0;border-radius:10px;background:var(--lime);color:#111;font-weight:800;padding:11px 16px;cursor:pointer;white-space:nowrap}.coach-chat-form button:disabled{opacity:.5;cursor:default}
