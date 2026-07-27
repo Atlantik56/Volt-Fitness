@@ -16,11 +16,20 @@ export const homeWarmup = [
 const poolSession=(day:number,d:string)=>({day,d,type:"Кардио",title:"Бассейн",time:"~30 мин",rounds:1,image:"/workouts/swimming-crawl.webp",exercises:[["Разминка в воде","100–150 м вольным стилем в лёгком темпе, без ускорений","5 мин"],["Основная часть","Кроль или на спине, комфортный темп, свободное дыхание. Без брасса.","20 мин"],["Заминка","Медленно, спокойное дыхание","5 мин"]]});
 const tuesdayWalk={day:2,d:"Вторник",type:"Кардио",title:"Ходьба или велосипед",time:"30–60 мин",rounds:1,image:"/workouts/road-cycling.webp",exercises:[["Разминка","Лёгкий темп","5 мин"],["Основная часть","Разговорный темп, без тяжёлых горок","20–50 мин"],["Заминка","Постепенно снизить темп","5 мин"]]};
 const thursdayWalk={day:4,d:"Четверг",type:"Восстановление",title:"Прогулка и мобильность",time:"20–30 мин",rounds:1,image:"/workouts/recovery-walk.webp",exercises:[["Спокойная прогулка","Темп без одышки","20–30 мин"],["Лёгкая растяжка","Без боли и резких движений","5 мин"]]};
+// Недели программы всегда начинаются в понедельник (расписание в buildHomeWeek —
+// фиксированные Пн–Вс), а не через фиксированные 7 дней от старта, который может
+// приходиться на любой день недели — иначе смена недели «плывёт» относительно
+// календарной недели, которую видит пользователь.
+function mondayOf(d:Date):Date{
+ const monday=new Date(d.getFullYear(),d.getMonth(),d.getDate());
+ monday.setDate(monday.getDate()-((d.getDay()+6)%7));
+ return monday;
+}
 export function currentProgramWeek(programStart?:string):number{
  if(!programStart)return 1;
  const start=new Date(`${programStart}T00:00:00`);
  if(Number.isNaN(start.getTime()))return 1;
- const diffDays=Math.floor((Date.now()-start.getTime())/86400000);
+ const diffDays=Math.round((mondayOf(new Date()).getTime()-mondayOf(start).getTime())/86400000);
  return Math.max(1,Math.floor(diffDays/7)+1);
 }
 export function buildHomeWeek(programStart?:string){
