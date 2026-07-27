@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "../lib/coach-weekly.ts";
 import { buildAiCoachContext, renderAiCoachContextText } from "../lib/ai-context.ts";
 import { askAiCoach, askMwsAiCoach, AiCoachError } from "../lib/ai-coach.ts";
@@ -81,6 +81,22 @@ test("6.8: контекст без плана честно сообщает об
   const ctx = buildAiCoachContext({ date: DATE, profile: {}, measurements: [], foodLogs: [], workouts: [], wellnessLogs: [], activity: [] });
   assert.equal(ctx.plan, null);
   assert.ok(renderAiCoachContextText(ctx).includes("плана нет"));
+});
+
+test("контекст явно сообщает модели, включён ли бассейн (иначе модель гадает/отрицает его вслепую)", () => {
+  mock.timers.enable({ apis: ["Date"], now: new Date("2026-07-24T12:00:00") }); // неделя 1
+  try {
+    const ctx1 = buildAiCoachContext({ date: DATE, profile: { programStart: "2026-07-21" }, measurements: [], foodLogs: [], workouts: [], wellnessLogs: [], activity: [] });
+    assert.equal(ctx1.poolActive, false);
+    assert.ok(renderAiCoachContextText(ctx1).includes("ещё не включён"));
+  } finally { mock.timers.reset() }
+
+  mock.timers.enable({ apis: ["Date"], now: new Date("2026-07-27T12:00:00") }); // неделя 2
+  try {
+    const ctx2 = buildAiCoachContext({ date: DATE, profile: { programStart: "2026-07-21" }, measurements: [], foodLogs: [], workouts: [], wellnessLogs: [], activity: [] });
+    assert.equal(ctx2.poolActive, true);
+    assert.ok(renderAiCoachContextText(ctx2).includes("уже включён"));
+  } finally { mock.timers.reset() }
 });
 
 const fakeContext = buildAiCoachContext({ date: DATE, plan: null, profile: {}, measurements: [], foodLogs: [], workouts: [], wellnessLogs: [], activity: [] });

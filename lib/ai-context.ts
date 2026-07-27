@@ -11,6 +11,7 @@ export type AiCoachContext={
   profile:{name:string;height:number|null;startWeight:number|null;targetWeight:number|null};
   programWeek:number;
   phase:{p:string;n:string;g:string};
+  poolActive:boolean;
   weight:CoachResult["summary"]["weight"];
   weightWeekly:WeightWeeklyTrend;
   nutritionToday:CoachResult["summary"]["nutrition"];
@@ -38,6 +39,11 @@ export function buildAiCoachContext(input:CoachInput):AiCoachContext{
     },
     programWeek,
     phase:{p:phase.p,n:phase.n,g:phase.g},
+    // Фаза «Недели 1–3» — статичная метка, охватывающая все три недели сразу; сама по
+    // себе она не говорит модели, что бассейн по вторникам/четвергам уже подключился со
+    // 2-й недели (см. app/personal-data.ts, buildHomeWeek) — без этого явного факта
+    // модель либо гадает, либо отрицает бассейн даже когда он уже есть в плане.
+    poolActive:programWeek>1,
     weight:result.summary.weight,
     weightWeekly:computeWeightWeeklyTrend(measurements,input.date),
     nutritionToday:result.summary.nutrition,
@@ -67,6 +73,7 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
   lines.push(`Шаблон питания программы: ${meals.map(m=>`${m[0]} — ${m[1]} (${m[2]})`).join("; ")}.`);
   lines.push(ctx.plan?`План на сегодня: «${ctx.plan.title}» (${ctx.plan.type}).`:"На сегодня плана нет.");
   lines.push(`Фаза программы (неделя ${ctx.programWeek}): «${ctx.phase.p}» — ${ctx.phase.n}. Цель фазы: ${ctx.phase.g}.`);
+  lines.push(ctx.poolActive?"Бассейн по вторникам и четвергам уже включён в план (действует со 2-й недели программы) вместо ходьбы/велосипеда.":"Бассейн по вторникам и четвергам в план ещё не включён — начнётся со 2-й недели программы; сейчас в эти дни ходьба или велосипед.");
   lines.push(`Ограничение по здоровью: ${safety}`);
   lines.push(`Принципы программы: ${rules.join("; ")}.`);
   if(ctx.coachDecision)lines.push(`Решение VOLT Coach на сегодня: ${ctx.coachDecision.title}. ${ctx.coachDecision.explanation}`);
