@@ -5,8 +5,9 @@
 
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "./coach-weekly.ts";
 import { computePeriodSummary, type ScheduleOverrideRecord, type WeeklyPlanDay, type WorkoutRecord } from "../app/training-analytics-model.ts";
+import { findMoodPatterns, type MoodLog } from "./mood.ts";
 
-export type CoachInsightCategory = "weight" | "training" | "nutrition" | "consistency";
+export type CoachInsightCategory = "weight" | "training" | "nutrition" | "consistency" | "mood";
 export type CoachInsightTone = "good" | "warn" | "info";
 
 export type CoachInsight = {
@@ -28,6 +29,8 @@ export type CoachInsightsInput = {
   scheduleOverrides?: ScheduleOverrideRecord[];
   targets: { calories: number; protein: number };
   targetWeight: number | null;
+  moodLogs?: MoodLog[];
+  activity?: { date: string; sleepHours?: number }[];
 };
 
 export const COACH_INSIGHTS_MAX = 4;
@@ -140,6 +143,18 @@ function activityRhythmInsight(input: CoachInsightsInput): CoachInsight | null {
   };
 }
 
+// Опирается только на lib/mood.ts — не дублирует поиск закономерностей, только
+// оборачивает первый найденный паттерн в формат CoachInsight для карточки на главной.
+function moodInsight(input: CoachInsightsInput): CoachInsight | null {
+  const patterns = findMoodPatterns(input.moodLogs ?? [], input.workouts, input.activity ?? []);
+  if (!patterns.length) return null;
+  return {
+    id: "mood-pattern", category: "mood", tone: "info", priority: 3.7,
+    title: "Заметна связь с настроением",
+    text: patterns[0],
+  };
+}
+
 function dayWord(n: number) {
   const mod10 = n % 10, mod100 = n % 100;
   if (mod10 === 1 && mod100 !== 11) return "день";
@@ -157,6 +172,7 @@ export function buildCoachInsights(input: CoachInsightsInput, anchor: Date = new
     newRecordInsight(input),
     planCompletionInsight(input, anchor),
     activityRhythmInsight(input),
+    moodInsight(input),
   ].filter((x): x is CoachInsight => x !== null);
   return candidates.sort((a, b) => a.priority - b.priority).slice(0, COACH_INSIGHTS_MAX);
 }

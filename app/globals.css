@@ -70,8 +70,9 @@ body{background-image:linear-gradient(rgba(6,8,9,.56),rgba(6,8,9,.76)),url('/bac
 .motivation-banner{display:flex;align-items:center;gap:18px;margin:0 0 14px;padding:18px 22px;border-color:#35451f;background:linear-gradient(115deg,rgba(29,39,20,.92),rgba(15,19,18,.82))}.motivation-banner>span{flex:0 0 44px;width:44px;height:44px;display:grid;place-items:center;border-radius:14px;background:var(--lime);color:#10140c;font-size:22px;box-shadow:0 0 28px color-mix(in srgb,var(--lime) 18%,transparent)}.motivation-banner h3{margin:2px 0 5px;font-size:18px;line-height:1.25}.motivation-banner small{color:#929c96;font-size:10px}.motivation-banner .eyebrow{color:var(--lime);font-size:8px}
 @media(max-width:760px){.motivation-banner{gap:12px;padding:14px;margin-bottom:12px}.motivation-banner>span{flex-basis:38px;width:38px;height:38px;border-radius:12px;font-size:19px}.motivation-banner h3{font-size:15px}.motivation-banner small{display:block;font-size:9px;line-height:1.4}}
 .food-diary{margin:0 0 34px;padding:24px;border:1px solid var(--line);border-radius:20px;background:rgba(17,20,22,.86);backdrop-filter:blur(14px)}.food-diary .section-head>div h3{margin:0;font-size:25px}.food-diary .section-head>b{color:var(--lime)}.macro-scales{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:22px 0}.macro-scales article{padding:14px;border:1px solid #292f31;border-radius:13px;background:#0d1011}.macro-scales article>div:first-child{display:flex;justify-content:space-between;gap:8px;font-size:10px}.macro-scales article span{color:#899196}.macro-scales article b{font-size:10px}.macro-bar{height:6px;margin:12px 0 7px;border-radius:8px;background:#2a2e30;overflow:hidden}.macro-bar i{display:block;height:100%;border-radius:8px;background:linear-gradient(90deg,#8bbf16,var(--lime))}.macro-scales small{color:#7f888d;font-size:9px}.food-diary form{display:grid;grid-template-columns:150px 1fr auto;gap:12px;align-items:end}.food-diary form label{display:grid;gap:7px;color:#929a9f;font-size:10px}.food-diary input,.food-diary textarea{width:100%;border:1px solid #303638;border-radius:10px;background:#0d1011;color:#fff;padding:12px;font:inherit;resize:vertical}.food-diary textarea{min-height:130px;font-size:12px;line-height:1.55}.food-diary form button{border:0;border-radius:11px;background:var(--lime);color:#0a0d08;padding:14px 18px;font-weight:900;cursor:pointer}.food-error{grid-column:1/-1;color:#ffaaaa;font-size:11px}.streak.evening{background:linear-gradient(135deg,#111a24,#0f1319);border-color:#1c2c3a;cursor:pointer;text-align:left;font:inherit}.streak.evening:hover{border-color:#2c4a5f}.streak.evening span:first-child{color:#7fb2ff}
-.evening-cta{display:flex;align-items:center;gap:16px;padding:18px 20px;margin:0 0 14px}.evening-cta-icon{flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:#111a24;color:#7fb2ff;display:grid;place-items:center;font-size:20px}.evening-cta-copy{flex:1;min-width:0}.evening-cta-copy h3{margin:4px 0 0;font-size:16px}.evening-cta button{border:0;background:#141c24;color:#9fc7ff;border:1px solid #23364a;border-radius:11px;padding:11px 16px;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap}.evening-cta button:hover{border-color:#3a5a78}
-@media(max-width:760px){.evening-cta{flex-wrap:wrap}.evening-cta button{width:100%}}
+.evening-cta,.mood-cta{display:flex;align-items:center;gap:16px;padding:18px 20px;margin:0 0 14px}.evening-cta-icon,.mood-cta-icon{flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:#111a24;color:#7fb2ff;display:grid;place-items:center;font-size:20px}.evening-cta-copy,.mood-cta-copy{flex:1;min-width:0}.evening-cta-copy h3,.mood-cta-copy h3{margin:4px 0 0;font-size:16px}.evening-cta button,.mood-cta button{border:0;background:#141c24;color:#9fc7ff;border:1px solid #23364a;border-radius:11px;padding:11px 16px;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap}.evening-cta button:hover,.mood-cta button:hover{border-color:#3a5a78}
+@media(max-width:760px){.evening-cta,.mood-cta{flex-wrap:wrap}.evening-cta button,.mood-cta button{width:100%}}
+.mood-cta-icon{font-size:22px;background:#1a1d1f}
 .evening-hero .big-ring div span{color:#7fb2ff}.evening-checklist{display:flex;flex-wrap:wrap;gap:8px 16px;margin-top:14px}.evening-checklist span{font-size:11px;color:#7a828a}.evening-checklist span.done{color:var(--lime)}
 .evening-coach-note{margin:14px 0}.evening-coach-note p{margin:4px 0 0;color:#c3cbce;font-size:12px;line-height:1.5}.evening-honest{color:#81898e!important;font-size:11px!important;font-style:italic}
 .evening-facts{grid-template-columns:repeat(6,1fr);margin:14px 0}
@@ -135,3 +136,25 @@ body{background-image:linear-gradient(rgba(6,8,9,.56),rgba(6,8,9,.76)),url('/bac
 .toast-item.info{border-color:#243040}.toast-item.info .toast-icon{background:#151f2d;color:#8cc0ff}
 @keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:760px){.toast-stack{bottom:84px}}
+
+/* «Состояние и заметки» — раздел в «Моей истории» */
+.mood-section{display:grid;gap:0}
+.mood-heatmap{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-top:12px}
+.mood-heat-cell{aspect-ratio:1;border-radius:5px}
+.mood-timeline{display:grid;gap:7px;margin-top:8px}
+.mood-timeline-row{background:#111416;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mood-timeline-main{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:#fff;padding:11px 14px;cursor:pointer;text-align:left}
+.mood-timeline-emoji{font-size:17px}
+.mood-timeline-date{flex:1;font-size:11px;color:#c7cdd1}
+.mood-timeline-hint{font-size:9px;color:#7c858a;font-style:italic}
+.mood-timeline-note{margin:0;padding:0 14px 12px 41px;color:#9aa2a7;font-size:11px;line-height:1.6}
+.mood-timeline-actions{display:flex;gap:6px;padding:0 14px 10px 41px}
+.mood-timeline-actions button{border:0;background:transparent;color:#7c858a;font-size:10px;cursor:pointer;padding:2px 4px}
+.mood-timeline-actions button.danger{color:#ff8585}
+.mood-edit-form{display:grid;gap:10px;background:#111416;border:1px solid var(--lime);border-radius:12px;padding:14px}
+.mood-edit-picker{display:flex;gap:6px}
+.mood-edit-picker label{border:1px solid var(--line);border-radius:9px;padding:6px 9px;font-size:16px;cursor:pointer;display:grid;place-items:center}.mood-edit-picker label:has(input:checked){border-color:var(--lime);background:#202718}
+.mood-edit-picker input{position:absolute;opacity:0;pointer-events:none}
+.mood-edit-form textarea{background:#0c0f11;border:1px solid var(--line);border-radius:9px;color:#fff;padding:10px;font-size:12px;min-height:60px;resize:vertical}
+.mood-edit-actions{display:flex;justify-content:flex-end;gap:10px}
+.mood-edit-actions button[type="submit"]{border:0;border-radius:9px;background:var(--lime);color:#111;font-weight:800;padding:9px 15px;cursor:pointer}

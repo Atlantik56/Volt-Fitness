@@ -86,7 +86,10 @@ export async function POST(req: Request) {
     .prepare("SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 20")
     .all(date) as any[];
   const wellness = db.prepare("SELECT energy,pain,pain_area painArea FROM wellness_logs WHERE date=?").get(date) as any;
-  const activity = db.prepare("SELECT steps,active_minutes activeMinutes,sleep_hours sleepHours FROM daily_activity WHERE date=?").get(date) as any;
+  const activityHistory = db
+    .prepare("SELECT date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60")
+    .all(date) as any[];
+  const moodLogs = db.prepare("SELECT date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 60").all(date) as any[];
 
   const context = buildAiCoachContext({
     date,
@@ -97,7 +100,8 @@ export async function POST(req: Request) {
     foodLogs,
     workouts,
     wellnessLogs: wellness ? [{ date, ...wellness }] : [],
-    activity: activity ? [{ date, ...activity }] : [],
+    activity: activityHistory,
+    moodLogs,
   });
 
   // Ключ лимита вычисляется на сервере в часовом поясе владельца. Клиентская

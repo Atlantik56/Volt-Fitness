@@ -3,6 +3,7 @@ import { requireAuth,sameOrigin } from "@/lib/auth";
 import { getSetting,setSetting } from "@/lib/settings";
 import { saveWorkout,updateWorkout,deleteWorkout,insertStrengthLog,deleteStrengthLog } from "@/lib/workout-service";
 import { createStage,updateStage,deleteStage } from "@/lib/program-stages";
+import { MOOD_OPTIONS } from "@/lib/mood";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -77,7 +78,11 @@ export async function POST(req:Request){
  }else if(b.action==="deleteStrength"){
   const result=deleteStrengthLog(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="mood"){
-  const moods=["😊","🙂","😐","😔","😢","😡"];if(!dateOk(b.date)||!moods.includes(b.mood))return Response.json({error:"Некорректная запись настроения"},{status:400});db.prepare("INSERT INTO mood_logs (date,mood,note) VALUES (?,?,?)").run(b.date,b.mood,text(b.note,300))
+  if(!dateOk(b.date)||!MOOD_OPTIONS.includes(b.mood))return Response.json({error:"Некорректная запись настроения"},{status:400});db.prepare("INSERT INTO mood_logs (date,mood,note) VALUES (?,?,?)").run(b.date,b.mood,text(b.note,300))
+ }else if(b.action==="updateMood"){
+  const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});
+  if(!MOOD_OPTIONS.includes(b.mood))return Response.json({error:"Некорректная запись настроения"},{status:400});
+  const result=db.prepare("UPDATE mood_logs SET mood=?,note=? WHERE id=?").run(b.mood,text(b.note,300),id);if(!result.changes)return Response.json({error:"Запись не найдена"},{status:404})
  }else if(b.action==="deleteMood"){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM mood_logs WHERE id=?").run(id)
  }else if(b.action==="food"){

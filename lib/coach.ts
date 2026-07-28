@@ -115,6 +115,7 @@ export type CoachInput={
   workouts?:any[];
   measurements?:any[];
   profile?:any;
+  moodLogs?:any[];
 };
 
 export const COACH_MAX_ADVICE=3;

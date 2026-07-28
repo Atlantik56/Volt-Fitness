@@ -5,6 +5,8 @@
 import { buildCoachResult, type CoachInput, type CoachResult } from "./coach.ts";
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend, type NutritionWeeklyStats, type WeightWeeklyTrend } from "./coach-weekly.ts";
 import { phases, meals, rules, safety, currentProgramWeek } from "../app/personal-data.ts";
+import { findMoodPatterns, latestMood } from "./mood.ts";
+import { findEveningPatterns } from "./evening.ts";
 
 export type AiCoachContext={
   date:string;
@@ -20,6 +22,8 @@ export type AiCoachContext={
   plan:{title:string;type:string}|null;
   coachDecision:CoachResult["decision"];
   recentWorkouts:{date:string;title:string;type:string;effort:string;painAfter:number|null}[];
+  mood:{latest:{mood:string;date:string}|null;patterns:string[];entriesCount:number};
+  eveningPatterns:string[];
 };
 
 export function buildAiCoachContext(input:CoachInput):AiCoachContext{
@@ -27,6 +31,8 @@ export function buildAiCoachContext(input:CoachInput):AiCoachContext{
   const measurements=(input.measurements??[]).filter((m:any)=>m&&typeof m.date==="string");
   const foodLogs=input.foodLogs??[];
   const workouts=(input.workouts??[]) as any[];
+  const activity=(input.activity??[]) as any[];
+  const moodLogs=(input.moodLogs??[]) as any[];
   const programWeek=currentProgramWeek(input.profile?.programStart);
   const phase=phases[programWeek<=3?0:programWeek<=14?1:2];
   return {
@@ -57,6 +63,12 @@ export function buildAiCoachContext(input:CoachInput):AiCoachContext{
       .sort((a,b)=>String(b.date).localeCompare(String(a.date)))
       .slice(0,5)
       .map(w=>({date:w.date,title:String(w.title||""),type:String(w.type||""),effort:String(w.effort||""),painAfter:w.painAfter!=null?Number(w.painAfter):null})),
+    mood:{
+      latest:latestMood(moodLogs) && {mood:latestMood(moodLogs)!.mood,date:latestMood(moodLogs)!.date},
+      patterns:findMoodPatterns(moodLogs,workouts,activity),
+      entriesCount:moodLogs.length,
+    },
+    eveningPatterns:findEveningPatterns(activity,workouts),
   };
 }
 
@@ -81,5 +93,11 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
     lines.push("Последние тренировки:");
     for(const w of ctx.recentWorkouts)lines.push(`- ${w.date}: ${w.title} (${w.type}), усилие «${w.effort||"не указано"}»${w.painAfter!=null?`, боль после ${w.painAfter}/10`:""}.`);
   }else lines.push("Сохранённых тренировок пока нет.");
+  if(ctx.mood.latest)lines.push(`Последняя запись настроения: ${ctx.mood.latest.mood} (${ctx.mood.latest.date}).`);
+  else lines.push("Записей настроения пока нет.");
+  if(ctx.mood.patterns.length)for(const p of ctx.mood.patterns)lines.push(`Наблюдение по настроению: ${p}`);
+  else if(ctx.mood.entriesCount>0)lines.push("Записей настроения пока недостаточно, чтобы делать выводы о закономерностях.");
+  if(ctx.eveningPatterns.length)for(const p of ctx.eveningPatterns)lines.push(`Наблюдение по вечерам: ${p}`);
+  lines.push("Настроение — субъективная самооценка пользователя, а не медицинский показатель: не ставь по нему диагнозов и не делай выводов по одной записи.");
   return lines.join("\n");
 }
