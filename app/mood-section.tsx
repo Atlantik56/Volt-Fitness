@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useToast } from "./toast";
 import { PERIODS, PERIOD_LABELS, type Period } from "./progress-model";
 import {
-  MOOD_OPTIONS, filterMoodByPeriod, findMoodPatterns, groupMoodByMonth, latestMood, moodScore,
+  MOOD_OPTIONS, filterMoodByPeriod, findMoodPatterns, groupMoodByMonth, latestMood,
   type MoodLog,
 } from "../lib/mood";
 

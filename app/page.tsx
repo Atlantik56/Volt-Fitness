@@ -53,7 +53,10 @@ export default function Home() {
   const loadProgression=()=>fetch("/api/progression").then(r=>r.json()).then(d=>setProgressionProposals(d.proposals||[])).catch(()=>{});
   const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true)}).catch(()=>{});
   useEffect(()=>{load();loadProgression()},[]);
-  useEffect(()=>{if(nav!=="Моя история"&&progressTab)setProgressTab(null)},[nav,progressTab]);
+  // Сброс во время рендера (а не в эффекте) — рекомендованный React-паттерн для
+  // производного состояния при смене nav, без каскадного лишнего рендера.
+  const [prevNav,setPrevNav]=useState(nav);
+  if(nav!==prevNav){setPrevNav(nav);if(nav!=="Моя история"&&progressTab)setProgressTab(null)}
   const streak=useMemo(()=>calcStreak(data.workouts||[]),[data.workouts]);
   const today=localIso(new Date()), todayActivity=(data.activity||[]).find((x:any)=>x.date===today)||{};
   const todayWorkouts=(data.workouts||[]).filter((x:any)=>x.date===today).length;
