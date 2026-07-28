@@ -13,8 +13,10 @@ import { ProgressionPanel, type ProgressionProposal } from "./progression-panel"
 import { buildCoachResult, COACH_ACTION_LABELS, COACH_TARGETS, type CoachAction } from "../lib/coach";
 import { buildCoachInsights } from "../lib/coach-insights";
 import { WhatsNewGate } from "./whats-new-gate";
+import { EveningProgressCard, EveningProgressPage } from "./evening-progress";
+import { computeEveningWeeklyStats } from "../lib/evening";
 import { useToast } from "./toast";
-import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Route } from "lucide-react";
+import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Moon, Route } from "lucide-react";
 import {
   MEASUREMENT_KEYS, METRIC_LABELS, METRIC_UNITS, PERIODS, PERIOD_LABELS,
   buildHistory, computeMetricCards, computeMetricStats, computeProgressSummary, computeTrendPoints, filterHistoryByPeriod, groupHistoryByMonth,
@@ -24,15 +26,17 @@ import {
 const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
 const NAV_ITEMS = [
-  ["Сегодня", "⌂"], ["План", "▦"], ["Дорожная карта", "⌁"], ["Питание", "◒"], ["Прогресс", "◎"]
+  ["Сегодня", "⌂"], ["План", "▦"], ["Дорожная карта", "⌁"], ["Питание", "◒"], ["Вечерний прогресс", "☾"], ["Моя история", "◎"]
 ] as const;
 const MOBILE_ICONS={
   "Сегодня":HomeIcon,
   "План":CalendarDays,
   "Дорожная карта":Route,
   "Питание":Apple,
-  "Прогресс":ChartColumn,
+  "Вечерний прогресс":Moon,
+  "Моя история":ChartColumn,
 } as const;
+const MOBILE_LABELS:Record<string,string>={"Дорожная карта":"Карта","Вечерний прогресс":"Вечер","Моя история":"История"};
 
 export default function Home() {
   const notify = useToast();
@@ -48,7 +52,6 @@ export default function Home() {
   const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true)}).catch(()=>{});
   useEffect(()=>{load();loadProgression()},[]);
   const streak=useMemo(()=>calcStreak(data.workouts||[]),[data.workouts]);
-  const dryStreak=useMemo(()=>calcDryStreak(data.activity||[]),[data.activity]);
   const today=localIso(new Date()), todayActivity=(data.activity||[]).find((x:any)=>x.date===today)||{};
   const todayWorkouts=(data.workouts||[]).filter((x:any)=>x.date===today).length;
   const days=useMemo(()=>makeWeek(data.workouts||[]),[data.workouts]);
@@ -79,14 +82,13 @@ export default function Home() {
         <button className="mobile-sidebar-close" aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}>×</button>
         <nav className="side-nav" aria-label="Основная навигация">
           {NAV_ITEMS.map(([label, icon]) => (
-            <button key={label} data-tour-id={label==="Прогресс"?"nav-progress":undefined} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
+            <button key={label} data-tour-id={label==="Моя история"?"nav-progress":undefined} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
           ))}
         </nav>
         <div className="side-bottom">
           <div className="streak"><span>⚡</span><div><b>{streak} {streak===1?"день":"дня"}</b><small>серия активности</small></div></div>
-          <div className="streak dry"><span>🌿</span><div><b>{dryStreak} {dryStreak===1?"день":"дня"}</b><small>без пива</small></div></div>
           <PushToggle/>
-          <button className="profile" onClick={()=>{setNav("Прогресс");setMobileMenu(false)}}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
+          <button className="profile" onClick={()=>{setNav("Моя история");setMobileMenu(false)}}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
           <button className="logout" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()}}>Выйти</button>
         </div>
       </aside>
@@ -94,10 +96,10 @@ export default function Home() {
       <section className="content" id="top">
         <header className="topbar">
           <div><p className="eyebrow">{dateLabel}</p><h1>{greeting}, {data.profile?.name||"Илья"}</h1></div>
-          <div className="header-actions">{loaded&&coachAction&&<button type="button" className={`coach-indicator ${COACH_ACTION_LABELS[coachAction].tone}`} aria-label={`VOLT Coach: ${COACH_ACTION_LABELS[coachAction].label}. Перейти к решению`} onClick={goCoach}><span className="coach-status-dot" aria-hidden="true"/><span className="coach-indicator-text">Coach: {COACH_ACTION_LABELS[coachAction].short}</span></button>}<button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" aria-label="Открыть профиль и серии" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Прогресс")}>И</button></div>
+          <div className="header-actions">{loaded&&coachAction&&<button type="button" className={`coach-indicator ${COACH_ACTION_LABELS[coachAction].tone}`} aria-label={`VOLT Coach: ${COACH_ACTION_LABELS[coachAction].label}. Перейти к решению`} onClick={goCoach}><span className="coach-status-dot" aria-hidden="true"/><span className="coach-indicator-text">Coach: {COACH_ACTION_LABELS[coachAction].short}</span></button>}<button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" aria-label="Открыть профиль и серии" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Моя история")}>И</button></div>
         </header>
 
-        <button className="mobile-status-bar" onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌿 <b>{dryStreak}</b><small> без пива</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>
+        <button className="mobile-status-bar" onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌙 <b>Вечер</b><small> прогресс</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>
 
         {nav === "Сегодня" ? <><section className="motivation-banner card"><span>⚡</span><div><p className="eyebrow">НАСТРОЙ НА СЕГОДНЯ</p><h3>{motivation}</h3><small>Не нужно быть идеальным. Нужно быть последовательным.</small></div></section><section className="hero">
           <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
@@ -120,6 +122,8 @@ export default function Home() {
           <Metric icon="↟" color="lime" label="Шаги" value={fmt(todayActivity.steps||0)} unit="/ 10 000" pct={pct(todayActivity.steps,10000)} />
           <Metric icon="✓" color="violet" label="Тренировки" value={String(todayWorkouts)} unit="/ 1 сегодня" pct={pct(todayWorkouts,1)} />
         </section>
+
+        <EveningProgressCard data={data} onOpen={()=>setNav("Вечерний прогресс")}/>
 
         <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><label>Сон, ч<input name="sleepHours" type="number" min="0" max="24" step="0.5" defaultValue={todayActivity.sleepHours||0}/></label><button>Сохранить</button></form>
 
@@ -166,7 +170,7 @@ export default function Home() {
               </article>
             ))}
           </div>
-        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction}/></>}
+        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction} loaded={loaded}/></>}
       </section>
 
       {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} loadOverrides={data.progressionOverrides||{}} streak={streak} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load();loadProgression()}}/>}
@@ -178,7 +182,7 @@ export default function Home() {
       ]}/>
       {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Прогресс"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={23} strokeWidth={2}/></span>{label}</button>})}</nav>
+      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Моя история"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={20} strokeWidth={2}/></span>{MOBILE_LABELS[label]||label}</button>})}</nav>
     </main></AuthGate>
   );
 }
@@ -188,10 +192,11 @@ function Metric({ icon, color, label, value, unit, pct }: {icon:string;color:str
 }
 
 function Intro({k,t,p}:{k:string;t:string;p:string}){return <header className="detail-intro"><p className="eyebrow">{k}</p><h2>{t}</h2><p>{p}</p></header>}
-function Personal({section,data,refresh,coachAction}:{section:string;data:any;refresh:()=>void;coachAction:CoachAction|null}){
+function Personal({section,data,refresh,coachAction,loaded}:{section:string;data:any;refresh:()=>void;coachAction:CoachAction|null;loaded?:boolean}){
  const homeWeek=buildHomeWeek(data.profile?.programStart);
  if(section==="План") return <div className="detail-page"><Intro k="ПЕРСОНАЛЬНАЯ ПРОГРАММА" t="Тренировки без ударной нагрузки" p="Недели 1–3 — дома. С 4-й недели основным становится расписание зала, бассейна и велосипеда."/><Notice/><h3 className="detail-title">Недели 1–3 · домашний план по дням</h3><p className="detail-lead">Неделя 1 — 2 круга; неделя 2 — 3; неделя 3 — прибавка веса или повторов.</p><div className="day-plan">{homeWeek.map((d:any)=><details key={d.d} open={d.day===(new Date().getDay()||7)}><summary><span>{d.d}</span><div><i>{d.type}</i><h4>{d.title}</h4></div><b>{d.time}</b></summary>{d.warmup&&<><h5 className="plan-block-title">Разминка · выполнить перед кругами</h5><PlanExercises items={d.warmup}/><h5 className="plan-block-title">Основная часть</h5></>}<PlanExercises items={d.exercises}/></details>)}</div><h3 className="detail-title">С недели 4 · зал + кардио</h3><p className="detail-lead">Открой нужный день: внутри — полный список, техника и фотопримеры.</p><div className="day-plan">{week.map(d=><details key={d.d}><summary><span>{d.d}</span><div><i>{d.t}</i><h4>{d.n}</h4></div><b>{d.time}</b></summary><PlanExercises items={d.x}/></details>)}</div></div>;
  if(section==="Дорожная карта") return <div className="detail-page"><Intro k="ЛИЧНАЯ ДОРОЖНАЯ КАРТА · 5–7 МЕСЯЦЕВ" t="86 → 67 кг" p="Рост 167 см. Быстро, но без потери мышц: до 1 кг в неделю на старте, после 75 кг — 0,5–0,7 кг."/><div className="road-stats">{[["0,8–1,0","кг в неделю"],["3","силовых"],["3–4","кардио"],["5–7","месяцев"]].map(x=><article key={x[1]}><b>{x[0]}</b><span>{x[1]}</span></article>)}</div><Notice/><div className="phases">{phases.map((p,i)=><article key={p.p}><span>{String(i+1).padStart(2,"0")}</span><div><small>{p.p}</small><h3>{p.n}</h3><p>{p.g}</p><ul>{p.x.map(x=><li key={x}>{x}</li>)}</ul></div></article>)}</div><h3 className="detail-title">Правила тяжёлых дней</h3><div className="motivation-grid">{rules.map((r,i)=><article key={r}><span>{String(i+1).padStart(2,"0")}</span><p>{r}</p></article>)}</div></div>;
+ if(section==="Вечерний прогресс") return <EveningProgressPage data={data} refresh={refresh} loaded={loaded}/>;
  if(section==="Питание") return <div className="detail-page"><Intro k="ПИТАНИЕ · БЕЗ ЗАПРЕТОВ" t="≈ 1700 ккал · 150 г белка" p="Белок в каждом приёме пищи, овощи в обед и ужин, вода перед едой. Готовь курицу и крупу на 2–3 дня."/><NutritionDiary data={data} refresh={refresh}/><div className="meal-list">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-grid"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div>;
  return <ProgressPage data={data} refresh={refresh} coachAction={coachAction}/>
 }
@@ -267,7 +272,7 @@ function ProgressPage({data,refresh,coachAction}:{data:any;refresh:()=>void;coac
  const submitEdit=async(e:any,id:number)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"updateMeasurement",id,...b})});setEditingId(null);refresh();notify("Замер обновлён")};
  const submitProfile=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"profile",...b})});notify("Профиль обновлён");refresh()};
 
- return <div className="detail-page"><Intro k="ПРОФИЛЬ И ПРОГРЕСС" t={profile.name} p="Тренировки, замеры и фотографии сохраняются в персональном профиле."/>
+ return <div className="detail-page"><Intro k="МОЯ ИСТОРИЯ" t={profile.name} p="Как ты изменился за недели и месяцы: вес, замеры, тренировки и фото — в одном месте."/>
  <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика"].map(x=><button key={x} type="button" data-tour-id={x==="Аналитика"?"tab-analytics":undefined} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
  {tab==="Тело"&&<>
  <ProgressSummaryHero summary={summary} profile={profile}/>
@@ -594,7 +599,7 @@ function WeeklyDigest({data,weekWorkouts,weekDates,currentWeight}:{data:any;week
  const hrs=weekWorkouts.filter((w:any)=>Number(w.avgHeartRate)>0).map((w:any)=>Number(w.avgHeartRate));
  const avgHr=hrs.length?Math.round(hrs.reduce((a:number,b:number)=>a+b,0)/hrs.length):null;
  const activity=data.activity||[];
- const dryDays=activity.filter((x:any)=>weekDates.has(x.date)&&Number(x.beers)===0).length;
+ const eveningStats=computeEveningWeeklyStats(activity,weekDates,localIso(new Date()));
  const sleepVals=activity.filter((x:any)=>weekDates.has(x.date)&&Number(x.sleepHours)>0).map((x:any)=>Number(x.sleepHours));
  const avgSleep=sleepVals.length?sleepVals.reduce((a:number,b:number)=>a+b,0)/sleepVals.length:null;
  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-7);const cutoffIso=localIso(cutoff);
@@ -605,7 +610,7 @@ function WeeklyDigest({data,weekWorkouts,weekDates,currentWeight}:{data:any;week
    <article><b>{weekWorkouts.length}</b><span>тренировок</span></article>
    <article><b>{weightChange!=null?`${weightChange<=0?"−":"+"}${Math.abs(weightChange).toFixed(1)}`:"—"}</b><span>кг за неделю</span></article>
    <article><b>{avgHr??"—"}</b><span>средний пульс</span></article>
-   <article><b>{dryDays}</b><span>дней без пива</span></article>
+   <article><b>{eveningStats.betterEveningsCount}</b><span>вечеров лучше среднего</span></article>
    <article><b>{avgSleep!=null?avgSleep.toFixed(1):"—"}</b><span>ч сна в среднем</span></article>
   </div>
  </section>
@@ -654,7 +659,6 @@ function PushToggle(){
  return <button type="button" className="push-toggle" onClick={toggle} disabled={busy}>{enabled?"🔔 Напоминание включено":"🔕 Включить напоминание"}</button>
 }
 
-function calcDryStreak(activity:any[]){const map=new Map(activity.map((x:any)=>[x.date,Number(x.beers)||0]));const d=new Date();const iso=(x:Date)=>localIso(x);if(!map.has(iso(d)))d.setDate(d.getDate()-1);let n=0;while(map.has(iso(d))&&map.get(iso(d))===0){n++;d.setDate(d.getDate()-1)}return n}
 function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));const d=new Date();if(!set.has(localIso(d)))d.setDate(d.getDate()-1);let n=0,misses=0;while(true){if(set.has(localIso(d))){n++;misses=0}else{misses++;if(misses>1)break}d.setDate(d.getDate()-1)}return n}
 function projectGoalDate(measurements:any[],target:number):string|null{
  const all=[...measurements].filter((m:any)=>m.weight!=null).sort((a:any,b:any)=>a.date.localeCompare(b.date));

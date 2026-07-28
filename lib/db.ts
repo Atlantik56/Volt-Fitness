@@ -45,6 +45,11 @@ try{db.exec("ALTER TABLE workout_logs ADD COLUMN calories INTEGER NOT NULL DEFAU
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN distance_meters REAL NOT NULL DEFAULT 0")}catch{}
 try{db.exec("ALTER TABLE workout_logs ADD COLUMN avg_speed REAL NOT NULL DEFAULT 0")}catch{}
 try{db.exec("ALTER TABLE daily_activity ADD COLUMN sleep_hours REAL NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE daily_activity ADD COLUMN work_end_time TEXT NOT NULL DEFAULT ''")}catch{}
+try{db.exec("ALTER TABLE daily_activity ADD COLUMN first_drink_time TEXT NOT NULL DEFAULT ''")}catch{}
+try{db.exec("ALTER TABLE daily_activity ADD COLUMN dinner INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE daily_activity ADD COLUMN walk INTEGER NOT NULL DEFAULT 0")}catch{}
+try{db.exec("ALTER TABLE daily_activity ADD COLUMN water_liters REAL NOT NULL DEFAULT 0")}catch{}
 try{db.exec("CREATE TABLE IF NOT EXISTS strength_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, exercise TEXT NOT NULL, weight REAL NOT NULL, reps INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)")}catch{}
 
 db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)");
