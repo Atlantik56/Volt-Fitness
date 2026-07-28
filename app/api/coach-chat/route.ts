@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { requireAuth, sameOrigin } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/settings";
 import { buildAiCoachContext } from "@/lib/ai-context";
+import { loadAiCoachContextData } from "@/lib/ai-context-data";
 import { AiCoachError, type AiChatMessage } from "@/lib/ai-coach";
 import { askAiHub } from "@/lib/ai-hub";
 import {
@@ -79,30 +80,8 @@ export async function POST(req: Request) {
 
   // Данные принадлежат единственному профилю приложения (id=1); requireAuth уже
   // защищает эндпоинт от неавторизованных запросов — доступа к «чужим» данным нет.
-  const profile = db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1").get() as any;
-  const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-  const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-  const workouts = db
-    .prepare("SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 20")
-    .all(date) as any[];
-  const wellness = db.prepare("SELECT energy,pain,pain_area painArea FROM wellness_logs WHERE date=?").get(date) as any;
-  const activityHistory = db
-    .prepare("SELECT date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60")
-    .all(date) as any[];
-  const moodLogs = db.prepare("SELECT date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 60").all(date) as any[];
-
-  const context = buildAiCoachContext({
-    date,
-    ready: true,
-    plan,
-    profile,
-    measurements,
-    foodLogs,
-    workouts,
-    wellnessLogs: wellness ? [{ date, ...wellness }] : [],
-    activity: activityHistory,
-    moodLogs,
-  });
+  const contextData = loadAiCoachContextData(db, { date, plan });
+  const context = buildAiCoachContext(contextData);
 
   // Ключ лимита вычисляется на сервере в часовом поясе владельца. Клиентская
   // дата нужна для контекста дня, но не может обойти лимит подстановкой другой даты.

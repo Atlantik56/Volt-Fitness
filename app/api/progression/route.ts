@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { requireAuth,sameOrigin } from "@/lib/auth";
 import { getSetting,setSetting } from "@/lib/settings";
 import { buildAiCoachContext } from "@/lib/ai-context";
+import { loadAiCoachContextData } from "@/lib/ai-context-data";
 import { AiCoachError } from "@/lib/ai-coach";
 import { askAiHub } from "@/lib/ai-hub";
 import { COACH_CHAT_DAILY_LIMIT,dateInTimeZone,releaseDailyQuota,reserveDailyQuota } from "@/lib/coach-chat-quota";
@@ -101,8 +102,11 @@ export async function POST(req:Request){
    return Response.json({error:"AI Hub не настроен на сервере"},{status:503});
 
   const today=dateInTimeZone(new Date());
-  const profile=db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1").get() as any;
-  const context=buildAiCoachContext({date:today,ready:true,plan:null,profile,measurements:[],foodLogs:[],workouts:[],wellnessLogs:[],activity:[]});
+  // Только профиль, фаза/этап программы и safety-правила нужны для этого объяснения —
+  // конкретные числа предложения уже переданы в тексте вопроса ниже, пересчитывать
+  // локальный контекст по полной истории незачем и дороже по токенам.
+  const contextData=loadAiCoachContextData(db,{date:today,plan:null,historyDays:0,workoutsLimit:0,personalRecordsLimit:0});
+  const context=buildAiCoachContext(contextData);
   const proposal=mapRow(row);
   const question=`Объясни человеку простым языком это уже посчитанное локально предложение по прогрессии нагрузки. Ничего не пересчитывай и не придумывай новых чисел — только объясни, почему разумно так поступить, и что делать дальше.\n`
    +`Упражнение: ${proposal.exercise}. Действие: ${proposal.action}. Было: ${proposal.from.weight} кг × ${proposal.from.reps}. Станет: ${proposal.to.weight} кг × ${proposal.to.reps}.\n`

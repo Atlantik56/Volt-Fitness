@@ -3,6 +3,7 @@ import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { buildAiCoachContext, renderAiCoachContextText } from "./lib/ai-context.ts";
+import { loadAiCoachContextData } from "./lib/ai-context-data.ts";
 import { dateInTimeZone } from "./lib/coach-chat-quota.ts";
 
 const dataDir = path.resolve(process.env.DATA_DIR || "data");
@@ -12,24 +13,8 @@ db.pragma("busy_timeout = 10000");
 
 function snapshotText(): string {
   const date = dateInTimeZone(new Date());
-  const profile = db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1").get() as any;
-  const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-  const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-  const workouts = db.prepare("SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 20").all(date) as any[];
-  const wellness = db.prepare("SELECT energy,pain,pain_area painArea FROM wellness_logs WHERE date=?").get(date) as any;
-  const activity = db.prepare("SELECT steps,active_minutes activeMinutes,sleep_hours sleepHours FROM daily_activity WHERE date=?").get(date) as any;
-
-  const context = buildAiCoachContext({
-    date,
-    ready: true,
-    plan: null,
-    profile,
-    measurements,
-    foodLogs,
-    workouts,
-    wellnessLogs: wellness ? [{ date, ...wellness }] : [],
-    activity: activity ? [{ date, ...activity }] : [],
-  });
+  const contextData = loadAiCoachContextData(db, { date, plan: null });
+  const context = buildAiCoachContext(contextData);
   return renderAiCoachContextText(context);
 }
 
