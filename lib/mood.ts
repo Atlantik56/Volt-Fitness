@@ -76,7 +76,7 @@ export function findMoodPatterns(moodLogs: MoodLog[], workouts: { date: string }
   const workoutDates = new Set(workouts.map(w => w.date));
   const onTrain: number[] = [], offTrain: number[] = [];
   for (const [date, score] of byDate) (workoutDates.has(date) ? onTrain : offTrain).push(score);
-  if (onTrain.length >= MIN_BUCKET_ENTRIES && offTrain.length >= MIN_BUCKET_ENTRIES && avg(onTrain) - avg(offTrain) >= 0.5) {
+  if (onTrain.length >= MIN_BUCKET_ENTRIES && offTrain.length >= MIN_BUCKET_ENTRIES && avg(onTrain)! - avg(offTrain)! >= 0.5) {
     patterns.push("В дни тренировок настроение в среднем лучше.");
   }
 
@@ -87,7 +87,7 @@ export function findMoodPatterns(moodLogs: MoodLog[], workouts: { date: string }
     if (!sleep) continue;
     (sleep >= 7 ? goodSleep : poorSleep).push(score);
   }
-  if (goodSleep.length >= MIN_BUCKET_ENTRIES && poorSleep.length >= MIN_BUCKET_ENTRIES && avg(goodSleep) - avg(poorSleep) >= 0.5) {
+  if (goodSleep.length >= MIN_BUCKET_ENTRIES && poorSleep.length >= MIN_BUCKET_ENTRIES && avg(goodSleep)! - avg(poorSleep)! >= 0.5) {
     patterns.push("После полноценного сна настроение чаще лучше.");
   }
 

@@ -3,6 +3,8 @@
 // Никогда не обращается к внешнему AI: читает только уже сохранённые данные.
 // Проектное описание: docs/VOLT_COACH_DESIGN.md
 
+import { round1, daysBetween } from "./stats.ts";
+
 export type CoachCategory="safety"|"escalation"|"recovery"|"training"|"load"|"nutrition"|"activity"|"support";
 export type CoachTone="stop"|"warn"|"good"|"info";
 
@@ -162,14 +164,6 @@ const numberOrNull=(raw:any):number|null=>{
 };
 
 const clamp=(value:number,min:number,max:number)=>Math.min(max,Math.max(min,value));
-
-const round1=(value:number)=>Math.round(value*10)/10;
-
-const daysBetween=(from:string,to:string)=>{
-  const a=Date.parse(`${from}T00:00:00Z`),b=Date.parse(`${to}T00:00:00Z`);
-  if(!Number.isFinite(a)||!Number.isFinite(b))return null;
-  return Math.round((b-a)/86400000);
-};
 
 function buildNutrition(foodLogs:any[],date:string):CoachNutrition{
   const todays=foodLogs.filter(x=>x?.date===date);

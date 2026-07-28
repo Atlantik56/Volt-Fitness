@@ -6,6 +6,7 @@
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "./coach-weekly.ts";
 import { computePeriodSummary, type ScheduleOverrideRecord, type WeeklyPlanDay, type WorkoutRecord } from "../app/training-analytics-model.ts";
 import { findMoodPatterns, type MoodLog } from "./mood.ts";
+import { round1, daysBetween } from "./stats.ts";
 
 export type CoachInsightCategory = "weight" | "training" | "nutrition" | "consistency" | "mood";
 export type CoachInsightTone = "good" | "warn" | "info";
@@ -34,14 +35,6 @@ export type CoachInsightsInput = {
 };
 
 export const COACH_INSIGHTS_MAX = 4;
-
-const round1 = (n: number) => Math.round(n * 10) / 10;
-
-const daysBetween = (from: string, to: string) => {
-  const a = Date.parse(`${from}T00:00:00Z`), b = Date.parse(`${to}T00:00:00Z`);
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-  return Math.round((b - a) / 86400000);
-};
 
 function weightInsight(input: CoachInsightsInput): CoachInsight | null {
   const trend = computeWeightWeeklyTrend(input.measurements, input.date);

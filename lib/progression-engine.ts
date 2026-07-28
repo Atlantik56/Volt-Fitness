@@ -4,6 +4,7 @@
 // посчитанного здесь предложения, а не для его расчёта.
 
 import { progressionAllowed, type CoachAction } from "./coach.ts";
+import { round1 } from "./stats.ts";
 
 export type ProgressionAction = "increase" | "maintain" | "decrease" | "deload" | "no-change";
 export type ProgressionStatus = "pending" | "accepted" | "rejected" | "cancelled";
@@ -33,8 +34,6 @@ export type ProgressionWorkoutContext = {
   history: StrengthHistoryEntry[];
   targetMaxReps: number | null;
 };
-
-const round1 = (value: number) => Math.round(value * 10) / 10;
 
 // Гантели — мелкий шаг; тренажёры и штанга — стандартный дискретный шаг стека/блинов.
 export function weightStep(name: string, weight: number): number {

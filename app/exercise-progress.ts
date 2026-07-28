@@ -1,3 +1,9 @@
+// Совместимость: раньше weightStep была определена здесь. Правила шага веса
+// идентичны каноническому lib/progression-engine.ts — этот re-export сохраняет
+// прежний путь импорта, не дублируя логику.
+import { weightStep } from "../lib/progression-engine.ts";
+export { weightStep };
+
 export type ProgressDecision = {
   kind: "weight" | "reps" | "keep" | "deload" | "start";
   title: string;
@@ -19,11 +25,6 @@ export function targetReps(raw: string): [number, number] {
   const numbers = afterSets.match(/\d+/g)?.map(Number) || [];
   if (!numbers.length) return [1, 99];
   return numbers.length > 1 ? [numbers[0], numbers[1]] : [numbers[0], numbers[0]];
-}
-
-export function weightStep(name: string, weight: number) {
-  if (weight <= 0) return 1;
-  return /гантел/i.test(name) ? 1 : 2.5;
 }
 
 export function progressionDecision(

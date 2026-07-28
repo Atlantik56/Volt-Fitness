@@ -1,6 +1,8 @@
 // Sprint 6.8 — недостающие расчёты для AI Context Builder и недельного отчёта.
 // Обычный детерминированный код: ИИ объясняет уже посчитанные здесь числа, а не считает сам.
 
+import { round1, avg, daysBetween } from "./stats.ts";
+
 export type WeightWeeklyTrend={
   avg7d:number|null;
   avgPrev7d:number|null;
@@ -13,15 +15,6 @@ export type NutritionWeeklyStats={
   avgProtein7d:number|null;
   daysLogged7d:number;
   planAdherencePct:number|null;
-};
-
-const round1=(n:number)=>Math.round(n*10)/10;
-const avg=(values:number[])=>values.length?values.reduce((a,b)=>a+b,0)/values.length:null;
-
-const daysBetween=(from:string,to:string)=>{
-  const a=Date.parse(`${from}T00:00:00Z`),b=Date.parse(`${to}T00:00:00Z`);
-  if(!Number.isFinite(a)||!Number.isFinite(b))return null;
-  return Math.round((b-a)/86400000);
 };
 
 // Среднее за последние 7 и предыдущие 7 дней, а не два точечных замера —

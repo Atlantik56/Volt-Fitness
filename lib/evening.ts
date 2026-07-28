@@ -3,6 +3,8 @@
 // нейтральные факты (время первой банки, ужин, сон и т.д.) и закономерности, посчитанные
 // из реальных данных.
 
+import { avg } from "./stats.ts";
+
 const CALORIES_PER_BEER = 150;
 
 export type EveningInputs = {
@@ -46,9 +48,9 @@ export function minutesToLabel(mins: number): string {
   return `${r} мин`;
 }
 
-export function avg(arr: number[]): number {
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
-}
+// Совместимость: раньше avg была определена здесь. Каноническая реализация
+// теперь в lib/stats.ts — этот re-export сохраняет прежний путь импорта.
+export { avg } from "./stats.ts";
 
 const WEEKDAYS = ["Воскресенье", "Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота"];
 export function weekdayLabel(dateIso: string): string {
@@ -155,11 +157,11 @@ export function computeEveningWeeklyStats(activity: any[], weekDates: Set<string
   const changeMinutes = avgThisWeek != null && avgLastWeek != null ? avgThisWeek - avgLastWeek : null;
 
   const allBeers = activity.filter((a: any) => a.beers != null).map((a: any) => Number(a.beers) || 0);
-  const avgBeersOverall = allBeers.length ? avg(allBeers) : 0;
+  const avgBeersOverall = avg(allBeers) ?? 0;
   const weekRows = activity.filter((a: any) => weekDates.has(a.date) && a.beers != null);
   const weekBeers = weekRows.map((a: any) => Number(a.beers) || 0);
 
-  const caloriesSaved = Math.max(0, Math.round((avgBeersOverall - (weekBeers.length ? avg(weekBeers) : 0)) * weekBeers.length * CALORIES_PER_BEER));
+  const caloriesSaved = Math.max(0, Math.round((avgBeersOverall - (avg(weekBeers) ?? 0)) * weekBeers.length * CALORIES_PER_BEER));
   const betterEveningsCount = weekRows.filter((a: any) => (Number(a.beers) || 0) < avgBeersOverall).length;
   const bestDay = [...weekRows].sort((a: any, b: any) => (Number(a.beers) || 0) - (Number(b.beers) || 0))[0];
   const bestEveningLabel = bestDay ? weekdayLabel(bestDay.date) : null;
@@ -182,20 +184,20 @@ export function findEveningPatterns(activity: any[], workouts: any[]): string[] 
 
   const trainMins = withDrink.filter(x => workoutDates.has(x.date)).map(x => x.mins);
   const noTrainMins = withDrink.filter(x => !workoutDates.has(x.date)).map(x => x.mins);
-  if (trainMins.length >= 3 && noTrainMins.length >= 3 && avg(trainMins) - avg(noTrainMins) >= 20) {
+  if (trainMins.length >= 3 && noTrainMins.length >= 3 && avg(trainMins)! - avg(noTrainMins)! >= 20) {
     patterns.push("В тренировочные дни ты обычно начинаешь пить позже.");
   }
 
   const withDinner = withDrink.filter(x => x.dinner).map(x => x.beers);
   const withoutDinner = withDrink.filter(x => !x.dinner).map(x => x.beers);
-  if (withDinner.length >= 3 && withoutDinner.length >= 3 && avg(withoutDinner) - avg(withDinner) >= 1) {
+  if (withDinner.length >= 3 && withoutDinner.length >= 3 && avg(withoutDinner)! - avg(withDinner)! >= 1) {
     patterns.push("После полноценного ужина количество алкоголя обычно меньше.");
   }
 
   const beerRows = activity.filter((a: any) => a.beers != null);
   const fri = beerRows.filter((a: any) => new Date(`${a.date}T00:00:00`).getDay() === 5).map((a: any) => Number(a.beers) || 0);
   const others = beerRows.filter((a: any) => new Date(`${a.date}T00:00:00`).getDay() !== 5).map((a: any) => Number(a.beers) || 0);
-  if (fri.length >= 2 && others.length >= 5 && avg(fri) - avg(others) >= 1) {
+  if (fri.length >= 2 && others.length >= 5 && avg(fri)! - avg(others)! >= 1) {
     patterns.push("По пятницам желание выпить обычно выше.");
   }
 
@@ -208,8 +210,8 @@ export function findEveningPatterns(activity: any[], workouts: any[]): string[] 
   const activeW1 = week1.filter((a: any) => Number(a.activeMinutes) > 0).map((a: any) => Number(a.activeMinutes));
   const activeW2 = week2.filter((a: any) => Number(a.activeMinutes) > 0).map((a: any) => Number(a.activeMinutes));
   if (sleepW1.length >= 3 && sleepW2.length >= 3 && activeW1.length >= 3 && activeW2.length >= 3) {
-    const sleepDelta = avg(sleepW2) - avg(sleepW1);
-    const activeDelta = avg(activeW2) - avg(activeW1);
+    const sleepDelta = avg(sleepW2)! - avg(sleepW1)!;
+    const activeDelta = avg(activeW2)! - avg(activeW1)!;
     if (sleepDelta >= 0.3 && activeDelta >= 10) {
       patterns.push("За последние две недели сон улучшился одновременно с ростом активности.");
     }

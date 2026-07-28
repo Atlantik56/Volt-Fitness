@@ -1,3 +1,5 @@
+import { round1 } from "../lib/stats.ts";
+
 const DAY_MS = 86400000;
 
 export const MEASUREMENT_KEYS = ["weight", "waist", "chest", "biceps", "thigh", "neck"] as const;
@@ -76,11 +78,6 @@ export interface HistoryMonthGroup {
 export interface HistoryYearGroup {
   year: string;
   months: HistoryMonthGroup[];
-}
-
-function round1(n: number): number {
-  const r = Math.round(n * 10) / 10;
-  return Object.is(r, -0) ? 0 : r;
 }
 
 function clamp(n: number, min: number, max: number): number {
