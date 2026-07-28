@@ -2,6 +2,9 @@
 
 Автономный персональный фитнес-трекер: Next.js, локальная SQLite, локальное хранение фото и PWA. Cloudflare, ChatGPT, Google Fonts и внешние CDN не требуются.
 
+Текущая карта документации и AI-спринтов:
+[`docs/README.md`](docs/README.md).
+
 ## Локальный запуск
 
 ```bash
