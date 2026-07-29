@@ -4,6 +4,7 @@ import { getSetting,setSetting } from "@/lib/settings";
 import { saveWorkout,updateWorkout,deleteWorkout,insertStrengthLog,deleteStrengthLog } from "@/lib/workout-service";
 import { createStage,updateStage,deleteStage } from "@/lib/program-stages";
 import { MOOD_OPTIONS } from "@/lib/mood";
+import { saveEveningCheckin } from "@/lib/evening-checkin-service";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -16,7 +17,7 @@ export async function GET(){
  const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
- const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters FROM daily_activity ORDER BY date DESC LIMIT 400").all();
+ const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters,sleep_start sleepStart,sleep_end sleepEnd,sleep_minutes sleepMinutes,sleep_quality sleepQuality,water_logged waterLogged,alcohol_type alcoholType,alcohol_servings alcoholServings,alcohol_serving_volume_ml alcoholServingVolumeMl,alcohol_relative_amount alcoholRelativeAmount,alcohol_logged alcoholLogged,day_factor dayFactor,day_factor_note dayFactorNote FROM daily_activity ORDER BY date DESC LIMIT 400").all();
  const foodLogs=(db.prepare("SELECT id,date,meal_type mealType,items_json itemsJson,calories,protein,fat,carbs,note,created_at createdAt FROM food_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,items:JSON.parse(x.itemsJson),itemsJson:undefined}));
  const moodLogs=db.prepare("SELECT id,date,mood,note,created_at createdAt FROM mood_logs ORDER BY created_at DESC,id DESC LIMIT 30").all();
  const strengthLogs=db.prepare("SELECT id,date,exercise,weight,reps,difficulty,created_at createdAt FROM strength_logs ORDER BY date DESC,id DESC LIMIT 300").all();
@@ -69,6 +70,12 @@ export async function POST(req:Request){
   const walk=b.walk!==undefined?(b.walk?1:0):(existing.walk||0);
   const waterLiters=b.waterLiters!==undefined?(num(b.waterLiters,0,20)||0):(existing.waterLiters||0);
   db.prepare("INSERT INTO daily_activity (date,steps,active_minutes,calories,beers,sleep_hours,work_end_time,first_drink_time,dinner,walk,water_liters) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET steps=excluded.steps,active_minutes=excluded.active_minutes,calories=excluded.calories,beers=excluded.beers,sleep_hours=excluded.sleep_hours,work_end_time=excluded.work_end_time,first_drink_time=excluded.first_drink_time,dinner=excluded.dinner,walk=excluded.walk,water_liters=excluded.water_liters").run(b.date,steps,activeMinutes,calories,beers,sleepHours,workEndTime,firstDrinkTime,dinner,walk,waterLiters)
+ }else if(b.action==="eveningCheckin"){
+  // Sprint AI-3 — атомарное сохранение вечернего чек-ина (daily_activity/mood_logs/
+  // wellness_logs одной транзакцией). Сервер сам пересчитывает длительность сна и
+  // остальные значения через ту же чистую валидацию, что и клиент — см.
+  // lib/evening-checkin-service.ts.
+  const result=saveEveningCheckin(b);if(!result.ok)return Response.json({error:result.error},{status:result.status});return Response.json({ok:true,summary:result.summary})
  }else if(b.action==="wellness"){
   const energy=num(b.energy,1,5),pain=num(b.pain,0,10);if(!dateOk(b.date)||energy===null||pain===null)return Response.json({error:"Проверьте самочувствие"},{status:400});db.prepare("INSERT INTO wellness_logs(date,energy,pain,pain_area,note) VALUES(?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET energy=excluded.energy,pain=excluded.pain,pain_area=excluded.pain_area,note=excluded.note").run(b.date,energy,pain,text(b.painArea,80),text(b.note,300))
  }else if(b.action==="schedule"){

@@ -158,3 +158,37 @@ body{background-image:linear-gradient(rgba(6,8,9,.56),rgba(6,8,9,.76)),url('/bac
 .mood-edit-form textarea{background:#0c0f11;border:1px solid var(--line);border-radius:9px;color:#fff;padding:10px;font-size:12px;min-height:60px;resize:vertical}
 .mood-edit-actions{display:flex;justify-content:flex-end;gap:10px}
 .mood-edit-actions button[type="submit"]{border:0;border-radius:9px;background:var(--lime);color:#111;font-weight:800;padding:9px 15px;cursor:pointer}
+
+/* Sprint AI-3 — вечерний чек-ин: переиспользует .modal-backdrop/.workout-modal и */
+/* существующую цветовую/радиусную систему, без нового дизайн-языка. */
+.checkin-intro{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap}
+.checkin-cta{border:0;border-radius:12px;background:var(--lime);color:#111;font-weight:800;padding:12px 18px;cursor:pointer;white-space:nowrap}
+.checkin-modal{width:min(480px,100%)}
+/* .workout-modal footer button{background:var(--lime)} — правило по умолчанию для */
+/* всех кнопок в footer этого переиспользуемого модального каркаса; здесь у нас две */
+/* разные по смыслу кнопки (второстепенная "Назад" и основная "Далее"/"Сохранить"), */
+/* поэтому явно возвращаем "Назад" к нейтральному стилю .ghost-btn с более высокой */
+/* специфичностью, чтобы её не перекрашивало общее правило футера. */
+.checkin-modal footer button.ghost-btn{background:#141719;color:#c7cdd1;border:1px solid var(--line)}
+.checkin-modal footer button.ghost-btn:disabled{opacity:.5;cursor:default}
+.checkin-modal footer button:not(.ghost-btn):disabled{background:#292e30;color:#646c70}
+.checkin-progress{color:#8d959a;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;margin:14px 0 2px}
+.checkin-step,.checkin-summary{margin-top:14px}
+.checkin-fields{display:grid;gap:12px}
+.checkin-fields label{color:#8d959a;font-size:10px;display:grid;gap:6px}
+.checkin-fields input,.checkin-fields select{min-width:0;background:#111416;border:1px solid var(--line);border-radius:10px;color:#fff;padding:12px;font-size:13px}
+.checkin-quick-options{display:flex;flex-wrap:wrap;gap:8px}
+.checkin-quick-options button{border:1px solid var(--line);background:#111416;color:#c7cdd1;border-radius:10px;padding:10px 14px;font-size:11px;font-weight:700;cursor:pointer}
+.checkin-quick-options button.active{border-color:var(--lime);color:var(--lime);background:#1d2515}
+.checkin-preview{background:#111416;border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:12px;color:var(--lime);margin:0}
+.checkin-error{color:#ff7849;font-size:11px;margin:8px 0 0}
+.checkin-summary-list{display:grid;gap:8px;margin-top:10px}
+.checkin-summary-row{display:flex;justify-content:space-between;align-items:center;gap:10px;background:#111416;border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.checkin-summary-row div{display:grid;gap:3px}
+.checkin-summary-row b{font-size:12px}
+.checkin-summary-row span{color:#8d959a;font-size:11px}
+@media (max-width:420px){
+  .checkin-modal{width:100%}
+  .checkin-cta{width:100%}
+  .checkin-quick-options button{flex:1 1 auto}
+}

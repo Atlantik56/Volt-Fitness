@@ -5,6 +5,8 @@ import {
   computeEveningScore, buildEveningCoachMessage, findEveningPatterns, computeEveningWeeklyStats,
   describeFirstDrink, EVENING_SUBTITLES,
 } from "../lib/evening";
+import { EveningCheckinWizard } from "./evening-checkin";
+import { deriveKnownState, buildCheckinSteps } from "../lib/evening-checkin";
 
 function localIso(d: Date) { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
 function currentWeekDates(): string[] {
@@ -61,12 +63,23 @@ export function EveningProgressCard({ data, onOpen }: { data: any; onOpen: () =>
 export function EveningProgressPage({ data, refresh, loaded = true }: { data: any; refresh: () => void; loaded?: boolean }) {
   const notify = useToast();
   const [tab, setTab] = useState("Сегодня");
+  const [checkinOpen, setCheckinOpen] = useState(false);
   const today = localIso(new Date());
   const activity = data.activity || [];
   const workouts = data.workouts || [];
   const todayRow = activity.find((x: any) => x.date === today) || {};
   const workoutToday = workouts.some((w: any) => w.date === today);
   const mood = todayMood(data, today);
+  const checkinKnown = useMemo(() => deriveKnownState({
+    activityRow: { sleepStart: todayRow.sleepStart, sleepEnd: todayRow.sleepEnd, waterLogged: !!todayRow.waterLogged, alcoholLogged: !!todayRow.alcoholLogged, dinner: !!todayRow.dinner, dayFactor: todayRow.dayFactor },
+    latestMoodToday: mood,
+    dinnerLoggedInFoodLogs: (data.foodLogs || []).some((f: any) => f.date === today && f.mealType === "Ужин"),
+    wellnessToday: (data.wellnessLogs || []).find((w: any) => w.date === today) || null,
+  }), [todayRow, mood, data.foodLogs, data.wellnessLogs, today]);
+  const checkinStarted = checkinKnown.sleepKnown || checkinKnown.sleepPartial || checkinKnown.waterKnown || checkinKnown.alcoholKnown || checkinKnown.moodKnown || checkinKnown.wellnessKnown;
+  // Только реально неотвеченные/частичные шаги — "known" уже подтверждаемы, а не
+  // требуют уточнения (отображаются в мастере для подтверждения, а не как вопрос).
+  const checkinStepsLeft = useMemo(() => buildCheckinSteps(checkinKnown).filter(s => s.status !== "known").length, [checkinKnown]);
   const weekDates = useMemo(() => currentWeekDates(), []);
   const weekSet = useMemo(() => new Set(weekDates), [weekDates]);
   const stats = useMemo(() => computeEveningWeeklyStats(activity, weekSet, today), [activity, weekSet, today]);
@@ -93,7 +106,24 @@ export function EveningProgressPage({ data, refresh, loaded = true }: { data: an
 
   return (
     <div className="detail-page evening-page">
-      <header className="detail-intro"><p className="eyebrow">ВЕЧЕРНИЙ ПРОГРЕСС</p><h2>Отчёт за сегодня</h2><p>Твой вечер. Твои результаты. Твой следующий шаг.</p></header>
+      <header className="detail-intro checkin-intro">
+        <div><p className="eyebrow">ВЕЧЕРНИЙ ПРОГРЕСС</p><h2>Отчёт за сегодня</h2><p>Твой вечер. Твои результаты. Твой следующий шаг.</p></div>
+        <button type="button" className="checkin-cta" onClick={() => setCheckinOpen(true)}>
+          {checkinStarted ? "Изменить вечерний чек-ин" : "Завершить день"}
+        </button>
+      </header>
+      {checkinStarted && checkinStepsLeft > 0 && (
+        <p className="detail-lead">Осталось уточнить: {checkinStepsLeft} {checkinStepsLeft === 1 ? "шаг" : checkinStepsLeft < 5 ? "шага" : "шагов"}.</p>
+      )}
+
+      {checkinOpen && (
+        <EveningCheckinWizard
+          data={data}
+          date={today}
+          onClose={() => setCheckinOpen(false)}
+          onSaved={() => { setCheckinOpen(false); refresh(); }}
+        />
+      )}
 
       <div className="metric-tabs" role="group" aria-label="Раздел вечернего прогресса">
         {["Сегодня", "Привычки", "Алкоголь", "Аналитика"].map(x => (

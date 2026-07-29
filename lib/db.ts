@@ -109,6 +109,28 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   goal TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
  );`},
+ // Sprint AI-3 — адаптивный вечерний чек-ин. Аддитивно расширяет daily_activity:
+ // legacy sleep_hours/beers/first_drink_time/water_liters продолжают читаться как
+ // раньше, ничего не бэкфилится задним числом. sleep_quality — единственная
+ // по-настоящему nullable колонка здесь (как measurements.weight): нет осмысленного
+ // 0-default для "оценка не указана". Остальные новые поля — NOT NULL DEFAULT '' /
+ // 0, тот же стиль, что и у существующих колонок этой таблицы; отличие "не
+ // отвечено" от "явный ноль" обеспечивают выделенные *_logged флаги, а не сами
+ // значения (см. lib/evening-checkin.ts).
+ {version:11,sql:`
+  ALTER TABLE daily_activity ADD COLUMN sleep_start TEXT NOT NULL DEFAULT '';
+  ALTER TABLE daily_activity ADD COLUMN sleep_end TEXT NOT NULL DEFAULT '';
+  ALTER TABLE daily_activity ADD COLUMN sleep_minutes INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE daily_activity ADD COLUMN sleep_quality INTEGER;
+  ALTER TABLE daily_activity ADD COLUMN water_logged INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE daily_activity ADD COLUMN alcohol_type TEXT NOT NULL DEFAULT '';
+  ALTER TABLE daily_activity ADD COLUMN alcohol_servings INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE daily_activity ADD COLUMN alcohol_serving_volume_ml INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE daily_activity ADD COLUMN alcohol_relative_amount TEXT NOT NULL DEFAULT '';
+  ALTER TABLE daily_activity ADD COLUMN alcohol_logged INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE daily_activity ADD COLUMN day_factor TEXT NOT NULL DEFAULT '';
+  ALTER TABLE daily_activity ADD COLUMN day_factor_note TEXT NOT NULL DEFAULT '';
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
