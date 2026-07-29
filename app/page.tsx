@@ -11,7 +11,7 @@ import { CoachCard } from "./coach-card";
 import { CoachChatPanel } from "./coach-chat-panel";
 import { ProgressionPanel, type ProgressionProposal } from "./progression-panel";
 import { buildCoachResult, COACH_ACTION_LABELS, COACH_TARGETS, type CoachAction } from "../lib/coach";
-import { buildCoachInsights } from "../lib/coach-insights";
+import { buildCardInsights } from "../lib/insights/registry";
 import { WhatsNewGate } from "./whats-new-gate";
 import { EveningProgressCard, EveningProgressPage } from "./evening-progress";
 import { computeEveningWeeklyStats } from "../lib/evening";
@@ -73,7 +73,7 @@ export default function Home() {
   const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
   const todayPlan=replacement||movedPlan||regularToday;
   const coach=useMemo(()=>buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile}),[data,todayPlan,today,loaded]);
-  const coachInsights=useMemo(()=>loaded?buildCoachInsights({date:today,measurements:data.measurements||[],workouts:data.workouts||[],foodLogs:data.foodLogs||[],strengthLogs:data.strengthLogs||[],planDays:homeWeek.map(d=>({day:d.day,type:d.type})),scheduleOverrides:data.scheduleOverrides||[],targets:{calories:COACH_TARGETS.calories,protein:COACH_TARGETS.protein},targetWeight:data.profile?.targetWeight!=null?Number(data.profile.targetWeight):null,moodLogs:data.moodLogs||[],activity:data.activity||[]}):[],[data,homeWeek,today,loaded]);
+  const coachInsights=useMemo(()=>loaded?buildCardInsights({date:today,measurements:data.measurements||[],workouts:data.workouts||[],foodLogs:data.foodLogs||[],strengthLogs:data.strengthLogs||[],planDays:homeWeek.map(d=>({day:d.day,type:d.type})),scheduleOverrides:data.scheduleOverrides||[],targets:{calories:COACH_TARGETS.calories,protein:COACH_TARGETS.protein},targetWeight:data.profile?.targetWeight!=null?Number(data.profile.targetWeight):null,moodLogs:data.moodLogs||[],activity:data.activity||[]}):[],[data,homeWeek,today,loaded]);
   const coachAction:CoachAction|null=coach.decision?.action??null;
   const goCoach=()=>{setNav("Сегодня");setMobileMenu(false);setTimeout(()=>document.getElementById("volt-coach")?.scrollIntoView({behavior:"smooth",block:"start"}),80)};
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);

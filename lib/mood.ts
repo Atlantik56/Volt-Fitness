@@ -12,8 +12,10 @@ const MOOD_SCORE: Record<string, number> = { "😊": 5, "🙂": 4, "😐": 3, "�
 
 export type MoodLog = { id: number; date: string; mood: string; note: string; createdAt?: string };
 
-const MIN_PATTERN_ENTRIES = 5;
-const MIN_BUCKET_ENTRIES = 3;
+// Экспортированы (AI-4): lib/insights/registry.ts переиспользует те же пороги
+// для honesty gate вместо того, чтобы задавать свои собственные числа.
+export const MIN_PATTERN_ENTRIES = 5;
+export const MIN_BUCKET_ENTRIES = 3;
 
 export function moodScore(mood: string): number | null {
   return MOOD_SCORE[mood] ?? null;

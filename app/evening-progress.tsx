@@ -2,9 +2,10 @@
 import { useMemo, useState } from "react";
 import { useToast } from "./toast";
 import {
-  computeEveningScore, buildEveningCoachMessage, findEveningPatterns, computeEveningWeeklyStats,
+  computeEveningScore, buildEveningCoachMessage, computeEveningWeeklyStats,
   describeFirstDrink, EVENING_SUBTITLES,
 } from "../lib/evening";
+import { buildEveningInsights } from "../lib/insights/registry";
 import { EveningCheckinWizard } from "./evening-checkin";
 import { deriveKnownState, buildCheckinSteps } from "../lib/evening-checkin";
 
@@ -43,7 +44,7 @@ export function summarizeEveningToday(data: any) {
   const activity = data.activity || [];
   const weekSet = new Set(currentWeekDates());
   const stats = computeEveningWeeklyStats(activity, weekSet, today);
-  const patterns = findEveningPatterns(activity, data.workouts || []);
+  const patterns = buildEveningInsights(activity, data.workouts || []).map(i => i.summary);
   const subtitle = patterns.length ? EVENING_SUBTITLES.newInsight : EVENING_SUBTITLES.neutral;
   const result = eveningResultFor(data, today, stats.avgFirstDrinkMinutes);
   return { hasData, subtitle, score: result.score };
@@ -84,7 +85,7 @@ export function EveningProgressPage({ data, refresh, loaded = true }: { data: an
   const weekSet = useMemo(() => new Set(weekDates), [weekDates]);
   const stats = useMemo(() => computeEveningWeeklyStats(activity, weekSet, today), [activity, weekSet, today]);
   const result = useMemo(() => eveningResultFor(data, today, stats.avgFirstDrinkMinutes), [data, today, stats.avgFirstDrinkMinutes]);
-  const patterns = useMemo(() => findEveningPatterns(activity, workouts), [activity, workouts]);
+  const patterns = useMemo(() => buildEveningInsights(activity, workouts).map(i => i.summary), [activity, workouts]);
   const coachMsg = useMemo(() => buildEveningCoachMessage(result, patterns), [result, patterns]);
 
   const submit = async (e: any) => {

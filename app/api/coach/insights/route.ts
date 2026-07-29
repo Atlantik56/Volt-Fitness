@@ -1,6 +1,6 @@
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
-import { buildCoachInsights } from "@/lib/coach-insights";
+import { buildCardInsights } from "@/lib/insights/registry";
 import { buildHomeWeek } from "../../../personal-data";
 import { COACH_TARGETS } from "@/lib/coach";
 
@@ -31,7 +31,12 @@ export async function GET(req: Request) {
 
   const planDays = buildHomeWeek(profile?.programStart).map((d: any) => ({ day: d.day, type: d.type }));
 
-  const insights = buildCoachInsights({
+  // AI-4: этот route не имеет ни одного потребителя в коде (проверено grep по
+  // всему репозиторию) — задокументированное решение (docs/INSIGHT_ENGINE.md)
+  // было удалить его как мёртвый, но удаление файла заблокировано инструментами
+  // сессии, поэтому вместо этого он переведён на общий registry, чтобы не
+  // оставаться отдельным путём расчёта того же контракта.
+  const insights = buildCardInsights({
     date,
     measurements,
     workouts,
