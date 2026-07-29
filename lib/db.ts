@@ -131,6 +131,27 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   ALTER TABLE daily_activity ADD COLUMN day_factor TEXT NOT NULL DEFAULT '';
   ALTER TABLE daily_activity ADD COLUMN day_factor_note TEXT NOT NULL DEFAULT '';
  `},
+ // Sprint AI-5 — Coach Memory. Аддитивная таблица: не меняет и не бэкфилит
+ // никакие существующие данные. Уникальность по (insight_id, evidence_hash) —
+ // естественная защита от дублей при повторных/конкурентных upsert (см.
+ // lib/insight-memory-store.ts). *_at — NULL означает "ещё не произошло", а не
+ // 0/пустую строку (различение null/0/undefined из docs/MEMORY_ENGINE.md).
+ {version:12,sql:`
+  CREATE TABLE IF NOT EXISTS insight_log (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   insight_id TEXT NOT NULL,
+   evidence_hash TEXT NOT NULL,
+   source_revision TEXT NOT NULL,
+   first_shown_at TEXT,
+   last_shown_at TEXT,
+   dismissed_at TEXT,
+   resolved_at TEXT,
+   show_count INTEGER NOT NULL DEFAULT 0,
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_log_pair ON insight_log(insight_id, evidence_hash);
+  CREATE INDEX IF NOT EXISTS idx_insight_log_insight_id ON insight_log(insight_id);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

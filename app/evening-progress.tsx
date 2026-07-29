@@ -6,6 +6,8 @@ import {
   describeFirstDrink, EVENING_SUBTITLES,
 } from "../lib/evening";
 import { buildEveningInsights } from "../lib/insights/registry";
+import type { Insight } from "../lib/insights/types";
+import { useInsightSurface } from "./use-insight-surface";
 import { EveningCheckinWizard } from "./evening-checkin";
 import { deriveKnownState, buildCheckinSteps } from "../lib/evening-checkin";
 
@@ -85,7 +87,10 @@ export function EveningProgressPage({ data, refresh, loaded = true }: { data: an
   const weekSet = useMemo(() => new Set(weekDates), [weekDates]);
   const stats = useMemo(() => computeEveningWeeklyStats(activity, weekSet, today), [activity, weekSet, today]);
   const result = useMemo(() => eveningResultFor(data, today, stats.avgFirstDrinkMinutes), [data, today, stats.avgFirstDrinkMinutes]);
-  const patterns = useMemo(() => buildEveningInsights(activity, workouts).map(i => i.summary), [activity, workouts]);
+  // Memory (AI-5): "Аналитика" — реальная поверхность показа, инсайты идут через
+  // /api/insights (отфильтрованы Memory, показ отмечается сервером при mount).
+  const { insights: eveningInsights, dismiss: dismissEveningInsight } = useInsightSurface("evening", today);
+  const patterns = useMemo(() => eveningInsights.map(i => i.summary), [eveningInsights]);
   const coachMsg = useMemo(() => buildEveningCoachMessage(result, patterns), [result, patterns]);
 
   const submit = async (e: any) => {
@@ -179,7 +184,7 @@ export function EveningProgressPage({ data, refresh, loaded = true }: { data: an
 
       {tab === "Привычки" && <EveningHabits activity={activity} weekDates={weekDates} todayRow={todayRow} workoutToday={workoutToday} />}
       {tab === "Алкоголь" && <EveningAlcohol activity={activity} weekDates={weekDates} stats={stats} />}
-      {tab === "Аналитика" && <EveningAnalytics stats={stats} patterns={patterns} />}
+      {tab === "Аналитика" && <EveningAnalytics stats={stats} insights={eveningInsights} onDismiss={dismissEveningInsight} />}
     </div>
   );
 }
@@ -233,7 +238,7 @@ function EveningAlcohol({ activity, weekDates, stats }: { activity: any[]; weekD
   );
 }
 
-function EveningAnalytics({ stats, patterns }: { stats: ReturnType<typeof computeEveningWeeklyStats>; patterns: string[] }) {
+function EveningAnalytics({ stats, insights, onDismiss }: { stats: ReturnType<typeof computeEveningWeeklyStats>; insights: Insight[]; onDismiss: (insight: Insight) => void }) {
   return (
     <>
       <section className="digest-card card">
@@ -248,8 +253,8 @@ function EveningAnalytics({ stats, patterns }: { stats: ReturnType<typeof comput
       </section>
       <section className="mood-card card">
         <div className="section-head"><div><p className="eyebrow">ЗАКОНОМЕРНОСТИ</p><h3>Что заметил VOLT</h3></div></div>
-        {patterns.length ? (
-          <ul className="evening-patterns">{patterns.map(p => <li key={p}>{p}</li>)}</ul>
+        {insights.length ? (
+          <ul className="evening-patterns">{insights.map(i => <li key={i.id} className="evening-pattern-row"><span>{i.isUpdate&&<span className="insight-updated-badge">Обновлено</span>}{i.summary}</span><button type="button" className="coach-insight-dismiss" aria-label="Скрыть этот вывод" onClick={()=>onDismiss(i)}>×</button></li>)}</ul>
         ) : (
           <p className="detail-lead">Пока недостаточно данных, чтобы найти закономерности. Продолжай отмечать вечера — через пару недель здесь появятся первые наблюдения.</p>
         )}

@@ -27,6 +27,8 @@
 @media(max-width:760px){.coach-indicator{padding:7px 10px;font-size:10px;gap:6px}.coach-indicator-text{white-space:nowrap}.coach-status b{font-size:12px}}
 @media(max-width:420px){.coach-indicator-text{max-width:96px;overflow:hidden;text-overflow:ellipsis}}
 .coach-insights{margin-top:4px}.coach-insights-head{margin:0 0 8px;color:#727b81;font-size:9px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase}
+.coach-item.dismissible{grid-template-columns:26px 1fr auto}.coach-insight-dismiss{align-self:start;width:22px;height:22px;border:none;border-radius:8px;background:transparent;color:#6d757a;font-size:15px;line-height:1;cursor:pointer}.coach-insight-dismiss:hover{background:#1a1f21;color:#c3cbce}
+.insight-updated-badge{display:inline-block;margin:0 6px 0 0;padding:1px 6px;border-radius:6px;background:#151f2d;color:#8cc0ff;font-size:8px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;vertical-align:middle}
 
 /* Sprint 6.11 — компактная панель чата с VOLT Coach */
 .ask-coach-btn{display:inline-flex;align-items:center;gap:8px;margin-top:2px;padding:10px 15px;border:1px solid var(--line);border-radius:11px;background:#141719;color:#e7eae9;font-weight:700;font-size:12px;cursor:pointer}.ask-coach-btn:hover{border-color:#3a4145}

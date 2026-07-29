@@ -144,3 +144,76 @@ resolveInsight(insightId, evidenceHash, now)
 - Не хранить скрытые выводы модели.
 - Не добавлять глобальный cache, который может скрыть новый safety advice.
 - Не начинать Milestones в этом спринте.
+
+## AI-5 — что реализовано фактически (2026-07-29)
+
+### Модель и файлы
+
+```text
+lib/insights/memory.ts        — чистые операции (shouldShowInsight/markInsightShown/
+                                 dismissInsight/resolveInsight), константы cooldown
+lib/insight-memory-store.ts   — DB-слой поверх insight_log (upsert, auto-resolve)
+lib/db.ts                     — миграция v12 (insight_log + индексы)
+app/api/insights/route.ts     — GET (surface=card|evening|mood, фильтрует + отмечает
+                                 показ) и POST (action:"dismiss")
+app/use-insight-surface.ts    — клиентский хук: fetch на mount + dismiss
+```
+
+`lib/insights/registry.ts` не тронут в части бизнес-логики — добавлено только
+поле `sourceRevision` в контракт `Insight` (нужно Memory, чтобы отличать смену
+алгоритма от нового evidence).
+
+### Правила показа и cooldown (итоговые значения — см. также ROADMAP_AI.md AI-5)
+
+`COOLDOWN_DAYS=7`, `DISMISS_COOLDOWN_DAYS=7`, `SAFETY_DISMISS_COOLDOWN_DAYS=1`,
+`SAFETY_INSIGHT_IDS=∅` — все константы в `lib/insights/memory.ts`, с обоснованием
+в комментариях. Состояние переходов реализовано как явный `ShowDecisionKind`
+(`new/repeat/update/suppressed-repeat/suppressed-dismissed/suppressed-resolved`),
+не просто `boolean` — это же используется, чтобы отличить "повтор" от
+"обновления" на будущее (текст "было/стало" из раздела "Обновлённый инсайт" в
+эту реализацию не добавлен — вне минимального scope AI-5, хук уже есть через
+`kind`).
+
+### Критерий "показано" — архитектурное решение
+
+Insight Layer (AI-4) вычислялся полностью на клиенте поверх уже загруженного
+`data`. Поскольку Memory обязана трогать SQLite (недоступно в браузере),
+вычисление + фильтрация переехали на сервер: `GET /api/insights?surface=...`
+сам является "фактическим показом" — вызывается клиентским хуком
+(`app/use-insight-surface.ts`) ровно при монтировании реальной поверхности
+(её компонент до этого не был смонтирован — переход на вкладку/раздел), не на
+каждый ре-рендер. Это не мелкая деталь, а изменение модели данных AI-4:
+`app/page.tsx`/`app/coach-card.tsx`/`app/evening-progress.tsx`/`app/mood-section.tsx`
+больше не вызывают `buildCardInsights`/`buildEveningInsights`/`buildMoodInsights`
+напрямую на клиенте для отображения — они остались только внутри
+`app/api/insights/route.ts` (и в тестах).
+
+### Дедупликация фактического показа
+
+`SHOWN_DEDUP_WINDOW_SECONDS=5` — повторные вызовы `markInsightShown` в течение
+этого окна (двойной эффект React StrictMode в dev, сетевой ретрай) считаются
+ОДНИМ показом, `show_count` не растёт дважды. На уровне БД конкурентная запись
+защищена уникальным индексом `(insight_id, evidence_hash)` через
+`INSERT ... ON CONFLICT DO UPDATE` — параллельные запросы не создают дублирующих
+строк.
+
+### Отказоустойчивость
+
+`GET`/`POST /api/insights` оборачивают вызовы Memory в `try/catch`: при ошибке
+БД отдаётся НЕОТФИЛЬТРОВАННЫЙ список кандидатов (может показать что-то
+повторно, но никогда не даёт пустой экран и не прячет всё из-за бага в
+journal-слое). Это единственное место, где "честный повтор" предпочтён "тишине".
+
+### Что не сделано / риски
+
+- Текстовое "было X → стало Y" для обновлённого инсайта (раздел "Обновлённый
+  инсайт" в спеке) не реализовано — `kind:"update"` уже размечает такие случаи,
+  текст дельты можно добавить в UI отдельным, более мелким изменением.
+- Retention insight_log не настроен (осознанно — отдельное решение по спеке).
+- Домашний CTA-тизер вечернего прогресса (`summarizeEveningToday` в
+  `app/evening-progress.tsx`) продолжает читать `buildEveningInsights` напрямую
+  (без Memory) — он выбирает только между двумя общими подписями ("есть
+  новый вывод"/"посмотреть изменения"), не показывает содержание инсайта,
+  поэтому не может утечь скрытый/dismissed факт; но теоретически может
+  предложить открыть вкладку, где Memory что-то уже скроет. Задокументированный,
+  принятый компромисс, не исправлялся в рамках минимального scope.

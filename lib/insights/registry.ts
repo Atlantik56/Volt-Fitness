@@ -115,6 +115,7 @@ function adaptCoachInsight(insight: CoachInsight, input: CoachInsightsInput): In
     confidence: confidenceFromCount(ev.count, ev.min),
     evidenceCount: ev.count,
     evidenceHash: hashEvidence(evidence, REVISION),
+    sourceRevision: REVISION,
     periodStart: ev.periodDays ? dateMinus(input.date, ev.periodDays) : undefined,
     periodEnd: ev.periodDays ? input.date : undefined,
     usedSignals: ev.signals,
@@ -172,6 +173,7 @@ export function buildEveningInsights(activity: any[], workouts: { date: string }
       confidence: confidenceFromCount(count, EVENING_MIN_ENTRIES),
       evidenceCount: count,
       evidenceHash: hashEvidence([...signals, `count:${count}`], REVISION),
+      sourceRevision: REVISION,
       usedSignals: signals,
     };
   }));
@@ -206,6 +208,7 @@ export function buildMoodInsights(moodLogs: MoodLog[], workouts: { date: string 
       confidence: confidenceFromCount(count, MIN_PATTERN_ENTRIES),
       evidenceCount: count,
       evidenceHash: hashEvidence([...signals, `count:${count}`], REVISION),
+      sourceRevision: REVISION,
       usedSignals: signals,
     };
   }));

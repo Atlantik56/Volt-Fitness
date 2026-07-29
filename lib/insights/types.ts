@@ -19,8 +19,14 @@ export type Insight = {
   confidence: number; // 0..1, вычислен локально из размера доказательной базы
   evidenceCount: number;
   evidenceHash: string;
+  sourceRevision: string; // AI-5: версия алгоритма, породившего этот инсайт (Memory отличает смену алгоритма от нового evidence)
   periodStart?: string;
   periodEnd?: string;
   usedSignals: string[];
   suggestionKey?: string;
+  // AI-5: решение принимает Memory (lib/insight-memory-store.ts, ShowDecisionKind
+  // "update"), а не UI и не сам Insight Layer — true, когда инсайт вернулся из-за
+  // нового evidence_hash или смены source_revision (не первый и не обычный повтор
+  // той же версии). UI только отображает флаг, без текста "было/стало".
+  isUpdate?: boolean;
 };

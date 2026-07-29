@@ -6,7 +6,7 @@ import {
   MOOD_OPTIONS, filterMoodByPeriod, groupMoodByMonth, latestMood,
   type MoodLog,
 } from "../lib/mood";
-import { buildMoodInsights } from "../lib/insights/registry";
+import { useInsightSurface } from "./use-insight-surface";
 
 function localIso(d: Date) { const z = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return z.toISOString().slice(0, 10); }
 function dayLabel(iso: string, today: string) {
@@ -37,8 +37,6 @@ export function MoodSection({ data, refresh }: { data: any; refresh: () => void 
   const notify = useToast();
   const today = localIso(new Date());
   const moodLogs: MoodLog[] = data.moodLogs || [];
-  const workouts = data.workouts || [];
-  const activity = data.activity || [];
 
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
@@ -48,7 +46,9 @@ export function MoodSection({ data, refresh }: { data: any; refresh: () => void 
   const [moodFilter, setMoodFilter] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  const patterns = useMemo(() => buildMoodInsights(moodLogs, workouts, activity).map(i => i.summary), [moodLogs, workouts, activity]);
+  // Memory (AI-5): реальная поверхность показа — через /api/insights (отфильтрованы
+  // Memory, показ отмечается сервером при mount этого раздела истории).
+  const { insights: moodInsights, dismiss: dismissMoodInsight } = useInsightSurface("mood", today);
   const sorted = useMemo(() => [...moodLogs].sort((a, b) => (a.date === b.date ? b.id - a.id : b.date.localeCompare(a.date))), [moodLogs]);
   const recent = sorted.slice(0, 5);
 
@@ -110,8 +110,8 @@ export function MoodSection({ data, refresh }: { data: any; refresh: () => void 
 
       <section className="mood-card card">
         <div className="section-head"><div><p className="eyebrow">ЧТО ЗАМЕТИЛ VOLT</p><h3>Закономерности настроения</h3></div></div>
-        {patterns.length ? (
-          <ul className="evening-patterns">{patterns.map(p => <li key={p}>{p}</li>)}</ul>
+        {moodInsights.length ? (
+          <ul className="evening-patterns">{moodInsights.map(i => <li key={i.id} className="evening-pattern-row"><span>{i.isUpdate&&<span className="insight-updated-badge">Обновлено</span>}{i.summary}</span><button type="button" className="coach-insight-dismiss" aria-label="Скрыть этот вывод" onClick={()=>dismissMoodInsight(i)}>×</button></li>)}</ul>
         ) : (
           <p className="detail-lead">
             {moodLogs.length < 5
