@@ -152,6 +152,22 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   CREATE UNIQUE INDEX IF NOT EXISTS idx_insight_log_pair ON insight_log(insight_id, evidence_hash);
   CREATE INDEX IF NOT EXISTS idx_insight_log_insight_id ON insight_log(insight_id);
  `},
+ // Sprint AI-6 — ручные Milestones (docs/MILESTONES.md). Автоматические вехи
+ // НЕ хранятся здесь — они всегда пересчитываются из measurements/workout_logs/
+ // strength_logs/program_stages/photos (lib/milestones.ts). Эта таблица — только
+ // для того, что невозможно восстановить из источников: пользовательский
+ // заголовок/заметка/категория ручной вехи.
+ {version:13,sql:`
+  CREATE TABLE IF NOT EXISTS milestones (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   occurred_at TEXT NOT NULL,
+   title TEXT NOT NULL,
+   note TEXT NOT NULL DEFAULT '',
+   category TEXT NOT NULL DEFAULT 'личное',
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_milestones_occurred_at ON milestones(occurred_at);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

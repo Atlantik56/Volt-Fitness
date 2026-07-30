@@ -15,6 +15,7 @@ import { WhatsNewGate } from "./whats-new-gate";
 import { EveningProgressCard, EveningProgressPage } from "./evening-progress";
 import { computeEveningWeeklyStats } from "../lib/evening";
 import { MoodSection, MoodSummaryCard } from "./mood-section";
+import { MilestonesSection, LatestMilestoneCard } from "./milestones-section";
 import { useToast } from "./toast";
 import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Moon, Route } from "lucide-react";
 import {
@@ -132,6 +133,7 @@ export default function Home() {
         <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><label>Сон, ч<input name="sleepHours" type="number" min="0" max="24" step="0.5" defaultValue={todayActivity.sleepHours||0}/></label><button>Сохранить</button></form>
 
         <MoodSummaryCard data={data} onOpen={()=>{setNav("Моя история");setProgressTab("Состояние")}}/>
+        <LatestMilestoneCard data={data} onOpen={()=>{setNav("Моя история");setProgressTab("Вехи")}}/>
         <Readiness data={data} refresh={load}/>
         <CoachCard result={coach} plan={todayPlan} date={today} ready={loaded} onAskCoach={()=>setCoachChatOpen(true)}/>
         <ProgressionPanel proposals={progressionProposals} refresh={loadProgression}/>
@@ -277,7 +279,7 @@ function ProgressPage({data,refresh,coachAction,initialTab}:{data:any;refresh:()
  const submitProfile=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"profile",...b})});notify("Профиль обновлён");refresh()};
 
  return <div className="detail-page"><Intro k="МОЯ ИСТОРИЯ" t={profile.name} p="Как ты изменился за недели и месяцы: вес, замеры, тренировки и фото — в одном месте."/>
- <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика","Состояние"].map(x=><button key={x} type="button" data-tour-id={x==="Аналитика"?"tab-analytics":undefined} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
+ <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика","Состояние","Вехи"].map(x=><button key={x} type="button" data-tour-id={x==="Аналитика"?"tab-analytics":undefined} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
  {tab==="Тело"&&<>
  <ProgressSummaryHero summary={summary} profile={profile}/>
 
@@ -316,6 +318,7 @@ function ProgressPage({data,refresh,coachAction,initialTab}:{data:any;refresh:()
  <TrainingCalendar data={data}/>
  </>}
  {tab==="Состояние"&&<MoodSection data={data} refresh={refresh}/>}
+ {tab==="Вехи"&&<MilestonesSection data={data} refresh={refresh}/>}
  </div>
 }
 

@@ -152,6 +152,17 @@ body{background-image:linear-gradient(rgba(6,8,9,.56),rgba(6,8,9,.76)),url('/bac
 .mood-timeline-actions{display:flex;gap:6px;padding:0 14px 10px 41px}
 .mood-timeline-actions button{border:0;background:transparent;color:#7c858a;font-size:10px;cursor:pointer;padding:2px 4px}
 .mood-timeline-actions button.danger{color:#ff8585}
+.milestone-cta{display:flex;align-items:center;gap:16px;padding:18px 20px;margin:0 0 14px}.milestone-cta-icon{flex:0 0 44px;width:44px;height:44px;border-radius:14px;background:#111a24;color:#7fb2ff;display:grid;place-items:center;font-size:20px}.milestone-cta-copy{flex:1;min-width:0}.milestone-cta-copy h3{margin:4px 0 0;font-size:16px}.milestone-cta button{border:1px solid #23364a;background:#141c24;color:#9fc7ff;border-radius:11px;padding:11px 16px;font-weight:800;font-size:11px;cursor:pointer;white-space:nowrap}.milestone-cta button:hover{border-color:#3a5a78}
+@media(max-width:760px){.milestone-cta{flex-wrap:wrap}.milestone-cta button{width:100%}}
+.milestone-timeline{display:grid;gap:7px;margin-top:8px}
+.milestone-row{background:#111416;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.milestone-main{width:100%;display:flex;align-items:center;gap:10px;border:0;background:transparent;color:#fff;padding:11px 14px;cursor:pointer;text-align:left}
+.milestone-icon{font-size:17px}
+.milestone-main small{margin-left:auto;color:#7c858a;font-size:10px;white-space:nowrap}
+.milestone-note{margin:0;padding:0 14px 12px 41px;color:#9aa2a7;font-size:11px;line-height:1.6}
+.milestone-actions{display:flex;gap:6px;padding:0 14px 10px 41px}
+.milestone-actions button{border:0;background:transparent;color:#7c858a;font-size:10px;cursor:pointer;padding:2px 4px}
+.milestone-actions button.danger{color:#ff8585}
 .mood-edit-form{display:grid;gap:10px;background:#111416;border:1px solid var(--lime);border-radius:12px;padding:14px}
 .mood-edit-picker{display:flex;gap:6px}
 .mood-edit-picker label{border:1px solid var(--line);border-radius:9px;padding:6px 9px;font-size:16px;cursor:pointer;display:grid;place-items:center}.mood-edit-picker label:has(input:checked){border-color:var(--lime);background:#202718}

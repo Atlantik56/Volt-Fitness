@@ -5,6 +5,7 @@ import { saveWorkout,updateWorkout,deleteWorkout,insertStrengthLog,deleteStrengt
 import { createStage,updateStage,deleteStage } from "@/lib/program-stages";
 import { MOOD_OPTIONS } from "@/lib/mood";
 import { saveEveningCheckin } from "@/lib/evening-checkin-service";
+import { listManualMilestones, createManualMilestone, updateManualMilestone, deleteManualMilestone } from "@/lib/milestone-service";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -24,13 +25,14 @@ export async function GET(){
  const wellnessLogs=db.prepare("SELECT id,date,energy,pain,pain_area painArea,note FROM wellness_logs ORDER BY date DESC LIMIT 120").all();
  const scheduleOverrides=db.prepare("SELECT * FROM (SELECT id,original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle FROM schedule_overrides ORDER BY scheduled_date DESC,id DESC LIMIT 200) ORDER BY scheduledDate ASC,id ASC").all();
  const programStages=db.prepare("SELECT id,kind,title,start_date startDate,end_date endDate,note,goal FROM program_stages ORDER BY start_date ASC,id ASC").all();
+ const milestones=listManualMilestones();
  const whatsNewSeenVersion=Number(getSetting("whats_new_seen_version"))||0;
  // Принятые предложения прогрессии (Sprint 6.12) — влияют только на стартовый вес/повторы
  // следующей сессии, историю тренировок не переписывают. Override перестаёт отдаваться,
  // как только по упражнению появилась более новая сохранённая попытка — предложение уже сработало.
  const progressionOverrides=Object.fromEntries((db.prepare(`SELECT o.exercise,o.weight,o.reps FROM exercise_load_overrides o
   WHERE NOT EXISTS (SELECT 1 FROM strength_logs s WHERE s.exercise=o.exercise AND s.created_at>o.created_at)`).all() as any[]).map(x=>[x.exercise,{weight:x.weight,reps:x.reps}]));
- return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
+ return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,milestones,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -106,6 +108,12 @@ export async function POST(req:Request){
   const result=updateStage(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="deleteStage"){
   const result=deleteStage(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
+ }else if(b.action==="addMilestone"){
+  const result=createManualMilestone(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
+ }else if(b.action==="updateMilestone"){
+  const result=updateManualMilestone(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
+ }else if(b.action==="deleteMilestone"){
+  const result=deleteManualMilestone(b.id);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="markWhatsNewSeen"){
   const version=Number(b.version);if(!Number.isSafeInteger(version)||version<0)return Response.json({error:"Некорректная версия"},{status:400});
   const current=Number(getSetting("whats_new_seen_version"))||0;if(version>current)setSetting("whats_new_seen_version",String(version))
