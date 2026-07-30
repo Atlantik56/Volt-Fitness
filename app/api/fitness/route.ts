@@ -6,6 +6,7 @@ import { createStage,updateStage,deleteStage } from "@/lib/program-stages";
 import { MOOD_OPTIONS } from "@/lib/mood";
 import { saveEveningCheckin } from "@/lib/evening-checkin-service";
 import { listManualMilestones, createManualMilestone, updateManualMilestone, deleteManualMilestone } from "@/lib/milestone-service";
+import { listOpenWorkoutDrafts,startWorkoutDraft,finishWorkoutDraft,cancelWorkoutDraft,confirmWorkoutDraft } from "@/lib/active-workout-service";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -36,7 +37,8 @@ export async function GET(){
  // как только по упражнению появилась более новая сохранённая попытка — предложение уже сработало.
  const progressionOverrides=Object.fromEntries((db.prepare(`SELECT o.exercise,o.weight,o.reps FROM exercise_load_overrides o
   WHERE NOT EXISTS (SELECT 1 FROM strength_logs s WHERE s.exercise=o.exercise AND s.created_at>o.created_at)`).all() as any[]).map(x=>[x.exercise,{weight:x.weight,reps:x.reps}]));
- return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
+ const workoutDrafts=listOpenWorkoutDrafts();
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -54,6 +56,10 @@ export async function POST(req:Request){
   const id=Number(b.id);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректная запись"},{status:400});db.prepare("DELETE FROM measurements WHERE id=?").run(id)
  }else if(b.action==="workout"){
   const result=saveWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
+ }else if(["startWorkoutDraft","finishWorkoutDraft","cancelWorkoutDraft","confirmWorkoutDraft"].includes(b.action)){
+  const result:any=b.action==="startWorkoutDraft"?startWorkoutDraft(b):b.action==="finishWorkoutDraft"?finishWorkoutDraft(b):b.action==="cancelWorkoutDraft"?cancelWorkoutDraft(b):confirmWorkoutDraft(b);
+  if(!result.ok)return Response.json({error:result.error},{status:result.status});
+  return Response.json({ok:true,draft:result.draft});
  }else if(b.action==="updateWorkout"){
   const result=updateWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="deleteWorkout"){

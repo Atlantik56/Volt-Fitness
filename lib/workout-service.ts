@@ -11,7 +11,7 @@ const dateOk = (x: any) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x
 const num = (x: any, min = 0, max = 100000) => { const n = Number(x); return Number.isFinite(n) && n >= min && n <= max ? n : null };
 const text = (x: any, max = 120) => typeof x === "string" ? x.trim().slice(0, max) : "";
 
-export type ActionResult = { ok: true } | { ok: false; error: string; status: number };
+export type ActionResult = { ok: true; workoutId?: number } | { ok: false; error: string; status: number };
 
 type WorkoutDetail = { key: string; name: string; originalName: string; value: number; weight: number; difficulty: string; unit: string };
 type StrengthGroup = { weight: number; reps: number; difficulty: string };
@@ -103,9 +103,10 @@ export function saveWorkout(b: any): ActionResult {
  const duration = num(b.durationSeconds, 0, 86400), rest = num(b.restSeconds, 0, 86400), minHr = num(b.minHeartRate, 0, 250), avgHr = num(b.avgHeartRate, 0, 250), maxHr = num(b.maxHeartRate, 0, 250), calories = num(b.calories, 0, 10000), distance = num(b.distanceMeters, 0, 1000000), speed = num(b.avgSpeed, 0, 200), details = parseDetails(b.details);
  if (!dateOk(b.date) || !text(b.title) || !Array.isArray(b.completed) || duration === null || rest === null) return { ok: false, error: "Некорректная тренировка", status: 400 };
  const workoutType = text(b.type, 40), painAfter = num(b.painAfter, 0, 10) || 0, effort = ["Легко", "Нормально", "Тяжело", "Боль"].includes(b.effort) ? b.effort : "";
+ let workoutId=0;
  db.transaction(() => {
   const workout = db.prepare("INSERT INTO workout_logs (date,type,title,completed,rounds,duration_seconds,rest_seconds,details) VALUES (?,?,?,?,?,?,?,?)").run(b.date, workoutType, text(b.title), JSON.stringify(b.completed.slice(0, 200)), num(b.rounds, 1, 20) || 1, duration, rest, JSON.stringify(details));
-  const workoutId = Number(workout.lastInsertRowid);
+  workoutId = Number(workout.lastInsertRowid);
   db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=? WHERE id=?").run(minHr || 0, avgHr || 0, maxHr || 0, calories || 0, distance || 0, speed || 0, effort, painAfter, workoutId);
   if (workoutType === "Силовая") {
    const grouped = groupStrengthDetails(details);
@@ -118,7 +119,7 @@ export function saveWorkout(b: any): ActionResult {
    });
   }
  })();
- return { ok: true };
+ return { ok: true, workoutId };
 }
 
 function parseJsonArray(raw: any): any[] {

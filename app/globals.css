@@ -207,3 +207,25 @@ body{background-image:linear-gradient(rgba(6,8,9,.56),rgba(6,8,9,.76)),url('/bac
   .checkin-cta{width:100%}
   .checkin-quick-options button{flex:1 1 auto}
 }
+
+/* AI-7 — server-restorable workout draft. */
+.active-workout-card{width:min(680px,100%);max-height:min(90vh,860px);overflow:auto}
+.active-workout-meta{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px}
+.active-workout-meta span{background:#111416;border:1px solid var(--line);border-radius:999px;padding:7px 11px;color:#9aa2a7;font-size:11px}
+.active-plan-list{display:grid;gap:8px}
+.active-plan-list article{display:flex;align-items:center;gap:12px;min-width:0;background:#111416;border:1px solid var(--line);border-radius:12px;padding:11px 13px}
+.active-plan-list article>span{flex:0 0 28px;width:28px;height:28px;border-radius:9px;background:#202718;color:var(--lime);display:grid;place-items:center;font-weight:800}
+.active-plan-list article div{display:grid;gap:3px;min-width:0}
+.active-plan-list b{font-size:12px;overflow-wrap:anywhere}
+.active-plan-list small{color:#929a9f;font-size:10px;overflow-wrap:anywhere}
+.active-workout-hint,.active-confirm p{color:#9aa2a7;font-size:11px;line-height:1.6}
+.active-workout-card footer{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
+.active-workout-card footer button{border:0;border-radius:11px;background:var(--lime);color:#111;padding:12px 17px;font-weight:800;cursor:pointer}
+.active-workout-card footer button:disabled{opacity:.5;cursor:default}
+.active-workout-card footer .active-cancel{margin-right:auto;background:#141719;color:#c7cdd1;border:1px solid var(--line)}
+.active-confirm{margin-top:16px;background:#151b12;border:1px solid #2c3a1c;border-radius:13px;padding:14px}
+.active-confirm h3{margin:0}
+.active-confirm label{display:flex;align-items:flex-start;gap:9px;color:#e7eae9;font-size:11px;font-weight:700}
+.active-confirm input{margin-top:1px;accent-color:var(--lime)}
+.active-completed{text-align:center;padding:26px 8px}.active-completed>span{display:grid;place-items:center;margin:0 auto 10px;width:42px;height:42px;border-radius:50%;background:#202718;color:var(--lime);font-size:22px}.active-completed p{color:#9aa2a7;font-size:11px}
+@media(max-width:420px){.active-workout-card{width:100%;max-height:100vh;border-radius:0}.active-workout-card footer{flex-direction:column-reverse}.active-workout-card footer button{width:100%}.active-workout-card footer .active-cancel{margin-right:0}}

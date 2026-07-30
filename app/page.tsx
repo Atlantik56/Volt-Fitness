@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { buildHomeWeek, meals, phases, rules, safety, week } from "./personal-data";
 import { ExerciseVideo } from "./exercise-video";
-import { WorkoutSession } from "./training-session";
+import { ActiveWorkout, type ActiveDraft } from "./active-workout";
 import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
@@ -46,12 +46,12 @@ export default function Home() {
   const [progressTab,setProgressTab]=useState<string|null>(null);
   const [mobileMenu,setMobileMenu]=useState(false);
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
-  const [activeWorkout,setActiveWorkout]=useState<any>(null);
+  const [activeWorkout,setActiveWorkout]=useState<ActiveDraft|null>(null);
   const [coachChatOpen,setCoachChatOpen]=useState(false);
   const [loaded,setLoaded]=useState(false);
   const [progressionProposals,setProgressionProposals]=useState<ProgressionProposal[]>([]);
   const loadProgression=()=>fetch("/api/progression").then(r=>r.json()).then(d=>setProgressionProposals(d.proposals||[])).catch(()=>{});
-  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true)}).catch(()=>{});
+  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true);const open=(d.workoutDrafts||[]).find((draft:any)=>draft.status==="active"||draft.status==="awaiting_confirmation");if(open)setActiveWorkout(current=>current??open)}).catch(()=>{});
   useEffect(()=>{load();loadProgression()},[]);
   // Сброс во время рендера (а не в эффекте) — рекомендованный React-паттерн для
   // производного состояния при смене nav, без каскадного лишнего рендера.
@@ -78,6 +78,13 @@ export default function Home() {
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});notify(r.ok?"Активность за сегодня обновлена":"Не удалось сохранить активность",r.ok?"good":"warn");load()};
+  const startWorkout=async(plan:any)=>{
+   const snapshot={title:plan.title,type:plan.type,rounds:plan.rounds??1,exercises:plan.exercises.map((exercise:any[])=>({name:exercise[0],target:exercise[2],recommendedWeight:data.progressionOverrides?.[exercise[0]]?.weight??data.strengthLogs?.find((log:any)=>log.exercise===exercise[0])?.weight??0}))};
+   const response=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"startWorkoutDraft",date:today,snapshot})});
+   const json=await response.json().catch(()=>({}));
+   if(!response.ok)return notify(json.error||"Не удалось начать тренировку","warn");
+   setActiveWorkout(json.draft);load();
+  };
 
   return (
     <AuthGate><main className="app-shell">
@@ -115,8 +122,8 @@ export default function Home() {
             <div className="hero-meta"><span>◷ {todayPlan.time}</span><span>◫ {todayPlan.exercises.length} упражнений</span>{todayPlan.rounds>1&&<span>◉ {todayPlan.rounds} круга</span>}</div>
             {coach.summary.workoutDone?<>
              <div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>
-             <button className="repeat-btn" onClick={() => setActiveWorkout(todayPlan)}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
-            </>:<button className="start-btn" onClick={() => setActiveWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
+             <button className="repeat-btn" onClick={() => startWorkout(todayPlan)}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
+            </>:<button className="start-btn" onClick={() => startWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
           </div>
           <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>{motivation}</b></div></div>
         </section>
@@ -170,7 +177,7 @@ export default function Home() {
           <div className="filters" role="group" aria-label="Фильтр тренировок">{filters.map((f) => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}</div>
           <div className="workouts">
             {upcoming.filter(w => filter === "Все" || (filter === "Силовые"&&w.type==="Силовая") || (filter === "Велосипед"&&w.title.includes("велосипед")) || (filter === "Плавание"&&w.title==="Бассейн")).map((w) => (
-              <article className="workout" key={`${w.day}-${w.title}`} onClick={()=>setActiveWorkout(w)}>
+              <article className="workout" key={`${w.day}-${w.title}`} onClick={()=>startWorkout(w)}>
                 <div className="workout-img" style={{backgroundImage:`url(${w.image})`}}><span>{w.type}</span><button aria-label={`Открыть ${w.title}`}>↗</button></div>
                 <div className="workout-copy"><small>{w.d} · {w.time}</small><h4>{w.title}</h4><p>{w.exercises.length} упражнений{w.rounds>1?` · ${w.rounds} круга`:""}</p></div>
               </article>
@@ -179,10 +186,10 @@ export default function Home() {
         </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction} loaded={loaded} initialProgressTab={progressTab}/></>}
       </section>
 
-      {activeWorkout&&<WorkoutSession plan={activeWorkout} strengthLogs={data.strengthLogs||[]} coachAction={activeWorkout?.title===todayPlan?.title?coachAction:null} loadOverrides={data.progressionOverrides||{}} streak={streak} close={()=>setActiveWorkout(null)} done={()=>{setActiveWorkout(null);load();loadProgression()}}/>}
+      {activeWorkout&&<ActiveWorkout draft={activeWorkout} onClose={()=>setActiveWorkout(null)} onChanged={draft=>{setActiveWorkout(draft.status==="cancelled"?null:draft);load();if(draft.status==="completed")loadProgression()}}/>}
       {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
       <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today} onFoodSaved={load} quickActions={[
-        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");setActiveWorkout(todayPlan)}},
+        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");void startWorkout(todayPlan)}},
         {label:"Записать питание",icon:"🍽",onClick:()=>{setCoachChatOpen(false);setNav("Питание");setMobileMenu(false)}},
         {label:"Отметить самочувствие",icon:"❤",onClick:()=>{setCoachChatOpen(false);goCoach()}},
       ]}/>

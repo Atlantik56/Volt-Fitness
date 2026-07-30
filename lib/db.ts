@@ -168,6 +168,29 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   );
   CREATE INDEX IF NOT EXISTS idx_milestones_occurred_at ON milestones(occurred_at);
  `},
+ // AI-7 — server-side draft and immutable plan snapshot. Actual workout/strength
+ // rows are deliberately not created until explicit confirmation.
+ {version:14,sql:`
+  CREATE TABLE IF NOT EXISTS workout_drafts (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   date TEXT NOT NULL,
+   plan_key TEXT NOT NULL,
+   status TEXT NOT NULL CHECK(status IN ('planned','active','awaiting_confirmation','completed','cancelled')),
+   snapshot TEXT NOT NULL,
+   started_at TEXT,
+   finished_at TEXT,
+   confirmed_at TEXT,
+   cancelled_at TEXT,
+   workout_id INTEGER REFERENCES workout_logs(id),
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_drafts_open_plan
+   ON workout_drafts(date,plan_key)
+   WHERE status IN ('planned','active','awaiting_confirmation');
+  CREATE INDEX IF NOT EXISTS idx_workout_drafts_recent
+   ON workout_drafts(date DESC,id DESC);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
