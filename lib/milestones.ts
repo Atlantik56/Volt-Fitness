@@ -273,6 +273,19 @@ export function filterMilestonesByCategory(milestones: Milestone[], category: Mi
   return category ? milestones.filter(m => m.category === category) : milestones;
 }
 
+// AI Sprint 6 — для баннера "🎉 Поздравляем!" на главной: есть ли автоматическая
+// веха, которая ещё не была показана (курсор last_seen_milestone_id хранится в
+// settings, не здесь — эта функция сама ничего не хранит и не решает, где
+// показывать). Ручные вехи не празднуются баннером: пользователь только что сам
+// её ввёл. Требует, чтобы `milestones` уже был отсортирован по occurredAt
+// убыванием (как возвращают buildAutomaticMilestones + сортировка вызывающей
+// стороны) — сама не пересортировывает, чтобы не скрывать порядок вызывающего.
+export function findNewAutomaticMilestone(milestones: readonly Milestone[], lastSeenMilestoneId: string | null): Milestone | null {
+  const latestAutomatic = milestones.find(m => m.automatic) ?? null;
+  if (!latestAutomatic || latestAutomatic.id === lastSeenMilestoneId) return null;
+  return latestAutomatic;
+}
+
 // ---------------------------------------------------------------------------
 // LLM-safe проекция — только то, что не является "сырыми заметками/фото".
 // Ручные вехи хранят note отдельно от summary в БД (lib/milestone-service.ts) —

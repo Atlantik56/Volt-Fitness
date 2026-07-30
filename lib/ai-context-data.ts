@@ -4,6 +4,7 @@
 // вручную. Возвращает только сырые/ограниченные строки — нормализация и
 // компактная LLM-проекция находятся в lib/ai-context.ts.
 import type Database from "better-sqlite3";
+import { buildAutomaticMilestones, type Milestone } from "./milestones.ts";
 
 // Поля отмечены опциональными, а не строго обязательными: сама БД (lib/db.ts)
 // хранит их с NOT NULL DEFAULT и всегда возвращает значение, но buildAiCoachContext
@@ -72,6 +73,9 @@ export type AiCoachContextData = {
   personalRecords?: PersonalRecordRow[];
   programStages?: ProgramStageRow[];
   lastPhotoDate?: string | null;
+  // AI Sprint 6 — уже готовые детерминированные вехи (автоматические + ручные),
+  // не сырые таблицы. Coach только читает этот список, ничего не пересчитывает.
+  milestones?: Milestone[];
 };
 
 export type LoadAiCoachContextDataOptions = {
@@ -159,6 +163,8 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
     "SELECT date FROM photos WHERE date<=? ORDER BY date DESC,id DESC LIMIT 1",
   ).get(date) as { date: string } | undefined;
 
+  const milestones = loadMilestonesForContext(db, date, programStages);
+
   return {
     date,
     ready: true,
@@ -173,7 +179,51 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
     personalRecords,
     programStages,
     lastPhotoDate: lastPhoto?.date ?? null,
+    milestones,
   };
+}
+
+// AI Sprint 6 — вехи для Coach. lib/milestones.ts (buildAutomaticMilestones)
+// не изменён — только вызывается здесь с ПОЛНОЙ историей (не windowStart-окном
+// остальных полей выше): окно в 60 дней обрезало бы более старые личные рекорды
+// и минимумы веса, из-за чего они ложно показались бы "новыми". Объём данных
+// одного пользователя мал (сотни/тысячи строк за годы), поэтому широкий LIMIT —
+// подстраховка от патологии, а не реальное окно.
+const MILESTONES_ROWS_LIMIT = 5000;
+
+function loadMilestonesForContext(db: Database.Database, date: string, programStages: ProgramStageRow[]): Milestone[] {
+  const workouts = db.prepare(
+    "SELECT id,date FROM workout_logs WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",
+  ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; date: string }[];
+  const strengthLogs = db.prepare(
+    "SELECT id,date,exercise,weight FROM strength_logs WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",
+  ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; date: string; exercise: string; weight: number }[];
+  const allMeasurements = db.prepare(
+    "SELECT id,date,weight FROM measurements WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",
+  ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; date: string; weight: number | null }[];
+  // Только id+date — то же ограничение, что и lastPhotoDate выше (никогда filename/content_type).
+  const photos = db.prepare(
+    "SELECT id,date FROM photos WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",
+  ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; date: string }[];
+
+  const automatic = buildAutomaticMilestones({
+    workouts, strengthLogs, measurements: allMeasurements,
+    programStages: programStages.map(s => ({ id: s.id, title: s.title, endDate: s.endDate })),
+    photos, anchor: date,
+  });
+
+  // Ручные вехи — только безопасные поля таблицы milestones (не sourceIds, их и
+  // нет у ручных вех; note остаётся как есть — toLlmSafeMilestone в lib/ai-context.ts
+  // обрежет длину при формировании LLM-проекции).
+  const manualRows = db.prepare(
+    "SELECT id,occurred_at occurredAt,title,note,category FROM milestones WHERE occurred_at<=? ORDER BY occurred_at ASC,id ASC LIMIT ?",
+  ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; occurredAt: string; title: string; note: string; category: Milestone["category"] }[];
+  const manual: Milestone[] = manualRows.map(r => ({
+    id: `manual-${r.id}`, kind: "manual", occurredAt: r.occurredAt, title: r.title, summary: r.note,
+    sourceIds: [`milestone:${r.id}`], sourceRevision: "manual", automatic: false, category: r.category,
+  }));
+
+  return [...automatic, ...manual].sort((a, b) => (a.occurredAt === b.occurredAt ? a.id.localeCompare(b.id) : a.occurredAt.localeCompare(b.occurredAt)));
 }
 
 // Лучший вес по каждому упражнению за ВСЮ историю до анкорной даты — вычисляется

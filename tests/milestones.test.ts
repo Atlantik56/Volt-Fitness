@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   buildAutomaticMilestones, groupMilestonesByMonth, filterMilestonesByCategory,
-  buildMonthOverview, toLlmSafeMilestone, type MilestoneSources, type Milestone,
+  buildMonthOverview, toLlmSafeMilestone, findNewAutomaticMilestone, type MilestoneSources, type Milestone,
 } from "../lib/milestones.ts";
 
 const ANCHOR = "2026-08-01";
@@ -222,4 +222,27 @@ test("тексты вех не содержат причинных формул�
     const text = `${m.title} ${m.summary}`.toLowerCase();
     for (const phrase of CAUSAL_PHRASES) assert.ok(!text.includes(phrase), `нашлась причинная формулировка "${phrase}" в "${text}"`);
   }
+});
+
+// ---------------------------------------------------------------------------
+// AI Sprint 6 — findNewAutomaticMilestone (баннер поздравления, без повторов)
+
+test("findNewAutomaticMilestone: пустой список — null", () => {
+  assert.equal(findNewAutomaticMilestone([], null), null);
+});
+
+test("findNewAutomaticMilestone: новая автоматическая веха ещё не видена — возвращается", () => {
+  const m: Milestone = { id: "workout-count-10", kind: "workout-count", occurredAt: "2026-07-20", title: "10 тренировок", summary: "", sourceIds: [], sourceRevision: "ai6-v1", automatic: true, category: "тренировки" };
+  assert.equal(findNewAutomaticMilestone([m], null)?.id, "workout-count-10");
+  assert.equal(findNewAutomaticMilestone([m], "some-other-id")?.id, "workout-count-10");
+});
+
+test("findNewAutomaticMilestone: уже видена (совпадает с курсором) — null, без повторного поздравления", () => {
+  const m: Milestone = { id: "workout-count-10", kind: "workout-count", occurredAt: "2026-07-20", title: "10 тренировок", summary: "", sourceIds: [], sourceRevision: "ai6-v1", automatic: true, category: "тренировки" };
+  assert.equal(findNewAutomaticMilestone([m], "workout-count-10"), null);
+});
+
+test("findNewAutomaticMilestone: ручные вехи не празднуются баннером", () => {
+  const manual: Milestone = { id: "manual-1", kind: "manual", occurredAt: "2026-07-25", title: "Личная веха", summary: "", sourceIds: [], sourceRevision: "manual", automatic: false, category: "личное" };
+  assert.equal(findNewAutomaticMilestone([manual], null), null);
 });

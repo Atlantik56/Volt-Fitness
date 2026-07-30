@@ -10,7 +10,7 @@
 import { useMemo, useState } from "react";
 import { useToast } from "./toast";
 import {
-  buildAutomaticMilestones, groupMilestonesByMonth, filterMilestonesByCategory, buildMonthOverview,
+  buildAutomaticMilestones, groupMilestonesByMonth, filterMilestonesByCategory, buildMonthOverview, findNewAutomaticMilestone,
   type Milestone, type MilestoneCategory,
 } from "../lib/milestones";
 
@@ -26,7 +26,7 @@ function manualToMilestone(row: { id: number; occurredAt: string; title: string;
   };
 }
 
-function useMilestones(data: any) {
+export function useMilestones(data: any) {
   const today = localIso(new Date());
   return useMemo(() => {
     const automatic = buildAutomaticMilestones({
@@ -64,6 +64,32 @@ const KIND_ICON: Record<string, string> = {
   "program-stage-completed": "🧭", "best-month-regularity": "📅", "photo-checkpoint": "📷", manual: "✦",
 };
 
+const CELEBRATION_EMOJI: Record<string, string> = {
+  "personal-record": "🎉", "new-min-weight": "🎉", "workout-count": "🏆",
+  "first-workout": "🎬", "program-stage-completed": "🧭", "best-month-regularity": "📅", manual: "✦",
+};
+
+// AI Sprint 6, п.5 — небольшое поздравление на главной при НОВОЙ автоматической
+// вехе (не при каждом заходе). "Увидено" хранится курсором last_seen_milestone_id
+// в уже существующей таблице settings (см. app/api/fitness/route.ts) — без
+// новой таблицы/миграции. После просмотра сообщение исчезает (mark seen).
+export function NewMilestoneBanner({ data, refresh }: { data: any; refresh: () => void }) {
+  const milestones = useMilestones(data);
+  const newMilestone = findNewAutomaticMilestone(milestones, data.lastSeenMilestoneId ?? null);
+  if (!newMilestone) return null;
+  const dismiss = () => {
+    fetch("/api/fitness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "markMilestoneSeen", id: newMilestone.id }) })
+      .then(() => refresh()).catch(() => {});
+  };
+  return (
+    <section className="milestone-celebration card">
+      <span className="milestone-celebration-icon">{CELEBRATION_EMOJI[newMilestone.kind] || "✨"}</span>
+      <div className="milestone-celebration-copy"><p className="eyebrow">Поздравляем!</p><h3>{newMilestone.title}</h3></div>
+      <button type="button" onClick={dismiss} aria-label="Скрыть">×</button>
+    </section>
+  );
+}
+
 export function MilestonesSection({ data, refresh }: { data: any; refresh: () => void }) {
   const notify = useToast();
   const milestones = useMilestones(data);
@@ -73,6 +99,9 @@ export function MilestonesSection({ data, refresh }: { data: any; refresh: () =>
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [overviewOpen, setOverviewOpen] = useState(false);
+  const [aiSummary, setAiSummary] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   const filtered = useMemo(() => filterMilestonesByCategory(milestones, category), [milestones, category]);
   const grouped = useMemo(() => groupMilestonesByMonth(filtered.slice(0, visible)), [filtered, visible]);
@@ -82,6 +111,26 @@ export function MilestonesSection({ data, refresh }: { data: any; refresh: () =>
     programStages: (data.programStages || []).map((s: any) => ({ id: s.id, title: s.title, endDate: s.endDate })),
     photos: (data.photos || []).map((p: any) => ({ id: p.id, date: p.date })), anchor: today,
   }), [data.workouts, data.strengthLogs, data.measurements, data.programStages, data.photos, today]);
+
+  // "AI Summary" (AI Sprint 6, п.4): переиспользует существующий чат Coach —
+  // никакой новой LLM-инфраструктуры. Вопрос жёстко зафиксирован и ссылается
+  // только на уже показанный детерминированный список "Главных событий месяца"
+  // (monthOverview.milestones) — LLM не считает числа и даты заново, только
+  // комментирует то, что уже видно на экране (тот же контекст с вехами уже
+  // приходит Coach'у через lib/ai-context.ts).
+  const explainMonth = async () => {
+    setAiBusy(true); setAiError(""); setAiSummary(null);
+    try {
+      const r = await fetch("/api/coach-chat", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ date: today, question: "Кратко (2-3 предложения) прокомментируй главные события этого месяца по моим вехам — без выдуманных цифр, только на основе уже посчитанных фактов." }),
+      });
+      const j = await r.json();
+      if (!r.ok) setAiError(j.error || "Не удалось получить комментарий");
+      else setAiSummary(j.answer);
+    } catch { setAiError("Не удалось получить комментарий") }
+    finally { setAiBusy(false) }
+  };
 
   const addMilestone = async (e: any) => {
     e.preventDefault();
@@ -119,6 +168,17 @@ export function MilestonesSection({ data, refresh }: { data: any; refresh: () =>
               <article><b>{monthOverview.personalRecords.length}</b><span>новых рекордов</span></article>
               <article><b>{monthOverview.stagesCompleted.length}</b><span>завершённых этапов</span></article>
             </div>
+            {monthOverview.milestones.length > 0 && (
+              <div className="milestone-month-highlights">
+                <p className="coach-insights-head">Главные события месяца</p>
+                <ul className="evening-patterns">
+                  {monthOverview.milestones.map(m => <li key={m.id} className="evening-pattern-row"><span>{KIND_ICON[m.kind] || "✦"} {m.title}</span><small>{m.occurredAt}</small></li>)}
+                </ul>
+              </div>
+            )}
+            <button type="button" className="ghost-btn" onClick={explainMonth} disabled={aiBusy}>{aiBusy ? "Спрашиваю тренера…" : "Объяснить месяц"}</button>
+            {aiSummary && <p className="detail-lead ai-month-summary">{aiSummary}</p>}
+            {aiError && <p className="food-error">{aiError}</p>}
           </section>
         ) : (
           <p className="detail-lead">Пока недостаточно данных за этот месяц для обзора.</p>

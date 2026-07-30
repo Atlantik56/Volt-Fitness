@@ -27,12 +27,16 @@ export async function GET(){
  const programStages=db.prepare("SELECT id,kind,title,start_date startDate,end_date endDate,note,goal FROM program_stages ORDER BY start_date ASC,id ASC").all();
  const milestones=listManualMilestones();
  const whatsNewSeenVersion=Number(getSetting("whats_new_seen_version"))||0;
+ // AI Sprint 6 — курсор "последняя увиденная веха" в уже существующей общей
+ // таблице settings (тот же паттерн, что whats_new_seen_version) — без новой
+ // таблицы/миграции. null означает "ещё ни одной не видел", а не "0".
+ const lastSeenMilestoneId=getSetting("last_seen_milestone_id");
  // Принятые предложения прогрессии (Sprint 6.12) — влияют только на стартовый вес/повторы
  // следующей сессии, историю тренировок не переписывают. Override перестаёт отдаваться,
  // как только по упражнению появилась более новая сохранённая попытка — предложение уже сработало.
  const progressionOverrides=Object.fromEntries((db.prepare(`SELECT o.exercise,o.weight,o.reps FROM exercise_load_overrides o
   WHERE NOT EXISTS (SELECT 1 FROM strength_logs s WHERE s.exercise=o.exercise AND s.created_at>o.created_at)`).all() as any[]).map(x=>[x.exercise,{weight:x.weight,reps:x.reps}]));
- return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,milestones,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
+ return Response.json({profile,workouts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -117,6 +121,8 @@ export async function POST(req:Request){
  }else if(b.action==="markWhatsNewSeen"){
   const version=Number(b.version);if(!Number.isSafeInteger(version)||version<0)return Response.json({error:"Некорректная версия"},{status:400});
   const current=Number(getSetting("whats_new_seen_version"))||0;if(version>current)setSetting("whats_new_seen_version",String(version))
+ }else if(b.action==="markMilestoneSeen"){
+  const id=text(b.id,80);if(!id)return Response.json({error:"Некорректная веха"},{status:400});setSetting("last_seen_milestone_id",id)
  }else return Response.json({error:"Неизвестное действие"},{status:400});
  return Response.json({ok:true})
 }

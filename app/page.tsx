@@ -15,7 +15,7 @@ import { WhatsNewGate } from "./whats-new-gate";
 import { EveningProgressCard, EveningProgressPage } from "./evening-progress";
 import { computeEveningWeeklyStats } from "../lib/evening";
 import { MoodSection, MoodSummaryCard } from "./mood-section";
-import { MilestonesSection, LatestMilestoneCard } from "./milestones-section";
+import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner } from "./milestones-section";
 import { useToast } from "./toast";
 import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Moon, Route } from "lucide-react";
 import {
@@ -106,7 +106,7 @@ export default function Home() {
 
         <button className="mobile-status-bar" onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌙 <b>Вечер</b><small> прогресс</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>
 
-        {nav === "Сегодня" ? <><section className="motivation-banner card"><span>⚡</span><div><p className="eyebrow">НАСТРОЙ НА СЕГОДНЯ</p><h3>{motivation}</h3><small>Не нужно быть идеальным. Нужно быть последовательным.</small></div></section><section className="hero">
+        {nav === "Сегодня" ? <>{loaded&&<NewMilestoneBanner data={data} refresh={load}/>}<section className="motivation-banner card"><span>⚡</span><div><p className="eyebrow">НАСТРОЙ НА СЕГОДНЯ</p><h3>{motivation}</h3><small>Не нужно быть идеальным. Нужно быть последовательным.</small></div></section><section className="hero">
           <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
           <div className="hero-shade" />
           <div className="hero-content">

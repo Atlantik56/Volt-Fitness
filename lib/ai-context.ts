@@ -8,6 +8,7 @@ import { phases, meals, rules, safety, currentProgramWeek } from "../app/persona
 import { findMoodPatterns, latestMood } from "./mood.ts";
 import { findEveningPatterns } from "./evening.ts";
 import { selectActiveProgramStage, type AiCoachContextData, type PersonalRecordRow } from "./ai-context-data.ts";
+import { toLlmSafeMilestone, type Milestone, type MilestoneLlmSafe } from "./milestones.ts";
 
 // Заметка самочувствия/настроения — пользовательский текст, а не системная
 // инструкция. Убираем управляющие символы (в т.ч. не покрытые \s — например ANSI-
@@ -51,6 +52,17 @@ export type AiCoachProgramStage = {
   note: string | null;
 };
 
+// AI Sprint 6 — Coach видит уже готовые вехи (lib/milestones.ts), сам их не
+// считает. Только безопасные поля через toLlmSafeMilestone (без sourceIds,
+// без полного текста заметки, без фото) — см. docs/MILESTONES.md.
+export type AiCoachMilestonesContext = {
+  recent: MilestoneLlmSafe[]; // последние 5 по дате (автоматические + ручные)
+  highlights: MilestoneLlmSafe[]; // заметные типы (без photo-checkpoint), не более 10
+  latestWeightMilestone: MilestoneLlmSafe | null;
+  latestPR: MilestoneLlmSafe | null;
+  currentProgramStage: { title: string; goal: string } | null;
+};
+
 export type AiCoachContext={
   date:string;
   profile:{name:string;height:number|null;startWeight:number|null;targetWeight:number|null};
@@ -72,7 +84,17 @@ export type AiCoachContext={
   programStage:AiCoachProgramStage;
   personalRecords:PersonalRecordRow[];
   lastPhotoDate:string|null;
+  milestones:AiCoachMilestonesContext;
 };
+
+// Заметные типы вех для "highlights" — обычные контрольные фото (просто факт
+// "было сделано фото") сюда не попадают, они менее интересны для разговора,
+// чем достижения; сами фото/note-текст в любом случае никогда не попадают
+// дальше toLlmSafeMilestone.
+const HIGHLIGHT_MILESTONE_KINDS = new Set<Milestone["kind"]>([
+  "first-workout", "workout-count", "personal-record", "new-min-weight",
+  "program-stage-completed", "best-month-regularity", "manual",
+]);
 
 export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
   const result=buildCoachResult(input);
@@ -103,6 +125,20 @@ export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
   // Уже агрегировано загрузчиком по всей истории (lib/ai-context-data.ts,
   // loadPersonalRecords) — здесь только верхние 10 по весу для локального контекста.
   const personalRecords=(input.personalRecords??[]).slice(0,10);
+
+  // AI Sprint 6 — уже посчитаны lib/milestones.ts (через loadMilestonesForContext
+  // в lib/ai-context-data.ts); здесь только сортировка/отбор для компактной
+  // проекции, никакого пересчёта дат/порогов.
+  const allMilestones=[...(input.milestones??[])].sort((a,b)=>b.occurredAt.localeCompare(a.occurredAt)||b.id.localeCompare(a.id));
+  const latestWeightMilestoneRaw=allMilestones.find(m=>m.kind==="new-min-weight")??null;
+  const latestPRRaw=allMilestones.find(m=>m.kind==="personal-record")??null;
+  const milestones:AiCoachMilestonesContext={
+    recent:allMilestones.slice(0,5).map(toLlmSafeMilestone),
+    highlights:allMilestones.filter(m=>HIGHLIGHT_MILESTONE_KINDS.has(m.kind)).slice(0,10).map(toLlmSafeMilestone),
+    latestWeightMilestone:latestWeightMilestoneRaw?toLlmSafeMilestone(latestWeightMilestoneRaw):null,
+    latestPR:latestPRRaw?toLlmSafeMilestone(latestPRRaw):null,
+    currentProgramStage:activeStage?{title:activeStage.title,goal:activeStage.goal}:null,
+  };
 
   return {
     date:input.date,
@@ -143,6 +179,7 @@ export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
     programStage,
     personalRecords,
     lastPhotoDate:input.lastPhotoDate??null,
+    milestones,
   };
 }
 
@@ -183,6 +220,16 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
   if(ctx.eveningPatterns.length)for(const p of ctx.eveningPatterns)lines.push(`Наблюдение по вечерам: ${p}`);
   // Только дата — файл фотографии модели не передаётся ни в каком виде.
   if(ctx.lastPhotoDate)lines.push(`Последнее загруженное фото прогресса: ${ctx.lastPhotoDate} (только дата, файл не передаётся).`);
+  // AI Sprint 6 — готовые вехи (никаких id/фото/полного текста заметок, см.
+  // toLlmSafeMilestone в lib/milestones.ts). Это факты для естественного
+  // упоминания, а не повод вычислять или изобретать новые достижения.
+  if(ctx.milestones.highlights.length){
+    lines.push("Достижения пользователя (факты; упоминай к месту, не в каждом ответе, и не выдумывай новые):");
+    for(const m of ctx.milestones.highlights)lines.push(`- ${m.occurredAt}: ${m.title}${m.summary?` — ${m.summary}`:""}`);
+  }else lines.push("Зафиксированных вех пока нет.");
+  if(ctx.milestones.latestPR)lines.push(`Последний личный рекорд: ${ctx.milestones.latestPR.title} (${ctx.milestones.latestPR.occurredAt}).`);
+  if(ctx.milestones.latestWeightMilestone)lines.push(`Последний рекорд веса: ${ctx.milestones.latestWeightMilestone.summary||ctx.milestones.latestWeightMilestone.title} (${ctx.milestones.latestWeightMilestone.occurredAt}).`);
+  if(ctx.milestones.currentProgramStage)lines.push(`Текущий этап программы (по вехам): «${ctx.milestones.currentProgramStage.title}», цель: ${ctx.milestones.currentProgramStage.goal||"не указана"}.`);
   lines.push("Настроение — субъективная самооценка пользователя, а не медицинский показатель: не ставь по нему диагнозов и не делай выводов по одной записи.");
   return lines.join("\n");
 }
