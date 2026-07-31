@@ -14,9 +14,11 @@ AI-1…AI-6 без отдельного решения пользователя.
 | AI-1 | Стабилизировать аналитический фундамент | этот файл + `AI_ARCHITECTURE.md` | выполнено |
 | AI-2 | Сделать единый Context Builder | `AI_CONTEXT.md` | выполнено |
 | AI-3 | Добавить адаптивный вечерний чек-ин | `EVENING_CHECKIN.md` | выполнено |
-| AI-4 | Консолидировать Insight Layer | `INSIGHT_ENGINE.md` | следующий |
-| AI-5 | Добавить Coach Memory | `MEMORY_ENGINE.md` | ожидает AI-4 |
-| AI-6 | Кросс-доменные инсайты и Milestones | `INSIGHT_ENGINE.md`, `MILESTONES.md` | ожидает данных и AI-5 |
+| AI-4 | Консолидировать Insight Layer | `INSIGHT_ENGINE.md` | выполнено |
+| AI-5 | Добавить Coach Memory | `MEMORY_ENGINE.md` | выполнено |
+| AI-6 | Кросс-доменные инсайты и Milestones | `INSIGHT_ENGINE.md`, `MILESTONES.md` | выполнено в согласованном scope |
+| AI-7…AI-9 | Активная тренировка, Garmin/FIT и быстрое подтверждение | `ACTIVE_WORKOUT_SPRINTS.md` | выполнено |
+| AI-10 | Только обоснованная конструктивная обратная связь Coach | `AI_10_CONSTRUCTIVE_FEEDBACK.md` | выполнено |
 
 Выполнять строго по одному спринту. После каждого — остановиться, показать
 diff, результаты тестов и нерешённые вопросы. Следующий спринт не начинать без

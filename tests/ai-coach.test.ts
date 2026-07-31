@@ -101,6 +101,33 @@ test("контекст явно сообщает модели, включён л
 
 const fakeContext = buildAiCoachContext({ date: DATE, plan: null, profile: {}, measurements: [], foodLogs: [], workouts: [], wellnessLogs: [], activity: [] });
 
+test("AI-10: оба провайдера получают правила только обоснованной конструктивной критики", async () => {
+  let anthropicSystem = "";
+  const anthropicFetch = async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    anthropicSystem = body.system[0].text;
+    return new Response(JSON.stringify({ content: [{ text: '{"answer":"Хороший обед","mainRecommendation":null}' }] }), { status: 200 });
+  };
+  await askAiCoach("key", fakeContext, [], "Съел обед с 41 г белка", anthropicFetch as any);
+
+  let mwsSystem = "";
+  const mwsFetch = async (_url: string, init: RequestInit) => {
+    const body = JSON.parse(String(init.body));
+    mwsSystem = body.messages[0].content;
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"answer":"Хороший обед","mainRecommendation":null}' } }] }), { status: 200 });
+  };
+  await askMwsAiCoach("key", "project1", "model1", fakeContext, [], "Съел обед с 41 г белка", mwsFetch as any);
+
+  for (const prompt of [anthropicSystem, mwsSystem]) {
+    assert.ok(prompt.includes("Критикуй только тогда"));
+    assert.ok(prompt.includes("не выдавай незавершённую дневную цель за ошибку отдельного приёма пищи"));
+    assert.ok(prompt.includes("40 г белка за обед"));
+    assert.ok(prompt.includes("назови конкретный факт"));
+    assert.ok(prompt.includes("один реалистичный следующий шаг"));
+  }
+  assert.equal(anthropicSystem, mwsSystem);
+});
+
 test("6.8: валидный структурированный ответ разбирается корректно", async () => {
   const fetchMock = async () =>
     new Response(JSON.stringify({ content: [{ text: '{"answer":"Отдохни сегодня","mainRecommendation":"Ляг спать пораньше"}' }] }), { status: 200 });

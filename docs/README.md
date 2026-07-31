@@ -17,6 +17,8 @@
 6. [`INSIGHT_ENGINE.md`](INSIGHT_ENGINE.md) — задание Sprint AI-4 и часть AI-6.
 7. [`MEMORY_ENGINE.md`](MEMORY_ENGINE.md) — задание Sprint AI-5.
 8. [`MILESTONES.md`](MILESTONES.md) — задание второй части Sprint AI-6.
+9. [`AI_10_CONSTRUCTIVE_FEEDBACK.md`](AI_10_CONSTRUCTIVE_FEEDBACK.md) — правила
+   обоснованной и конструктивной обратной связи Coach.
 
 ## Другие действующие документы
 
