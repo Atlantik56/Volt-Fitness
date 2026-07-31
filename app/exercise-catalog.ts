@@ -11,3 +11,5 @@ for (const day of week) for (const [name, , target] of day.x) if (!catalog.has(n
 export function targetMaxRepsFor(exercise: string): number | null {
   return catalog.get(exercise) ?? null;
 }
+
+export const exerciseNames=Object.freeze([...catalog.keys()].sort((a,b)=>a.localeCompare(b,"ru")));

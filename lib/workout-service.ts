@@ -13,7 +13,7 @@ const text = (x: any, max = 120) => typeof x === "string" ? x.trim().slice(0, ma
 
 export type ActionResult = { ok: true; workoutId?: number } | { ok: false; error: string; status: number };
 
-type WorkoutDetail = { key: string; name: string; originalName: string; value: number; weight: number; difficulty: string; unit: string };
+type WorkoutDetail = { key: string; name: string; originalName: string; value: number; weight: number; difficulty: string; unit: string; skipped:boolean; added:boolean };
 type StrengthGroup = { weight: number; reps: number; difficulty: string };
 
 function parseDetails(raw: any): WorkoutDetail[] {
@@ -22,6 +22,7 @@ function parseDetails(raw: any): WorkoutDetail[] {
   value: num(x.value, 0, 100000) || 0, weight: num(x.weight, 0, 500) || 0,
   difficulty: ["Легко", "Нормально", "Тяжело", "Боль"].includes(x.difficulty) ? x.difficulty : "Нормально",
   unit: x.unit === "сек" ? "сек" : x.unit === "мин" ? "мин" : "повт.",
+  skipped:x.skipped===true,added:x.added===true,
  })) : [];
 }
 
@@ -29,6 +30,7 @@ function groupStrengthDetails(details: WorkoutDetail[]): Map<string, StrengthGro
  const grouped = new Map<string, StrengthGroup>();
  const difficultyRank: Record<string, number> = { Легко: 0, Нормально: 1, Тяжело: 2, Боль: 3 };
  for (const item of details) {
+  if(item.skipped)continue;
   const current = grouped.get(item.originalName);
   if (!current) grouped.set(item.originalName, { weight: item.weight, reps: item.value, difficulty: item.difficulty });
   else {
@@ -114,7 +116,7 @@ export function saveWorkout(b: any): ActionResult {
    for (const [exercise, item] of grouped) insert.run(b.date, exercise, item.weight, item.reps, item.difficulty, workoutId);
    generateProgressionProposals({
     workoutId, date: b.date, plan: { title: text(b.title), type: workoutType },
-    painAfter, effort, workoutComplete: b.completed.length >= details.length,
+    painAfter, effort, workoutComplete: !details.some(item=>item.skipped),
     exercises: grouped,
    });
   }
