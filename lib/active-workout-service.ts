@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
-import { saveWorkout, type ActionResult } from "@/lib/workout-service";
+import { saveWorkout, WORKOUT_DETAIL_SOURCES, type ActionResult, type WorkoutDetailSource } from "@/lib/workout-service";
+
+const EFFORT_VALUES=["Легко","Нормально","Тяжело","Боль"] as const;
+const isValidSource=(value:unknown):value is WorkoutDetailSource=>(WORKOUT_DETAIL_SOURCES as readonly string[]).includes(value as string);
 
 const dateOk=(x:unknown)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const text=(x:unknown,max=160)=>typeof x==="string"?x.trim().slice(0,max):"";
@@ -121,10 +124,23 @@ export function cancelWorkoutDraft(body:any){
  return transition(body,status,"cancelled","cancelled_at");
 }
 
-export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft}{
+export type ConfirmedExerciseSummary={name:string;source:WorkoutDetailSource;setCount:number};
+export type ConfirmationSummary={
+ workoutId:number;duration:number;effort:string;painAfter:number;
+ metricsSource:"manual"|"imported_metric";confirmationSource:"Garmin"|"Manual";
+ averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;
+ exercises:ConfirmedExerciseSummary[];
+};
+
+export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;summary?:ConfirmationSummary}{
  const id=Number(body?.id);
  if(!Number.isSafeInteger(id)||id<1||body?.expectedStatus!=="awaiting_confirmation")return {ok:false,error:"Некорректный или устаревший запрос",status:400};
- let result:ActionResult&{draft?:WorkoutDraft}={ok:false,error:"Черновик не найден или уже изменён",status:409};
+ // Effort/painAfter — те же safety-правила, что и у обычной формы завершения
+ // тренировки (app/training-session.tsx): валидный набор значений сложности и
+ // граница боли 0–10, а не произвольный ввод без проверки.
+ if(body?.effort!==undefined&&!EFFORT_VALUES.includes(body.effort))return {ok:false,error:"Некорректная оценка сложности",status:400};
+ if(body?.painAfter!==undefined&&finite(body.painAfter,0,10)===null)return {ok:false,error:"Некорректное значение боли",status:400};
+ let result:ActionResult&{draft?:WorkoutDraft;summary?:ConfirmationSummary}={ok:false,error:"Черновик не найден или уже изменён",status:409};
  db.transaction(()=>{
   const raw=db.prepare(`${selectDraft} WHERE id=? AND status='awaiting_confirmation'`).get(id);
   if(!raw)return;
@@ -132,27 +148,48 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft}
   const imported=db.prepare("SELECT duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories FROM workout_imports WHERE draft_id=? ORDER BY id DESC LIMIT 1").get(id) as any;
   const duration=finite(imported?.duration??body?.durationSeconds,0,86400);
   if(duration===null){result={ok:false,error:"Некорректная длительность",status:400};return}
-  const submitted=Array.isArray(body?.exercises)?body.exercises:draft.snapshot.exercises.map(exercise=>({name:exercise.name,sets:Array.from({length:exercise.sets??1},()=>({weight:exercise.recommendedWeight,reps:exercise.repMin??0})),skipped:false,added:false}));
+  const submitted=Array.isArray(body?.exercises)?body.exercises:draft.snapshot.exercises.map(exercise=>({name:exercise.name,sets:Array.from({length:exercise.sets??1},()=>({weight:exercise.recommendedWeight,reps:exercise.repMin??0})),skipped:false,added:false,source:"confirmed_as_planned" as const}));
   if(submitted.length<1||submitted.length>100){result={ok:false,error:"Некорректные результаты упражнений",status:400};return}
-  const snapshotNames=new Set(draft.snapshot.exercises.map(x=>x.name)),details:any[]=[];
+  const snapshotNames=new Set(draft.snapshot.exercises.map(x=>x.name)),details:any[]=[],exerciseSummaries:ConfirmedExerciseSummary[]=[];
   for(let order=0;order<submitted.length;order++){
    const exercise=submitted[order],name=text(exercise?.name),added=exercise?.added===true;
    if(!name||(!added&&!snapshotNames.has(name))||!Array.isArray(exercise?.sets)||exercise.sets.length<1||exercise.sets.length>20){result={ok:false,error:"Некорректное упражнение",status:400};return}
-   if(exercise.skipped===true){details.push({key:`skip-${order}`,name,originalName:name,value:0,weight:0,difficulty:"Нормально",unit:"повт.",skipped:true,added});continue}
+   // Происхождение результата сохраняется в самих деталях тренировки (WorkoutDetail.source),
+   // а не только во временном состоянии формы — иначе после сохранения его было бы не отличить
+   // "подтверждено по плану" от "изменено вручную". Явный некорректный source — ошибка запроса;
+   // отсутствующий — выводим из added/skipped (см. lib/workout-service.ts normalizeDetailSource).
+   if(exercise?.source!==undefined&&!isValidSource(exercise.source)){result={ok:false,error:"Некорректное происхождение результата",status:400};return}
+   const source:WorkoutDetailSource=isValidSource(exercise?.source)?exercise.source:(exercise.skipped===true?"skipped":added?"added":"confirmed_as_planned");
+   if(exercise.skipped===true){
+    details.push({key:`skip-${order}`,name,originalName:name,value:0,weight:0,difficulty:"Нормально",unit:"повт.",skipped:true,added,source:"skipped"});
+    exerciseSummaries.push({name,source:"skipped",setCount:0});
+    continue;
+   }
    for(let set=0;set<exercise.sets.length;set++){
     const weight=finite(exercise.sets[set]?.weight,0,500),reps=finite(exercise.sets[set]?.reps,0,100000);
     if(weight===null||reps===null){result={ok:false,error:"Некорректный вес или повторы",status:400};return}
-    details.push({key:`${order}-${set}`,name,originalName:name,value:reps,weight,difficulty:"Нормально",unit:"повт.",skipped:false,added});
+    details.push({key:`${order}-${set}`,name,originalName:name,value:reps,weight,difficulty:"Нормально",unit:"повт.",skipped:false,added,source});
    }
+   exerciseSummaries.push({name,source,setCount:exercise.sets.length});
   }
   if(result.ok===false&&result.status===400)return;
+  // FIT сам по себе не является источником веса/повторов/факта выполнения —
+  // imported задаёт только метрики тренировки (пульс/калории/длительность),
+  // details.source выше от него не зависит.
+  const metricsSource=imported?"imported_metric":"manual";
+  const effort=EFFORT_VALUES.includes(body?.effort)?body.effort:"Нормально";
+  const painAfter=finite(body?.painAfter,0,10)??0;
   const saved=saveWorkout({date:draft.date,title:draft.snapshot.title,type:draft.snapshot.type,rounds:draft.snapshot.rounds,
-   completed:details.filter(x=>!x.skipped).map(x=>x.key),details,durationSeconds:duration,restSeconds:0,effort:body?.effort??"Нормально",painAfter:body?.painAfter??0,
-   avgHeartRate:imported?.averageHeartRate,maxHeartRate:imported?.maxHeartRate,calories:imported?.calories});
+   completed:details.filter(x=>!x.skipped).map(x=>x.key),details,durationSeconds:duration,restSeconds:0,effort,painAfter,
+   avgHeartRate:imported?.averageHeartRate,maxHeartRate:imported?.maxHeartRate,calories:imported?.calories,metricsSource});
   if(!saved.ok){result=saved;return}
   const workoutId=saved.workoutId!;
   db.prepare("UPDATE workout_drafts SET status='completed',confirmed_at=CURRENT_TIMESTAMP,workout_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_confirmation'").run(workoutId,id);
-  result={ok:true,draft:rowToDraft(db.prepare(`${selectDraft} WHERE id=?`).get(id))};
+  result={ok:true,draft:rowToDraft(db.prepare(`${selectDraft} WHERE id=?`).get(id)),summary:{
+   workoutId,duration,effort,painAfter,metricsSource,confirmationSource:imported?"Garmin":"Manual",
+   averageHeartRate:imported?.averageHeartRate??null,maxHeartRate:imported?.maxHeartRate??null,calories:imported?.calories??null,
+   exercises:exerciseSummaries,
+  }};
  })();
  return result;
 }

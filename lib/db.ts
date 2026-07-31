@@ -216,6 +216,9 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   CREATE INDEX IF NOT EXISTS idx_workout_imports_draft
    ON workout_imports(draft_id);
  `},
+ // AI-9 доработка — происхождение метрик тренировки (Garmin/FIT vs ручной ввод).
+ // Аддитивная колонка с безопасным дефолтом; старые записи читаются как 'manual'.
+ {version:16,sql:`ALTER TABLE workout_logs ADD COLUMN metrics_source TEXT NOT NULL DEFAULT 'manual';`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

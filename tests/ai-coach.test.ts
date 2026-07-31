@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "../lib/coach-weekly.ts";
 import { buildAiCoachContext, renderAiCoachContextText } from "../lib/ai-context.ts";
-import { askAiCoach, askMwsAiCoach, AiCoachError } from "../lib/ai-coach.ts";
+import { askAiCoach, askMwsAiCoach, AiCoachError, SYSTEM_PROMPT, parseStructuredReply } from "../lib/ai-coach.ts";
 import { askAiHub } from "../lib/ai-hub.ts";
 import {
   dateInTimeZone,
@@ -126,6 +126,64 @@ test("AI-10: оба провайдера получают правила тол�
     assert.ok(prompt.includes("один реалистичный следующий шаг"));
   }
   assert.equal(anthropicSystem, mwsSystem);
+  // Тела запросов обоих провайдеров совпадают с реально экспортируемой
+  // константой — тест ловит рассинхронизацию, если кто-то отредактирует
+  // промпт в одной ветке кода и забудет про другую.
+  assert.equal(anthropicSystem, SYSTEM_PROMPT);
+  assert.equal(mwsSystem, SYSTEM_PROMPT);
+});
+
+test("AI-10 доработка: промпт запрещает критику ради критики и требует значимого отклонения", () => {
+  assert.ok(SYSTEM_PROMPT.includes("Не ищи недостаток только ради замечания"));
+  assert.ok(SYSTEM_PROMPT.includes("значимое отклонение от подходящего ориентира"));
+  assert.ok(SYSTEM_PROMPT.includes("Если показатели находятся в разумной зоне, не ищи, что ещё покритиковать"));
+});
+
+test("AI-10 доработка: промпт запрещает стыд, обвинения и оценку личности", () => {
+  assert.ok(SYSTEM_PROMPT.includes("без стыда, обвинений и оценки личности"));
+});
+
+test("AI-10 доработка: промпт запрещает LLM пересчитывать или изобретать показатели", () => {
+  assert.ok(SYSTEM_PROMPT.includes("Не придумывай показатели, которых там нет"));
+  assert.ok(SYSTEM_PROMPT.includes("Отвечай только на основе присланного контекста"));
+});
+
+test("AI-10 доработка: промпт требует учитывать погрешность оценочных порций и КБЖУ", () => {
+  assert.ok(SYSTEM_PROMPT.includes("неопределённость оценочных порций и КБЖУ"));
+});
+
+test("AI-10 доработка: mainRecommendation остаётся одной строкой даже если модель прислала несколько пунктов", () => {
+  const multiline = parseStructuredReply('{"answer":"ок","mainRecommendation":"Первый шаг\\nВторой шаг"}');
+  assert.equal(multiline.mainRecommendation, "Первый шаг");
+  const bulletList = parseStructuredReply('{"answer":"ок","mainRecommendation":"- Добавь овощей\\n- Пей больше воды"}');
+  assert.equal(bulletList.mainRecommendation, "Добавь овощей");
+  assert.equal(typeof multiline.mainRecommendation, "string");
+});
+
+test("AI-10 доработка: чрезмерно длинная mainRecommendation обрезается детерминированно", () => {
+  const long = "а".repeat(500);
+  const reply = parseStructuredReply(JSON.stringify({ answer: "ок", mainRecommendation: long }));
+  assert.ok(reply.mainRecommendation!.length <= 200);
+});
+
+test("AI-10 доработка: формат AiCoachReply (answer/mainRecommendation/food) не изменился", async () => {
+  const fetchMock = async () =>
+    new Response(JSON.stringify({ content: [{ text: '{"answer":"Для одного обеда 41 г белка — хороший результат. До дневной цели осталось 109 г.","mainRecommendation":"Добавь порцию овощей к следующему приёму","food":null}' }] }), { status: 200 });
+  const reply = await askAiCoach("key", fakeContext, [], "Как у меня с белком за обед?", fetchMock as any);
+  assert.deepEqual(Object.keys(reply).sort(), ["answer", "food", "mainRecommendation"]);
+  assert.equal(typeof reply.answer, "string");
+  assert.ok(reply.mainRecommendation === null || typeof reply.mainRecommendation === "string");
+  assert.ok(reply.food === null || Array.isArray(reply.food));
+});
+
+test("AI-10 доработка: усиление правил не добавляет новых сетевых вызовов — по одному запросу на провайдера", async () => {
+  let anthropicCalls = 0, mwsCalls = 0;
+  const anthropicFetch = async () => { anthropicCalls++; return new Response(JSON.stringify({ content: [{ text: '{"answer":"ок","mainRecommendation":null}' }] }), { status: 200 }) };
+  await askAiCoach("key", fakeContext, [], "Съел обед", anthropicFetch as any);
+  assert.equal(anthropicCalls, 1);
+  const mwsFetch = async () => { mwsCalls++; return new Response(JSON.stringify({ choices: [{ message: { content: '{"answer":"ок","mainRecommendation":null}' } }] }), { status: 200 }) };
+  await askMwsAiCoach("key", "project1", "model1", fakeContext, [], "Съел обед", mwsFetch as any);
+  assert.equal(mwsCalls, 1);
 });
 
 test("6.8: валидный структурированный ответ разбирается корректно", async () => {

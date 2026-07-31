@@ -72,6 +72,13 @@ export default function Home() {
   const overrides=data.scheduleOverrides||[], movedToday=overrides.find((x:any)=>x.scheduledDate===today), regularToday=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0];
   const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
   const todayPlan=replacement||movedPlan||regularToday;
+  // Незавершённая (но не отменённая и не подтверждённая) сессия на сегодня —
+  // /api/fitness уже отдаёт только открытые черновики (planned/active/
+  // awaiting_confirmation, см. listOpenWorkoutDrafts в lib/active-workout-service.ts),
+  // поэтому просто ищем совпадение по дате и названию плана, не заводя новый
+  // признак состояния. Используется только для текста кнопки на карточке —
+  // реальным источником истины остаётся сам черновик/workout_log.
+  const openDraftToday=(data.workoutDrafts||[]).find((d:any)=>d.date===today&&d.snapshot?.title===todayPlan?.title);
   const coach=useMemo(()=>buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile}),[data,todayPlan,today,loaded]);
   const coachAction:CoachAction|null=coach.decision?.action??null;
   const goCoach=()=>{setNav("Сегодня");setMobileMenu(false);setTimeout(()=>document.getElementById("volt-coach")?.scrollIntoView({behavior:"smooth",block:"start"}),80)};
@@ -123,7 +130,8 @@ export default function Home() {
             {coach.summary.workoutDone?<>
              <div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>
              <button className="repeat-btn" onClick={() => startWorkout(todayPlan)}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
-            </>:<button className="start-btn" onClick={() => startWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
+            </>:openDraftToday?<button className="start-btn" onClick={() => startWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
+            :<button className="start-btn" onClick={() => startWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
           </div>
           <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>{motivation}</b></div></div>
         </section>
@@ -186,7 +194,7 @@ export default function Home() {
         </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction} loaded={loaded} initialProgressTab={progressTab}/></>}
       </section>
 
-      {activeWorkout&&<ActiveWorkout draft={activeWorkout} onClose={()=>setActiveWorkout(null)} onChanged={draft=>{setActiveWorkout(draft.status==="cancelled"?null:draft);load();if(draft.status==="completed")loadProgression()}}/>}
+      {activeWorkout&&<ActiveWorkout draft={activeWorkout} data={data} onClose={()=>setActiveWorkout(null)} onChanged={draft=>{setActiveWorkout(draft.status==="cancelled"?null:draft);load();if(draft.status==="completed")loadProgression()}} onEditWorkout={()=>{setActiveWorkout(null);setNav("Моя история");setProgressTab("Тренировки")}}/>}
       {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
       <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today} onFoodSaved={load} quickActions={[
         {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");void startWorkout(todayPlan)}},

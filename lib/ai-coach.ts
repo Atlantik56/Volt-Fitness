@@ -19,7 +19,10 @@ export class AiCoachError extends Error{
   constructor(message:string,status:number){super(message);this.status=status}
 }
 
-const SYSTEM_PROMPT=`Ты — VOLT Coach, локальный ИИ-помощник в приложении для похудения и тренировок.
+// Экспортируется, чтобы регрессионные тесты проверяли реальное тело запроса
+// к обоим провайдерам (единый источник правил), не отдельную неиспользуемую
+// копию. Строка остаётся одна — второго prompt для критики/проверки нет.
+export const SYSTEM_PROMPT=`Ты — VOLT Coach, локальный ИИ-помощник в приложении для похудения и тренировок.
 Правила:
 - Отвечай только на основе присланного контекста. Не придумывай показатели, которых там нет.
 - Если данных не хватает, честно скажи об этом, а не изобретай числа.
@@ -49,6 +52,22 @@ function sanitizeFood(value:any):AiFoodItem[]|null{
   return items.length?items:null;
 }
 
+const MAX_MAIN_RECOMMENDATION_CHARS=200;
+
+// AI-10 доработка, п.4.3 — минимальный детерминированный структурный guard без
+// LLM-критика и без списка «плохих слов»: mainRecommendation — это одна
+// короткая строка, а не список из нескольких рекомендаций. Если модель всё же
+// пришлёт несколько пунктов (переносом строки, точкой с запятой или дефисом
+// списка), берём только первый и обрезаем длину — так на экране физически не
+// может оказаться больше одной главной рекомендации, независимо от того,
+// насколько точно модель следует текстовому правилу в промпте.
+function sanitizeMainRecommendation(value:unknown):string|null{
+  if(typeof value!=="string")return null;
+  const firstItem=value.split(/\r?\n|;|(?:^|\s)[-•]\s/).map(x=>x.trim()).find(Boolean);
+  if(!firstItem)return null;
+  return firstItem.slice(0,MAX_MAIN_RECOMMENDATION_CHARS);
+}
+
 export function parseStructuredReply(raw:string):AiCoachReply{
   let jsonText=raw.trim();
   const fence=jsonText.match(/```(?:json)?\s*([\s\S]*?)```/i);
@@ -58,8 +77,7 @@ export function parseStructuredReply(raw:string):AiCoachReply{
   catch{throw new AiCoachError("Ответ ИИ не удалось разобрать",502)}
   if(!parsed||typeof parsed.answer!=="string"||!parsed.answer.trim())
     throw new AiCoachError("Ответ ИИ имеет неверный формат",502);
-  const mainRecommendation=typeof parsed.mainRecommendation==="string"&&parsed.mainRecommendation.trim()
-    ?parsed.mainRecommendation.trim():null;
+  const mainRecommendation=sanitizeMainRecommendation(parsed.mainRecommendation);
   return {answer:parsed.answer.trim(),mainRecommendation,food:sanitizeFood(parsed.food)};
 }
 

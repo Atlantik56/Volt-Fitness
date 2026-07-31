@@ -16,7 +16,7 @@ const text=(x:any,max=120)=>typeof x==="string"?x.trim().slice(0,max):"";
 export async function GET(){
  const denied=await requireAuth();if(denied)return denied;
  const profile=db.prepare("SELECT id,name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1").get();
- const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
+ const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,metrics_source metricsSource,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
  const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters,sleep_start sleepStart,sleep_end sleepEnd,sleep_minutes sleepMinutes,sleep_quality sleepQuality,water_logged waterLogged,alcohol_type alcoholType,alcohol_servings alcoholServings,alcohol_serving_volume_ml alcoholServingVolumeMl,alcohol_relative_amount alcoholRelativeAmount,alcohol_logged alcoholLogged,day_factor dayFactor,day_factor_note dayFactorNote FROM daily_activity ORDER BY date DESC LIMIT 400").all();
@@ -59,7 +59,7 @@ export async function POST(req:Request){
  }else if(["startWorkoutDraft","finishWorkoutDraft","cancelWorkoutDraft","confirmWorkoutDraft"].includes(b.action)){
   const result:any=b.action==="startWorkoutDraft"?startWorkoutDraft(b):b.action==="finishWorkoutDraft"?finishWorkoutDraft(b):b.action==="cancelWorkoutDraft"?cancelWorkoutDraft(b):confirmWorkoutDraft(b);
   if(!result.ok)return Response.json({error:result.error},{status:result.status});
-  return Response.json({ok:true,draft:result.draft});
+  return Response.json({ok:true,draft:result.draft,summary:result.summary});
  }else if(b.action==="updateWorkout"){
   const result=updateWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="deleteWorkout"){

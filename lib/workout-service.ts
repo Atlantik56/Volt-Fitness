@@ -13,8 +13,32 @@ const text = (x: any, max = 120) => typeof x === "string" ? x.trim().slice(0, ma
 
 export type ActionResult = { ok: true; workoutId?: number } | { ok: false; error: string; status: number };
 
-type WorkoutDetail = { key: string; name: string; originalName: string; value: number; weight: number; difficulty: string; unit: string; skipped:boolean; added:boolean };
+// AI-9 доработка — происхождение фактического результата по упражнению/подходу.
+// "imported_metric" сюда не входит: это происхождение относится только к
+// весу/повторам/факту выполнения, а метрики тренировки (пульс/калории/
+// длительность) имеют собственное происхождение — см. metricsSource ниже.
+export const WORKOUT_DETAIL_SOURCES = ["confirmed_as_planned","confirmed_as_previous","manually_edited","skipped","added"] as const;
+export type WorkoutDetailSource = typeof WORKOUT_DETAIL_SOURCES[number];
+// Записи, сохранённые до этого спринта, не содержат source вовсе — читаем их
+// как "unknown", не приписывая задним числом происхождение, которого не было.
+export type WorkoutDetailSourceOrUnknown = WorkoutDetailSource | "unknown";
+
+export const METRICS_SOURCES = ["manual","imported_metric"] as const;
+export type MetricsSource = typeof METRICS_SOURCES[number];
+
+type WorkoutDetail = { key: string; name: string; originalName: string; value: number; weight: number; difficulty: string; unit: string; skipped:boolean; added:boolean; source:WorkoutDetailSourceOrUnknown };
 type StrengthGroup = { weight: number; reps: number; difficulty: string };
+
+// Записи без валидного source — это либо тренировки, сохранённые до этого
+// спринта, либо строки, отредактированные через общую форму истории (которая
+// не различает происхождение). Не приписываем им задним числом
+// "confirmed_as_planned" — честно помечаем как "unknown".
+function normalizeDetailSource(x:any):WorkoutDetailSourceOrUnknown{
+ if((WORKOUT_DETAIL_SOURCES as readonly string[]).includes(x?.source))return x.source;
+ if(x?.skipped===true)return "skipped";
+ if(x?.added===true)return "added";
+ return "unknown";
+}
 
 function parseDetails(raw: any): WorkoutDetail[] {
  return Array.isArray(raw) ? raw.slice(0, 200).map((x: any) => ({
@@ -23,6 +47,7 @@ function parseDetails(raw: any): WorkoutDetail[] {
   difficulty: ["Легко", "Нормально", "Тяжело", "Боль"].includes(x.difficulty) ? x.difficulty : "Нормально",
   unit: x.unit === "сек" ? "сек" : x.unit === "мин" ? "мин" : "повт.",
   skipped:x.skipped===true,added:x.added===true,
+  source: normalizeDetailSource(x),
  })) : [];
 }
 
@@ -105,11 +130,12 @@ export function saveWorkout(b: any): ActionResult {
  const duration = num(b.durationSeconds, 0, 86400), rest = num(b.restSeconds, 0, 86400), minHr = num(b.minHeartRate, 0, 250), avgHr = num(b.avgHeartRate, 0, 250), maxHr = num(b.maxHeartRate, 0, 250), calories = num(b.calories, 0, 10000), distance = num(b.distanceMeters, 0, 1000000), speed = num(b.avgSpeed, 0, 200), details = parseDetails(b.details);
  if (!dateOk(b.date) || !text(b.title) || !Array.isArray(b.completed) || duration === null || rest === null) return { ok: false, error: "Некорректная тренировка", status: 400 };
  const workoutType = text(b.type, 40), painAfter = num(b.painAfter, 0, 10) || 0, effort = ["Легко", "Нормально", "Тяжело", "Боль"].includes(b.effort) ? b.effort : "";
+ const metricsSource:MetricsSource = (METRICS_SOURCES as readonly string[]).includes(b.metricsSource) ? b.metricsSource : "manual";
  let workoutId=0;
  db.transaction(() => {
   const workout = db.prepare("INSERT INTO workout_logs (date,type,title,completed,rounds,duration_seconds,rest_seconds,details) VALUES (?,?,?,?,?,?,?,?)").run(b.date, workoutType, text(b.title), JSON.stringify(b.completed.slice(0, 200)), num(b.rounds, 1, 20) || 1, duration, rest, JSON.stringify(details));
   workoutId = Number(workout.lastInsertRowid);
-  db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=? WHERE id=?").run(minHr || 0, avgHr || 0, maxHr || 0, calories || 0, distance || 0, speed || 0, effort, painAfter, workoutId);
+  db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=?,metrics_source=? WHERE id=?").run(minHr || 0, avgHr || 0, maxHr || 0, calories || 0, distance || 0, speed || 0, effort, painAfter, metricsSource, workoutId);
   if (workoutType === "Силовая") {
    const grouped = groupStrengthDetails(details);
    const insert = db.prepare("INSERT INTO strength_logs (date,exercise,weight,reps,difficulty,workout_id) VALUES (?,?,?,?,?,?)");

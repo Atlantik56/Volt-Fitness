@@ -23,6 +23,12 @@ test("миграция v14 аддитивна и не меняет сущест�
  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_drafts").get() as any).n,0);
 });
 
+test("миграция v16 (metrics_source) аддитивна: старые workout_logs читаются с дефолтом 'manual'",()=>{
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=16").get());
+ const historical=db.prepare("SELECT metrics_source metricsSource FROM workout_logs WHERE title='Историческая'").get() as any;
+ assert.equal(historical.metricsSource,"manual");
+});
+
 test("частичный unique index разрешает повтор после completed, но не два открытых черновика",()=>{
  const snapshot='{"title":"A","type":"Силовая","rounds":1,"exercises":[]}';
  db.prepare("INSERT INTO workout_drafts(date,plan_key,status,snapshot) VALUES (?,?,?,?)").run("2026-06-02","key","active",snapshot);
