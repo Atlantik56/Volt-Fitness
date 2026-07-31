@@ -191,6 +191,31 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   CREATE INDEX IF NOT EXISTS idx_workout_drafts_recent
    ON workout_drafts(date DESC,id DESC);
  `},
+ // AI-8 — provider-independent evidence imported from FIT. Raw files are never
+ // persisted; workout_logs remain the only source of confirmed workouts.
+ {version:15,sql:`
+  CREATE TABLE IF NOT EXISTS workout_imports (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   source TEXT NOT NULL,
+   external_id TEXT,
+   fingerprint TEXT NOT NULL,
+   started_at TEXT NOT NULL,
+   duration_seconds INTEGER NOT NULL,
+   activity_type TEXT NOT NULL,
+   average_heart_rate INTEGER,
+   max_heart_rate INTEGER,
+   calories INTEGER,
+   average_cadence REAL,
+   training_effect REAL,
+   metadata TEXT NOT NULL DEFAULT '{}',
+   draft_id INTEGER REFERENCES workout_drafts(id),
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_imports_fingerprint
+   ON workout_imports(source,fingerprint);
+  CREATE INDEX IF NOT EXISTS idx_workout_imports_draft
+   ON workout_imports(draft_id);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

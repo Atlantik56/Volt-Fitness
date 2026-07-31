@@ -15,6 +15,7 @@
     "lint": "eslint . --ignore-pattern .next --ignore-pattern data"
   },
   "dependencies": {
+    "@garmin/fitsdk": "^21.208.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "better-sqlite3": "^13.0.1",
     "lucide-react": "^1.26.0",
