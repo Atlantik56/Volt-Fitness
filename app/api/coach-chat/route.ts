@@ -66,6 +66,15 @@ export async function POST(req: Request) {
     body.plan && typeof body.plan.title === "string" && typeof body.plan.type === "string"
       ? { title: body.plan.title.slice(0, 120), type: body.plan.type.slice(0, 40) }
       : null;
+  // AI-11 — исходный план и факт изменения приходят от клиента (уже посчитаны
+  // детерминированно в app/week-schedule-model.ts), Coach их не пересчитывает.
+  const originalPlan =
+    body.originalPlan && typeof body.originalPlan.title === "string" && typeof body.originalPlan.type === "string"
+      ? { title: body.originalPlan.title.slice(0, 120), type: body.originalPlan.type.slice(0, 40) }
+      : null;
+  const planChanged = body.planChanged === true;
+  const REASON_CODES = ["mood", "fatigue", "pain", "no_equipment", "weather", "schedule", "other", ""];
+  const changeReasonCode = REASON_CODES.includes(body.changeReasonCode) ? body.changeReasonCode : "";
 
   const history = loadConversation(6);
 
@@ -80,7 +89,7 @@ export async function POST(req: Request) {
 
   // Данные принадлежат единственному профилю приложения (id=1); requireAuth уже
   // защищает эндпоинт от неавторизованных запросов — доступа к «чужим» данным нет.
-  const contextData = loadAiCoachContextData(db, { date, plan });
+  const contextData = loadAiCoachContextData(db, { date, plan, originalPlan, planChanged, changeReasonCode });
   const context = buildAiCoachContext(contextData);
 
   // Ключ лимита вычисляется на сервере в часовом поясе владельца. Клиентская

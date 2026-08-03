@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { buildHomeWeek, meals, phases, rules, safety, week } from "./personal-data";
 import { ExerciseVideo } from "./exercise-video";
 import { ActiveWorkout, type ActiveDraft } from "./active-workout";
+import { WeekPlanEditor } from "./week-plan-editor";
+import { buildWeekSchedule, weekRangeContaining, type ResolvedDayPlan } from "./week-schedule-model";
 import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
@@ -69,9 +71,19 @@ export default function Home() {
   const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
   const homeWeek=useMemo(()=>buildHomeWeek(data.profile?.programStart),[data.profile?.programStart]);
-  const overrides=data.scheduleOverrides||[], movedToday=overrides.find((x:any)=>x.scheduledDate===today), regularToday=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0];
-  const movedPlan=movedToday&&homeWeek.find(x=>x.title===movedToday.planTitle), replacement=movedToday?.replacementTitle&&homeWeek.find(x=>x.title===movedToday.replacementTitle);
-  const todayPlan=replacement||movedPlan||regularToday;
+  // AI-11 — Гибкая неделя: план на дату = каноническая программа (homeWeek) +
+  // пользовательские изменения текущей недели (week_schedule_changes). Никогда
+  // не переходит на следующую неделю — see app/week-schedule-model.ts.
+  const weekMondayIso=useMemo(()=>weekRangeContaining(today).mondayIso,[today]);
+  const weekPlanRaw=useMemo(()=>buildWeekSchedule(homeWeek,data.weekScheduleChanges||[],weekMondayIso),[homeWeek,data.weekScheduleChanges,weekMondayIso]);
+  const weekPlan:ResolvedDayPlan[]=useMemo(()=>weekPlanRaw.map(d=>({...d,locked:{
+   completed:(data.workouts||[]).some((w:any)=>w.date===d.date),
+   openDraft:(data.workoutDrafts||[]).some((w:any)=>w.date===d.date),
+  }})),[weekPlanRaw,data.workouts,data.workoutDrafts]);
+  const todayResolved=weekPlan.find(d=>d.date===today)??weekPlan[0];
+  const todayPlan=todayResolved.scheduled;
+  const [editingDate,setEditingDate]=useState<string|null>(null);
+  const editingDay=editingDate?weekPlan.find(d=>d.date===editingDate):null;
   // Незавершённая (но не отменённая и не подтверждённая) сессия на сегодня —
   // /api/fitness уже отдаёт только открытые черновики (planned/active/
   // awaiting_confirmation, см. listOpenWorkoutDrafts в lib/active-workout-service.ts),
@@ -85,8 +97,8 @@ export default function Home() {
   const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});notify(r.ok?"Активность за сегодня обновлена":"Не удалось сохранить активность",r.ok?"good":"warn");load()};
-  const startWorkout=async(plan:any)=>{
-   const snapshot={title:plan.title,type:plan.type,rounds:plan.rounds??1,exercises:plan.exercises.map((exercise:any[])=>({name:exercise[0],target:exercise[2],recommendedWeight:data.progressionOverrides?.[exercise[0]]?.weight??data.strengthLogs?.find((log:any)=>log.exercise===exercise[0])?.weight??0}))};
+  const startWorkout=async(plan:any,origin:"original"|"scheduled"="original",scheduleChangeId:number|null=null)=>{
+   const snapshot={title:plan.title,type:plan.type,rounds:plan.rounds??1,origin,scheduleChangeId,exercises:plan.exercises.map((exercise:any[])=>({name:exercise[0],target:exercise[2],recommendedWeight:data.progressionOverrides?.[exercise[0]]?.weight??data.strengthLogs?.find((log:any)=>log.exercise===exercise[0])?.weight??0}))};
    const response=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"startWorkoutDraft",date:today,snapshot})});
    const json=await response.json().catch(()=>({}));
    if(!response.ok)return notify(json.error||"Не удалось начать тренировку","warn");
@@ -124,14 +136,16 @@ export default function Home() {
           <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
           <div className="hero-shade" />
           <div className="hero-content">
-            <span className="pill lime">{todayPlan.d.toUpperCase()} · НЕДЕЛЯ 1</span>
+            <span className="pill lime">{todayPlan.d.toUpperCase()} · НЕДЕЛЯ 1</span>{todayResolved.changed&&<span className="plan-changed-badge">План изменён</span>}
             <h2>{todayPlan.title.toUpperCase()}</h2>
             <div className="hero-meta"><span>◷ {todayPlan.time}</span><span>◫ {todayPlan.exercises.length} упражнений</span>{todayPlan.rounds>1&&<span>◉ {todayPlan.rounds} круга</span>}</div>
-            {coach.summary.workoutDone?<>
-             <div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>
-             <button className="repeat-btn" onClick={() => startWorkout(todayPlan)}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
-            </>:openDraftToday?<button className="start-btn" onClick={() => startWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
-            :<button className="start-btn" onClick={() => startWorkout(todayPlan)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
+            {coach.summary.workoutDone&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
+            <div className="hero-actions">
+             {coach.summary.workoutDone?<button className="repeat-btn" onClick={() => startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
+             :openDraftToday?<button className="start-btn" onClick={() => startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}><span>▶</span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
+             :<button className="start-btn" onClick={() => startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
+             <button type="button" className="ghost-btn hero-edit-plan-btn" onClick={()=>setEditingDate(today)}>Изменить план</button>
+            </div>
           </div>
           <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>{motivation}</b></div></div>
         </section>
@@ -168,6 +182,11 @@ export default function Home() {
               </div>
             </div>
             <div className="week-footer"><div><small>Нагрузка</small><b>{weekWorkouts.length} силовая тренировка</b></div><div><small>Активных дней</small><b>{new Set(weekWorkouts.map((x:any)=>x.date)).size} <span>/ 7</span></b></div><div><small>Калории</small><b>{fmt(weekCalories)} <span>ккал</span></b></div></div>
+            <div className="week-plan-list">{weekPlan.map(d=><div key={d.date} className={`week-plan-row${d.date===today?" is-today":""}`}>
+             <div className="week-plan-row-date"><small>{d.original.d.slice(0,2).toUpperCase()}</small><b>{Number(d.date.slice(8,10))}</b></div>
+             <div className="week-plan-row-title"><b>{d.scheduled.type==="Отдых"?"Отдых":d.scheduled.title}{d.changed&&<span className="plan-changed-badge">Изменён</span>}</b>{d.changed&&<small>Исходно: {d.original.type==="Отдых"?"Отдых":d.original.title}</small>}</div>
+             <button type="button" onClick={()=>setEditingDate(d.date)}>Изменить план</button>
+            </div>)}</div>
           </section>
 
           <section className="goal-card card">
@@ -195,9 +214,10 @@ export default function Home() {
       </section>
 
       {activeWorkout&&<ActiveWorkout draft={activeWorkout} data={data} onClose={()=>setActiveWorkout(null)} onChanged={draft=>{setActiveWorkout(draft.status==="cancelled"?null:draft);load();if(draft.status==="completed")loadProgression()}} onEditWorkout={()=>{setActiveWorkout(null);setNav("Моя история");setProgressTab("Тренировки")}}/>}
+      {editingDay&&<WeekPlanEditor day={editingDay} weekDays={weekPlan} homeWeek={homeWeek} onClose={()=>setEditingDate(null)} refresh={load}/>}
       {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
-      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} today={today} onFoodSaved={load} quickActions={[
-        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");void startWorkout(todayPlan)}},
+      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} originalPlan={todayResolved.changed?{title:todayResolved.original.title,type:todayResolved.original.type}:null} planChanged={todayResolved.changed} changeReasonCode={todayResolved.reasonCode} today={today} onFoodSaved={load} quickActions={[
+        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}},
         {label:"Записать питание",icon:"🍽",onClick:()=>{setCoachChatOpen(false);setNav("Питание");setMobileMenu(false)}},
         {label:"Отметить самочувствие",icon:"❤",onClick:()=>{setCoachChatOpen(false);goCoach()}},
       ]}/>

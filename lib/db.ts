@@ -219,6 +219,30 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
  // AI-9 доработка — происхождение метрик тренировки (Garmin/FIT vs ручной ввод).
  // Аддитивная колонка с безопасным дефолтом; старые записи читаются как 'manual'.
  {version:16,sql:`ALTER TABLE workout_logs ADD COLUMN metrics_source TEXT NOT NULL DEFAULT 'manual';`},
+ // AI-11 — Гибкая неделя. Хранит только пользовательские изменения текущей
+ // недели относительно канонической программы (app/personal-data.ts,
+ // buildHomeWeek); сама программа остаётся неизменной и не копируется сюда.
+ // date — календарная дата, UNIQUE: одна дата — одно актуальное изменение,
+ // upsert по date даёт идемпотентность без дублей. assigned_source_day — номер
+ // дня недели (1..7) программы, чей план теперь показывается в эту дату
+ // (NULL — назначен отдых); для action='replace' и 'swap' это конкретный день
+ // из homeWeek, для 'rest' — всегда NULL. swap_with_date — вторая дата пары
+ // при обмене днями, NULL для остальных действий. reason_code — необязательный
+ // ограниченный список причин (см. app/week-schedule-model.ts); используется
+ // только как контекст для Coach, не для аналитики или диагностики.
+ {version:17,sql:`
+  CREATE TABLE IF NOT EXISTS week_schedule_changes (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   date TEXT NOT NULL UNIQUE,
+   action TEXT NOT NULL CHECK(action IN ('replace','swap','rest')),
+   assigned_source_day INTEGER,
+   swap_with_date TEXT,
+   reason_code TEXT NOT NULL DEFAULT '',
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_week_schedule_changes_date ON week_schedule_changes(date);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

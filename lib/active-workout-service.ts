@@ -10,7 +10,14 @@ const text=(x:unknown,max=160)=>typeof x==="string"?x.trim().slice(0,max):"";
 const finite=(x:unknown,min:number,max:number)=>{const n=Number(x);return Number.isFinite(n)&&n>=min&&n<=max?n:null};
 export type DraftStatus="planned"|"active"|"awaiting_confirmation"|"completed"|"cancelled";
 export type SnapshotExercise={name:string;order:number;target:string;recommendedWeight:number;sets:number|null;repMin:number|null;repMax:number|null;unit:string};
-export type WorkoutSnapshot={title:string;type:string;rounds:number;exercises:SnapshotExercise[]};
+// AI-11 — происхождение плана на момент старта черновика: "original" — исходная
+// программа, "scheduled" — план после пользовательского изменения недели.
+// Опционально и по умолчанию "original", чтобы старые snapshot (до этого спринта)
+// читались без миграции данных. scheduleChangeId — необязательная ссылка на
+// week_schedule_changes (не FK: изменение недели может быть отменено/сброшено
+// позже, а snapshot должен остаться как есть — см. lib/week-schedule-service.ts).
+export type WorkoutSnapshotOrigin="original"|"scheduled";
+export type WorkoutSnapshot={title:string;type:string;rounds:number;exercises:SnapshotExercise[];origin:WorkoutSnapshotOrigin;scheduleChangeId:number|null};
 export type ExerciseResultSet={weight:number;reps:number};
 export type DraftConfirmation={
  source:"Garmin"|"Manual";duration:number;averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;
@@ -37,7 +44,9 @@ export function normalizeSnapshot(raw:any):WorkoutSnapshot|null{
   if(!name||!target||weight===null)return null;
   exercises.push({name,order:i,target,recommendedWeight:weight,...parseTarget(target)});
  }
- return {title,type,rounds,exercises};
+ const origin:WorkoutSnapshotOrigin=raw?.origin==="scheduled"?"scheduled":"original";
+ const scheduleChangeId=Number.isSafeInteger(raw?.scheduleChangeId)&&raw.scheduleChangeId>0?raw.scheduleChangeId:null;
+ return {title,type,rounds,exercises,origin,scheduleChangeId};
 }
 
 export function planKey(snapshot:WorkoutSnapshot){

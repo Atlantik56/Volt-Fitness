@@ -7,6 +7,8 @@ import { MOOD_OPTIONS } from "@/lib/mood";
 import { saveEveningCheckin } from "@/lib/evening-checkin-service";
 import { listManualMilestones, createManualMilestone, updateManualMilestone, deleteManualMilestone } from "@/lib/milestone-service";
 import { listOpenWorkoutDrafts,startWorkoutDraft,finishWorkoutDraft,cancelWorkoutDraft,confirmWorkoutDraft } from "@/lib/active-workout-service";
+import { listWeekScheduleChanges,applyReplace,applyRest,applySwap,cancelChange,resetWeek } from "@/lib/week-schedule-service";
+import { weekRangeContaining, localIso as weekLocalIso } from "@/app/week-schedule-model";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -38,7 +40,10 @@ export async function GET(){
  const progressionOverrides=Object.fromEntries((db.prepare(`SELECT o.exercise,o.weight,o.reps FROM exercise_load_overrides o
   WHERE NOT EXISTS (SELECT 1 FROM strength_logs s WHERE s.exercise=o.exercise AND s.created_at>o.created_at)`).all() as any[]).map(x=>[x.exercise,{weight:x.weight,reps:x.reps}]));
  const workoutDrafts=listOpenWorkoutDrafts();
- return Response.json({profile,workouts,workoutDrafts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
+ // AI-11 — только изменения текущей календарной недели; дальше не тянутся.
+ const {mondayIso,sundayIso}=weekRangeContaining(weekLocalIso(new Date()));
+ const weekScheduleChanges=listWeekScheduleChanges(mondayIso,sundayIso);
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -92,6 +97,16 @@ export async function POST(req:Request){
   const energy=num(b.energy,1,5),pain=num(b.pain,0,10);if(!dateOk(b.date)||energy===null||pain===null)return Response.json({error:"Проверьте самочувствие"},{status:400});db.prepare("INSERT INTO wellness_logs(date,energy,pain,pain_area,note) VALUES(?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET energy=excluded.energy,pain=excluded.pain,pain_area=excluded.pain_area,note=excluded.note").run(b.date,energy,pain,text(b.painArea,80),text(b.note,300))
  }else if(b.action==="schedule"){
   if(!dateOk(b.originalDate)||!dateOk(b.scheduledDate)||!text(b.planTitle))return Response.json({error:"Проверьте даты"},{status:400});db.prepare("INSERT INTO schedule_overrides(original_date,scheduled_date,plan_title,replacement_title) VALUES(?,?,?,?) ON CONFLICT(original_date) DO UPDATE SET scheduled_date=excluded.scheduled_date,replacement_title=excluded.replacement_title").run(b.originalDate,b.scheduledDate,text(b.planTitle),text(b.replacementTitle))
+ }else if(["weekScheduleReplace","weekScheduleRest","weekScheduleSwap","weekScheduleCancel","weekScheduleReset"].includes(b.action)){
+  // AI-11 — сегодняшний server-день, а не клиентский, чтобы редактирование
+  // всегда проверялось против реального "текущей недели", а не подделанной даты.
+  const todayIso=weekLocalIso(new Date());
+  const result=b.action==="weekScheduleReplace"?applyReplace({date:b.date,assignedSourceDay:Number(b.assignedSourceDay),reasonCode:b.reasonCode,todayIso})
+   :b.action==="weekScheduleRest"?applyRest({date:b.date,reasonCode:b.reasonCode,todayIso})
+   :b.action==="weekScheduleSwap"?applySwap({dateA:b.dateA,dateB:b.dateB,reasonCode:b.reasonCode,todayIso})
+   :b.action==="weekScheduleCancel"?cancelChange({date:b.date})
+   :resetWeek({todayIso});
+  if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="strength"){
   const result=insertStrengthLog(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(b.action==="deleteStrength"){

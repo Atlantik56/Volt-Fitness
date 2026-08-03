@@ -9,6 +9,7 @@ import { findMoodPatterns, latestMood } from "./mood.ts";
 import { findEveningPatterns } from "./evening.ts";
 import { selectActiveProgramStage, type AiCoachContextData, type PersonalRecordRow } from "./ai-context-data.ts";
 import { toLlmSafeMilestone, type Milestone, type MilestoneLlmSafe } from "./milestones.ts";
+import { WEEK_SCHEDULE_REASON_LABELS, type WeekScheduleReasonCode } from "../app/week-schedule-model.ts";
 
 // Заметка самочувствия/настроения — пользовательский текст, а не системная
 // инструкция. Убираем управляющие символы (в т.ч. не покрытые \s — например ANSI-
@@ -75,6 +76,12 @@ export type AiCoachContext={
   nutritionWeekly:NutritionWeeklyStats;
   targets:CoachResult["summary"]["targets"];
   plan:{title:string;type:string}|null;
+  // AI-11 — исходный план по программе (до пользовательских изменений недели),
+  // факт изменения и причина, если она была указана. planChanged=false здесь
+  // означает "план не менялся", а не "неизвестно" — Coach не должен гадать.
+  originalPlan:{title:string;type:string}|null;
+  planChanged:boolean;
+  changeReasonCode:string;
   coachDecision:CoachResult["decision"];
   recentWorkouts:{date:string;title:string;type:string;effort:string;painAfter:number|null}[];
   mood:{latest:{mood:string;date:string;note:string|null}|null;patterns:string[];entriesCount:number};
@@ -161,6 +168,9 @@ export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
     nutritionWeekly:computeNutritionWeeklyStats(foodLogs,input.date,{calories:result.summary.targets.calories,protein:result.summary.targets.protein}),
     targets:result.summary.targets,
     plan:input.plan??null,
+    originalPlan:input.originalPlan??null,
+    planChanged:input.planChanged??false,
+    changeReasonCode:input.changeReasonCode??"",
     coachDecision:result.decision,
     // Только последние 5 тренировок — не вся история.
     recentWorkouts:workouts
@@ -195,6 +205,10 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
   if(ctx.nutritionWeekly.daysLogged7d>0)lines.push(`За 7 дней в среднем ${ctx.nutritionWeekly.avgCalories7d} ккал и ${ctx.nutritionWeekly.avgProtein7d} г белка (записей: ${ctx.nutritionWeekly.daysLogged7d} из 7), в цель по калориям попадали ${ctx.nutritionWeekly.planAdherencePct}% дней.`);
   lines.push(`Шаблон питания программы: ${meals.map(m=>`${m[0]} — ${m[1]} (${m[2]})`).join("; ")}.`);
   lines.push(ctx.plan?`План на сегодня: «${ctx.plan.title}» (${ctx.plan.type}).`:"На сегодня плана нет.");
+  // AI-11 — актуальный (изменённый пользователем) план действует как основной;
+  // исходный план по программе упоминается только как факт, без оценки решения
+  // пользователя. Причина — то, что он указал сам; если не указана, явно так и пишем.
+  if(ctx.planChanged&&ctx.originalPlan)lines.push(`Пользователь изменил план на сегодня в приложении: исходно по программе было «${ctx.originalPlan.title}» (${ctx.originalPlan.type}), сейчас действует «${ctx.plan?.title??"—"}» (${ctx.plan?.type??"—"}). Считай действующим именно текущий план и не называй его пропуском исходного. Причина изменения: ${ctx.changeReasonCode?WEEK_SCHEDULE_REASON_LABELS[ctx.changeReasonCode as WeekScheduleReasonCode]?.toLowerCase()??"не указана":"не указана — не придумывай её"}.`);
   lines.push(`Фаза программы (неделя ${ctx.programWeek}): «${ctx.phase.p}» — ${ctx.phase.n}. Цель фазы: ${ctx.phase.g}.`);
   if(ctx.programStage.source==="program_stage")lines.push(`Фактический этап программы (из журнала пользователя, приоритетнее общей фазы выше): «${ctx.programStage.title}». Цель этапа: ${ctx.programStage.goal||"не указана"}.`);
   lines.push(ctx.poolActive?"Бассейн по вторникам и четвергам уже включён в план (действует со 2-й недели программы) вместо ходьбы/велосипеда.":"Бассейн по вторникам и четвергам в план ещё не включён — начнётся со 2-й недели программы; сейчас в эти дни ходьба или велосипед.");

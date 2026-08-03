@@ -15,7 +15,7 @@ type HubSettings={anthropicKeySet:boolean;mwsKeySet:boolean;mwsProject:string;mw
 
 type QuickAction={label:string;icon?:string;onClick:()=>void};
 
-export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], onFoodSaved }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string; quickActions?: QuickAction[]; onFoodSaved?: () => void }) {
+export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], onFoodSaved, originalPlan=null, planChanged=false, changeReasonCode="" }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string; quickActions?: QuickAction[]; onFoodSaved?: () => void; originalPlan?: { title: string; type: string } | null; planChanged?: boolean; changeReasonCode?: string }) {
   const notify = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [savingFood, setSavingFood] = useState<number|null>(null);
@@ -55,7 +55,7 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], on
       const r = await fetch("/api/coach-chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ date: today, plan, question: text,provider:providerChoice }),
+        body: JSON.stringify({ date: today, plan, originalPlan, planChanged, changeReasonCode, question: text,provider:providerChoice }),
       });
       const j = await r.json();
       if (!r.ok) {

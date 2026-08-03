@@ -59,10 +59,18 @@ export type ProgramStageRow = {
 // не завязан на схему БД, поэтому его можно передать напрямую с клиента.
 export type PlanInput = { title: string; type: string } | null;
 
+// AI-11 — исходный план (до пользовательских изменений недели), факт изменения
+// и причина (если указана). Всегда передаётся клиентом вместе с plan — Coach
+// не пересчитывает и не хранит расписание сам, только читает готовый факт.
+export type WeekChangeReasonInput = "mood"|"fatigue"|"pain"|"no_equipment"|"weather"|"schedule"|"other"|"";
+
 export type AiCoachContextData = {
   date: string;
   ready?: boolean;
   plan?: PlanInput;
+  originalPlan?: PlanInput;
+  planChanged?: boolean;
+  changeReasonCode?: WeekChangeReasonInput;
   profile?: ProfileRow;
   measurements?: MeasurementRow[];
   foodLogs?: FoodLogRow[];
@@ -81,6 +89,9 @@ export type AiCoachContextData = {
 export type LoadAiCoachContextDataOptions = {
   date: string;
   plan?: PlanInput;
+  originalPlan?: PlanInput;
+  planChanged?: boolean;
+  changeReasonCode?: WeekChangeReasonInput;
   // Календарное окно в ДНЯХ (не число строк) для measurements/foodLogs/activity/
   // moodLogs/wellnessLogs — от (date - (historyDays-1)) до date включительно.
   // Несколько записей за один день не сокращают охваченный период, потому что
@@ -169,6 +180,9 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
     date,
     ready: true,
     plan: options.plan ?? null,
+    originalPlan: options.originalPlan ?? null,
+    planChanged: options.planChanged ?? false,
+    changeReasonCode: options.changeReasonCode ?? "",
     profile,
     measurements,
     foodLogs,
