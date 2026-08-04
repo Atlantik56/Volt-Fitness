@@ -131,11 +131,12 @@ export function saveWorkout(b: any): ActionResult {
  if (!dateOk(b.date) || !text(b.title) || !Array.isArray(b.completed) || duration === null || rest === null) return { ok: false, error: "Некорректная тренировка", status: 400 };
  const workoutType = text(b.type, 40), painAfter = num(b.painAfter, 0, 10) || 0, effort = ["Легко", "Нормально", "Тяжело", "Боль"].includes(b.effort) ? b.effort : "";
  const metricsSource:MetricsSource = (METRICS_SOURCES as readonly string[]).includes(b.metricsSource) ? b.metricsSource : "manual";
+ const notes = text(b.notes, 600);
  let workoutId=0;
  db.transaction(() => {
   const workout = db.prepare("INSERT INTO workout_logs (date,type,title,completed,rounds,duration_seconds,rest_seconds,details) VALUES (?,?,?,?,?,?,?,?)").run(b.date, workoutType, text(b.title), JSON.stringify(b.completed.slice(0, 200)), num(b.rounds, 1, 20) || 1, duration, rest, JSON.stringify(details));
   workoutId = Number(workout.lastInsertRowid);
-  db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=?,metrics_source=? WHERE id=?").run(minHr || 0, avgHr || 0, maxHr || 0, calories || 0, distance || 0, speed || 0, effort, painAfter, metricsSource, workoutId);
+  db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=?,metrics_source=?,notes=? WHERE id=?").run(minHr || 0, avgHr || 0, maxHr || 0, calories || 0, distance || 0, speed || 0, effort, painAfter, metricsSource, notes, workoutId);
   if (workoutType === "Силовая") {
    const grouped = groupStrengthDetails(details);
    const insert = db.prepare("INSERT INTO strength_logs (date,exercise,weight,reps,difficulty,workout_id) VALUES (?,?,?,?,?,?)");

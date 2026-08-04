@@ -19,7 +19,8 @@ import { computeEveningWeeklyStats } from "../lib/evening";
 import { MoodSection, MoodSummaryCard } from "./mood-section";
 import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner } from "./milestones-section";
 import { useToast } from "./toast";
-import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Moon, Route } from "lucide-react";
+import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Moon, Route, Waves } from "lucide-react";
+import Link from "next/link";
 import {
   MEASUREMENT_KEYS, METRIC_LABELS, METRIC_UNITS, PERIODS, PERIOD_LABELS,
   buildHistory, computeMetricCards, computeMetricStats, computeProgressSummary, computeTrendPoints, filterHistoryByPeriod, groupHistoryByMonth,
@@ -115,6 +116,7 @@ export default function Home() {
           {NAV_ITEMS.map(([label, icon]) => (
             <button key={label} data-tour-id={label==="Моя история"?"nav-progress":undefined} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
           ))}
+          <Link href="/swim"><span aria-hidden="true"><Waves size={18} strokeWidth={2} style={{verticalAlign:"middle"}}/></span>VOLT Swim</Link>
         </nav>
         <div className="side-bottom">
           <div className="streak"><span>⚡</span><div><b>{streak} {streak===1?"день":"дня"}</b><small>серия активности</small></div></div>
@@ -223,7 +225,7 @@ export default function Home() {
       ]}/>
       {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Моя история"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={20} strokeWidth={2}/></span>{MOBILE_LABELS[label]||label}</button>})}</nav>
+      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Моя история"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={20} strokeWidth={2}/></span>{MOBILE_LABELS[label]||label}</button>})}<Link href="/swim"><span aria-hidden="true"><Waves size={20} strokeWidth={2}/></span>Swim</Link></nav>
     </main></AuthGate>
   );
 }

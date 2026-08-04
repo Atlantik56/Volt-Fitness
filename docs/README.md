@@ -33,6 +33,9 @@
   [приложенный макет](design/volt-swim/volt-swim-concept-v17.jpg).
 - [`volt-swim/SPRINTS.md`](volt-swim/SPRINTS.md) — действующие пять спринтов
   VOLT Swim вокруг 6-недельной программы Foundation.
+- [`volt-swim/ARCHITECTURE.md`](volt-swim/ARCHITECTURE.md) — почему `/swim`
+  устроен как отдельные маршруты, как устроены слои `lib/swim/*` и как модуль
+  масштабируется в следующих спринтах.
 - [`VOLT_ROADMAP.md`](VOLT_ROADMAP.md) — исторический продуктовый roadmap и
   журнал реализованных Sprint 1–8; новые AI-работы ведутся только в
   `ROADMAP_AI.md`.

@@ -1,6 +1,13 @@
-import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
 import { saveWorkout, WORKOUT_DETAIL_SOURCES, type ActionResult, type WorkoutDetailSource } from "@/lib/workout-service";
+import { normalizeSnapshot, type SnapshotExercise, type WorkoutSnapshot, type WorkoutSnapshotOrigin } from "@/lib/workout-snapshot";
+import { planKey } from "@/lib/plan-key";
+
+// normalizeSnapshot/planKey и связанные типы теперь определены в
+// lib/workout-snapshot.ts (pure) и lib/plan-key.ts (node:crypto) — см. их
+// шапки. Реэкспорт сохраняет прежний путь импорта для всего остального кода.
+export { normalizeSnapshot, planKey };
+export type { SnapshotExercise, WorkoutSnapshot, WorkoutSnapshotOrigin };
 
 const EFFORT_VALUES=["Легко","Нормально","Тяжело","Боль"] as const;
 const isValidSource=(value:unknown):value is WorkoutDetailSource=>(WORKOUT_DETAIL_SOURCES as readonly string[]).includes(value as string);
@@ -9,15 +16,6 @@ const dateOk=(x:unknown)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const text=(x:unknown,max=160)=>typeof x==="string"?x.trim().slice(0,max):"";
 const finite=(x:unknown,min:number,max:number)=>{const n=Number(x);return Number.isFinite(n)&&n>=min&&n<=max?n:null};
 export type DraftStatus="planned"|"active"|"awaiting_confirmation"|"completed"|"cancelled";
-export type SnapshotExercise={name:string;order:number;target:string;recommendedWeight:number;sets:number|null;repMin:number|null;repMax:number|null;unit:string};
-// AI-11 — происхождение плана на момент старта черновика: "original" — исходная
-// программа, "scheduled" — план после пользовательского изменения недели.
-// Опционально и по умолчанию "original", чтобы старые snapshot (до этого спринта)
-// читались без миграции данных. scheduleChangeId — необязательная ссылка на
-// week_schedule_changes (не FK: изменение недели может быть отменено/сброшено
-// позже, а snapshot должен остаться как есть — см. lib/week-schedule-service.ts).
-export type WorkoutSnapshotOrigin="original"|"scheduled";
-export type WorkoutSnapshot={title:string;type:string;rounds:number;exercises:SnapshotExercise[];origin:WorkoutSnapshotOrigin;scheduleChangeId:number|null};
 export type ExerciseResultSet={weight:number;reps:number};
 export type DraftConfirmation={
  source:"Garmin"|"Manual";duration:number;averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;
@@ -25,33 +23,6 @@ export type DraftConfirmation={
 };
 export type WorkoutDraft={id:number;date:string;planKey:string;status:DraftStatus;snapshot:WorkoutSnapshot;startedAt:string|null;finishedAt:string|null;confirmedAt:string|null;cancelledAt:string|null;workoutId:number|null;confirmation?:DraftConfirmation};
 
-function parseTarget(target:string){
- const normalized=target.replace(/[–—]/g,"-");
- const setsMatch=normalized.match(/(\d+)(?:\s*-\s*\d+)?\s*[×xх]/i);
- const values=[...normalized.matchAll(/\d+/g)].map(m=>Number(m[0]));
- const after=setsMatch?normalized.slice((setsMatch.index||0)+setsMatch[0].length):normalized;
- const reps=[...after.matchAll(/\d+/g)].map(m=>Number(m[0]));
- const unit=/сек/i.test(target)?"сек":/мин/i.test(target)?"мин":/м(?:\s|$)/i.test(target)?"м":"повт.";
- return {sets:setsMatch?values[0]:null,repMin:reps[0]??null,repMax:reps[1]??reps[0]??null,unit};
-}
-
-export function normalizeSnapshot(raw:any):WorkoutSnapshot|null{
- const title=text(raw?.title),type=text(raw?.type,40),rounds=finite(raw?.rounds??1,1,20);
- if(!title||!type||rounds===null||!Array.isArray(raw?.exercises)||raw.exercises.length<1||raw.exercises.length>100)return null;
- const exercises:SnapshotExercise[]=[];
- for(let i=0;i<raw.exercises.length;i++){
-  const item=raw.exercises[i],name=text(item?.name),target=text(item?.target,120),weight=finite(item?.recommendedWeight??0,0,500);
-  if(!name||!target||weight===null)return null;
-  exercises.push({name,order:i,target,recommendedWeight:weight,...parseTarget(target)});
- }
- const origin:WorkoutSnapshotOrigin=raw?.origin==="scheduled"?"scheduled":"original";
- const scheduleChangeId=Number.isSafeInteger(raw?.scheduleChangeId)&&raw.scheduleChangeId>0?raw.scheduleChangeId:null;
- return {title,type,rounds,exercises,origin,scheduleChangeId};
-}
-
-export function planKey(snapshot:WorkoutSnapshot){
- return createHash("sha256").update(JSON.stringify({title:snapshot.title,type:snapshot.type,exercises:snapshot.exercises.map(x=>x.name)})).digest("hex").slice(0,32);
-}
 function rowToDraft(row:any):WorkoutDraft{
  return {...row,snapshot:JSON.parse(row.snapshot)};
 }
@@ -149,6 +120,12 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;
  // граница боли 0–10, а не произвольный ввод без проверки.
  if(body?.effort!==undefined&&!EFFORT_VALUES.includes(body.effort))return {ok:false,error:"Некорректная оценка сложности",status:400};
  if(body?.painAfter!==undefined&&finite(body.painAfter,0,10)===null)return {ok:false,error:"Некорректное значение боли",status:400};
+ // VOLT Swim Sprint 2 — плановая дистанция приходит из программы (не из FIT,
+ // см. lib/swim/workout-engine.ts), поэтому подтверждается вместе с формой, а
+ // не выводится задним числом. distanceMeters опционален — силовые/прочие
+ // тренировки его не передают и получают прежнее distance_meters=0.
+ if(body?.distanceMeters!==undefined&&finite(body.distanceMeters,0,1000000)===null)return {ok:false,error:"Некорректная дистанция",status:400};
+ if(body?.notes!==undefined&&typeof body.notes!=="string")return {ok:false,error:"Некорректная заметка",status:400};
  let result:ActionResult&{draft?:WorkoutDraft;summary?:ConfirmationSummary}={ok:false,error:"Черновик не найден или уже изменён",status:409};
  db.transaction(()=>{
   const raw=db.prepare(`${selectDraft} WHERE id=? AND status='awaiting_confirmation'`).get(id);
@@ -188,9 +165,12 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;
   const metricsSource=imported?"imported_metric":"manual";
   const effort=EFFORT_VALUES.includes(body?.effort)?body.effort:"Нормально";
   const painAfter=finite(body?.painAfter,0,10)??0;
+  const distanceMeters=finite(body?.distanceMeters,0,1000000)??0;
+  const notes=typeof body?.notes==="string"?body.notes:"";
   const saved=saveWorkout({date:draft.date,title:draft.snapshot.title,type:draft.snapshot.type,rounds:draft.snapshot.rounds,
    completed:details.filter(x=>!x.skipped).map(x=>x.key),details,durationSeconds:duration,restSeconds:0,effort,painAfter,
-   avgHeartRate:imported?.averageHeartRate,maxHeartRate:imported?.maxHeartRate,calories:imported?.calories,metricsSource});
+   avgHeartRate:imported?.averageHeartRate,maxHeartRate:imported?.maxHeartRate,calories:imported?.calories,metricsSource,
+   distanceMeters,notes});
   if(!saved.ok){result=saved;return}
   const workoutId=saved.workoutId!;
   db.prepare("UPDATE workout_drafts SET status='completed',confirmed_at=CURRENT_TIMESTAMP,workout_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_confirmation'").run(workoutId,id);

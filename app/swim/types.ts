@@ -1,0 +1,47 @@
+// View models для главной страницы /swim. Доменная модель программ/упражнений
+// теперь живёт в lib/swim/types.ts (Program/Week/Workout/Interval/Insight) —
+// здесь только формы, которые собирает lib/swim-data.ts для Hero/карточек.
+import type { SwimInsight } from "@/lib/swim/types";
+export type SwimNextWorkoutStatus = "not_started" | "in_progress" | "awaiting_confirmation";
+
+export type SwimNextWorkoutView = {
+  status: SwimNextWorkoutStatus;
+  programId: string;
+  workoutId: string;
+  title: string;
+  goal: string;
+  distanceMeters: number;
+  estimatedMinutes: number;
+} | null;
+
+export type SwimLastSwimView = {
+  date: string;
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  paceLabel: string | null;
+  poolLengthMeters: number | null;
+  source: "manual" | "imported_metric";
+  notes: string | null;
+} | null;
+
+export type SwimWeeklyActivityView = {
+  swimCount: number;
+  totalDistanceMeters: number;
+  goalMeters: number | null;
+};
+
+export type SwimMetricsView = {
+  avgPaceLabel: string | null;
+  swolf: number | null;
+  avgHeartRate: number | null;
+  calories: number | null;
+};
+
+export type SwimHomeData = {
+  nextWorkout: SwimNextWorkoutView;
+  lastSwim: SwimLastSwimView;
+  weeklyActivity: SwimWeeklyActivityView;
+  metrics: SwimMetricsView;
+  hasAnySwimHistory: boolean;
+  insights: SwimInsight[];
+};

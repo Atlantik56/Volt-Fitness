@@ -1,0 +1,415 @@
+/* VOLT Swim — токены и компоненты. Роли сопоставлены с существующей темой
+   (app/globals.css: --bg/--panel/--line/--text/--muted/--lime), а не
+   продублированы локально. Новый токен добавлен только там, где роли в теме
+   ещё нет (аквамариновый акцент воды и focus-кольцо на его основе). Значения
+   см. docs/design/VOLT_SWIM.md. */
+:root {
+  --swim-bg: var(--bg);
+  --swim-surface: var(--panel);
+  --swim-surface-raised: #131a1c;
+  --swim-text: var(--text);
+  --swim-text-muted: var(--muted);
+  --swim-aqua: #35e6d0;
+  --swim-lime: var(--lime);
+  --swim-border: rgba(160, 220, 213, 0.16);
+  --swim-focus: #7ff7e8;
+
+  --swim-radius-sm: 12px;
+  --swim-radius-md: 16px;
+  --swim-radius-lg: 20px;
+  --swim-blur: 16px;
+
+  --swim-motion-instant: 80ms;
+  --swim-motion-fast: 160ms;
+  --swim-motion-base: 240ms;
+  --swim-motion-slow: 400ms;
+  --swim-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --swim-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.swim-shell {
+  min-height: 100vh;
+  background: var(--swim-bg);
+  color: var(--swim-text);
+}
+.swim-content {
+  margin-left: 230px;
+  padding: 30px clamp(20px, 4vw, 64px) 96px;
+  max-width: 1440px;
+}
+@media (max-width: 760px) {
+  .swim-content {
+    margin-left: 0;
+    padding: 20px 16px 96px;
+  }
+}
+
+.swim-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+.swim-page-header h1 {
+  font-size: clamp(28px, 3.4vw, 40px);
+  line-height: 1.05;
+  margin: 4px 0 6px;
+}
+.swim-page-header p {
+  color: var(--swim-text-muted);
+  margin: 0;
+  max-width: 60ch;
+}
+.swim-eyebrow {
+  color: var(--swim-aqua);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 0;
+  font-weight: 700;
+}
+
+.swim-nav {
+  display: flex;
+  gap: 6px;
+  border: 1px solid var(--swim-border);
+  border-radius: var(--swim-radius-md);
+  padding: 4px;
+  background: rgba(8, 18, 21, 0.5);
+  overflow-x: auto;
+  margin-bottom: 28px;
+}
+.swim-nav a,
+.swim-nav .swim-nav-soon {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-radius: var(--swim-radius-sm);
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--swim-text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background var(--swim-motion-fast) var(--swim-ease-standard), color var(--swim-motion-fast) var(--swim-ease-standard);
+}
+.swim-nav a:hover {
+  color: var(--swim-text);
+}
+.swim-nav a.active {
+  background: var(--swim-surface-raised);
+  color: var(--swim-text);
+}
+.swim-nav a:focus-visible,
+.swim-nav .swim-nav-soon:focus-visible {
+  outline: 2px solid var(--swim-focus);
+  outline-offset: 2px;
+}
+.swim-nav .swim-nav-soon {
+  cursor: default;
+  opacity: 0.55;
+}
+.swim-nav-soon-badge {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border: 1px solid var(--swim-border);
+  border-radius: 999px;
+  padding: 1px 6px;
+  color: var(--swim-text-muted);
+}
+
+.swim-glass {
+  background: linear-gradient(155deg, rgba(19, 26, 28, 0.92), rgba(8, 18, 21, 0.86));
+  border: 1px solid var(--swim-border);
+  border-radius: var(--swim-radius-md);
+  box-shadow: 0 18px 40px -28px rgba(0, 0, 0, 0.7);
+}
+@supports (backdrop-filter: blur(1px)) {
+  .swim-glass {
+    backdrop-filter: blur(var(--swim-blur));
+  }
+}
+.swim-glass.raised {
+  background: linear-gradient(155deg, rgba(24, 33, 36, 0.94), rgba(11, 24, 27, 0.9));
+}
+.swim-glass.interactive {
+  cursor: pointer;
+  transition: border-color var(--swim-motion-fast) var(--swim-ease-standard), transform var(--swim-motion-fast) var(--swim-ease-standard);
+}
+.swim-glass.interactive:hover {
+  border-color: rgba(160, 220, 213, 0.32);
+}
+.swim-glass.interactive:focus-visible {
+  outline: 2px solid var(--swim-focus);
+  outline-offset: 2px;
+}
+.swim-glass.interactive:active {
+  transform: scale(0.995);
+}
+
+.swim-hero {
+  border-radius: var(--swim-radius-lg);
+  padding: clamp(24px, 3vw, 40px);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 24px;
+  animation: swim-fade-in var(--swim-motion-slow) var(--swim-ease-out);
+}
+.swim-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(100deg, rgba(53, 230, 208, 0.05) 0 2px, transparent 2px 64px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.swim-hero-inner {
+  position: relative;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
+}
+@media (max-width: 1024px) {
+  .swim-hero-inner {
+    grid-template-columns: 1fr;
+  }
+}
+.swim-hero h2 {
+  font-size: clamp(28px, 4vw, 48px);
+  line-height: 1.04;
+  margin: 8px 0 12px;
+}
+.swim-hero-meta {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  color: var(--swim-text-muted);
+  font-size: 14px;
+  margin-bottom: 18px;
+}
+.swim-hero-progress {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+.swim-hero-progress i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--swim-aqua), var(--swim-lime));
+  transition: width var(--swim-motion-slow) var(--swim-ease-out);
+}
+.swim-hero-readiness {
+  align-self: start;
+  text-align: center;
+  padding: 20px;
+}
+.swim-hero-readiness b {
+  display: block;
+  font-size: 36px;
+}
+
+.swim-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: var(--swim-radius-sm);
+  padding: 12px 20px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: filter var(--swim-motion-fast) var(--swim-ease-standard), transform var(--swim-motion-instant) linear;
+}
+.swim-btn:active {
+  transform: scale(0.98);
+}
+.swim-btn:focus-visible {
+  outline: 2px solid var(--swim-focus);
+  outline-offset: 2px;
+}
+.swim-btn.primary {
+  background: var(--swim-aqua);
+  color: #03211d;
+}
+.swim-btn.primary:hover {
+  filter: brightness(1.08);
+}
+.swim-btn.secondary {
+  background: transparent;
+  color: var(--swim-text);
+  border: 1px solid var(--swim-border);
+}
+.swim-btn.ghost {
+  background: transparent;
+  color: var(--swim-text-muted);
+  border: 1px solid transparent;
+}
+.swim-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  filter: none;
+}
+
+.swim-section {
+  margin-bottom: 28px;
+}
+.swim-section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.swim-section-header h3 {
+  margin: 2px 0 0;
+  font-size: 22px;
+}
+
+.swim-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+.swim-main-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1024px) {
+  .swim-main-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.swim-metric-card {
+  padding: 18px 20px;
+}
+.swim-metric-card .swim-metric-label {
+  color: var(--swim-text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px;
+}
+.swim-metric-card .swim-metric-value {
+  font-size: clamp(26px, 3vw, 34px);
+  font-variant-numeric: tabular-nums;
+  margin: 0;
+}
+.swim-metric-card .swim-metric-value span {
+  font-size: 14px;
+  color: var(--swim-text-muted);
+  margin-left: 4px;
+}
+.swim-metric-card .swim-metric-nodata {
+  color: var(--swim-text-muted);
+  font-size: 16px;
+}
+
+.swim-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--swim-border);
+  color: var(--swim-text-muted);
+}
+.swim-badge.success {
+  color: #7fe6a8;
+  border-color: rgba(127, 230, 168, 0.35);
+}
+.swim-badge.warning {
+  color: var(--swim-lime);
+  border-color: rgba(199, 255, 50, 0.35);
+}
+.swim-badge.synced {
+  color: var(--swim-aqua);
+  border-color: rgba(53, 230, 208, 0.35);
+}
+
+.swim-empty {
+  padding: 28px 24px;
+  text-align: center;
+  color: var(--swim-text-muted);
+}
+.swim-empty h4 {
+  color: var(--swim-text);
+  margin: 8px 0 6px;
+}
+
+.swim-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.swim-coach-preview {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  padding: 20px;
+}
+.swim-coach-marker {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--swim-lime);
+  margin-top: 6px;
+  flex: 0 0 auto;
+}
+
+.swim-loading-line {
+  height: 14px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+  position: relative;
+}
+.swim-loading-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  animation: swim-shimmer 1.4s var(--swim-ease-standard) infinite;
+}
+
+@keyframes swim-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes swim-shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .swim-hero,
+  .swim-glass.interactive,
+  .swim-hero-progress i {
+    animation: none !important;
+    transition: none !important;
+  }
+  .swim-loading-line::after {
+    animation: none !important;
+  }
+}

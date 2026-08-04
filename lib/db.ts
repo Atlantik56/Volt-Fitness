@@ -243,6 +243,11 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   );
   CREATE INDEX IF NOT EXISTS idx_week_schedule_changes_date ON week_schedule_changes(date);
  `},
+ // VOLT Swim Sprint 2 — свободные заметки после подтверждения тренировки
+ // (lib/active-workout-service.ts confirmWorkoutDraft). Аддитивная колонка на
+ // существующей таблице, а не отдельная swim-таблица: заметка — атрибут любой
+ // тренировки, не только плавательной, и не имеет смысла без своего workout_log.
+ {version:18,sql:`ALTER TABLE workout_logs ADD COLUMN notes TEXT NOT NULL DEFAULT '';`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
