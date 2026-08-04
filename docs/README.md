@@ -26,6 +26,13 @@
 
 ## Другие действующие документы
 
+- [`design/VOLT_SWIM.md`](design/VOLT_SWIM.md) — обязательный визуальный и UX
+  контракт VOLT Swim; рядом находятся
+  [`COMPONENTS.md`](design/COMPONENTS.md),
+  [`ANIMATIONS.md`](design/ANIMATIONS.md) и
+  [приложенный макет](design/volt-swim/volt-swim-concept-v17.jpg).
+- [`volt-swim/SPRINTS.md`](volt-swim/SPRINTS.md) — действующие пять спринтов
+  VOLT Swim вокруг 6-недельной программы Foundation.
 - [`VOLT_ROADMAP.md`](VOLT_ROADMAP.md) — исторический продуктовый roadmap и
   журнал реализованных Sprint 1–8; новые AI-работы ведутся только в
   `ROADMAP_AI.md`.
