@@ -156,3 +156,33 @@ export type SwimProgramProgress = {
   // клиент по нему больше не считает расписание сам.
   calendarDays: SwimCalendarDay[];
 };
+
+// --- Общий resolver "какая тренировка Swim назначена этой дате" ---
+// Единственный источник ответа на этот вопрос для всех поверхностей VOLT
+// (глобальная Главная, /swim, /swim/workouts) — см.
+// lib/swim/services.ts:resolveScheduledSwimWorkout. Null — дата вообще не
+// Swim-слот по основному плану VOLT (там отдых/другая активность).
+export type ResolvedSwimSlot =
+  | {
+      kind: "workout";
+      calendarDate: string;
+      weekday: number;
+      isToday: boolean;
+      programId: string;
+      workoutId: string;
+      status: SwimWorkoutProgressStatus;
+      draftId: number | null;
+      scheduleChangeId: number | null;
+      origin: SwimCalendarOrigin;
+      route: string;
+    }
+  | {
+      // Swim-слот в основном плане VOLT существует, но связать его с
+      // конкретной тренировкой Foundation не удалось (программа недоступна
+      // или все тренировки Foundation уже распределены по другим датам).
+      kind: "unresolved";
+      calendarDate: string;
+      weekday: number;
+      isToday: boolean;
+      scheduleChangeId: number | null;
+    };

@@ -6,6 +6,9 @@ import { ExerciseVideo } from "./exercise-video";
 import { ActiveWorkout, type ActiveDraft } from "./active-workout";
 import { WeekPlanEditor } from "./week-plan-editor";
 import { buildWeekSchedule, weekRangeContaining, type ResolvedDayPlan } from "./week-schedule-model";
+import { isSwimSlot } from "@/lib/swim/schedule-sync";
+import type { ResolvedSwimSlot } from "@/lib/swim/types";
+import { useRouter } from "next/navigation";
 import AuthGate from "./auth-gate";
 import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
 import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
@@ -54,8 +57,19 @@ export default function Home() {
   const [loaded,setLoaded]=useState(false);
   const [progressionProposals,setProgressionProposals]=useState<ProgressionProposal[]>([]);
   const loadProgression=()=>fetch("/api/progression").then(r=>r.json()).then(d=>setProgressionProposals(d.proposals||[])).catch(()=>{});
-  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true);const open=(d.workoutDrafts||[]).find((draft:any)=>draft.status==="active"||draft.status==="awaiting_confirmation");if(open)setActiveWorkout(current=>current??open)}).catch(()=>{});
-  useEffect(()=>{load();loadProgression()},[]);
+  // Swim-черновики (snapshot.type начинается с "Плавание", см.
+  // SWIM_WORKOUT_TYPE_PREFIX в lib/swim/workout-engine.ts) не должны
+  // автоматически открываться в универсальном <ActiveWorkout/> — их
+  // активное/awaiting_confirmation состояние восстанавливает сама страница
+  // /swim/workouts/[programId]/[workoutId].
+  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true);const open=(d.workoutDrafts||[]).find((draft:any)=>(draft.status==="active"||draft.status==="awaiting_confirmation")&&!String(draft.snapshot?.type||"").startsWith("Плавание"));if(open)setActiveWorkout(current=>current??open)}).catch(()=>{});
+  // Общий resolver "какая тренировка Swim назначена сегодня" (lib/swim/services.ts:
+  // resolveScheduledSwimWorkout) — та же функция, что использует /swim и /swim/workouts,
+  // чтобы «Начать тренировку» на Главной открывало ровно ту же тренировку.
+  const [swimToday,setSwimToday]=useState<ResolvedSwimSlot|null>(null);
+  const loadSwimToday=()=>fetch("/api/swim/today").then(r=>r.ok?r.json():null).then(d=>setSwimToday(d?.slot??null)).catch(()=>setSwimToday(null));
+  const router=useRouter();
+  useEffect(()=>{load();loadProgression();loadSwimToday()},[]);
   // Сброс во время рендера (а не в эффекте) — рекомендованный React-паттерн для
   // производного состояния при смене nav, без каскадного лишнего рендера.
   const [prevNav,setPrevNav]=useState(nav);
@@ -105,6 +119,20 @@ export default function Home() {
    if(!response.ok)return notify(json.error||"Не удалось начать тренировку","warn");
    setActiveWorkout(json.draft);load();
   };
+  // Корневая причина старого бага: кнопка "Начать тренировку" всегда вызывала
+  // startWorkout(todayPlan) — универсальный движок силовых тренировок, который
+  // строит снимок из generic-упражнений дня (для Бассейна — заглушка "Разминка
+  // в воде/Основная часть/Заминка") и открывает старый <ActiveWorkout/>, а не
+  // реальную структурированную тренировку Foundation. Если сегодня по общему
+  // расписанию бассейн, ведём через resolveScheduledSwimWorkout на тот же
+  // /swim/workouts/[programId]/[workoutId], что открывают /swim и План Swim.
+  const isTodaySwim=isSwimSlot(todayPlan);
+  const startTodayWorkout=()=>{
+   if(!isTodaySwim)return void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId);
+   if(!swimToday){notify("Не удалось определить тренировку Swim на сегодня","warn");return}
+   if(swimToday.kind==="unresolved"){notify("Сегодня запланирован бассейн, но тренировка Foundation не определена","warn");return}
+   router.push(swimToday.route);
+  };
 
   return (
     <AuthGate><main className="app-shell">
@@ -143,9 +171,11 @@ export default function Home() {
             <div className="hero-meta"><span>◷ {todayPlan.time}</span><span>◫ {todayPlan.exercises.length} упражнений</span>{todayPlan.rounds>1&&<span>◉ {todayPlan.rounds} круга</span>}</div>
             {coach.summary.workoutDone&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
             <div className="hero-actions">
-             {coach.summary.workoutDone?<button className="repeat-btn" onClick={() => startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
-             :openDraftToday?<button className="start-btn" onClick={() => startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}><span>▶</span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
-             :<button className="start-btn" onClick={() => startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
+             {isTodaySwim
+              ?<button className={swimToday?.kind==="workout"&&swimToday.status==="completed"?"repeat-btn":"start-btn"} onClick={startTodayWorkout}><span aria-hidden="true">{swimToday?.kind==="workout"&&swimToday.status==="completed"?"✓":"▶"}</span>{swimToday?.kind==="workout"?(swimToday.status==="completed"?"Тренировка выполнена":swimToday.status==="in_progress"?"Продолжить тренировку":swimToday.status==="awaiting_confirmation"?"Подтвердить результат":"Начать тренировку"):"Начать тренировку"}</button>
+              :coach.summary.workoutDone?<button className="repeat-btn" onClick={startTodayWorkout}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
+              :openDraftToday?<button className="start-btn" onClick={startTodayWorkout}><span>▶</span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
+              :<button className="start-btn" onClick={startTodayWorkout}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
              <button type="button" className="ghost-btn hero-edit-plan-btn" onClick={()=>setEditingDate(today)}>Изменить план</button>
             </div>
           </div>
@@ -219,7 +249,7 @@ export default function Home() {
       {editingDay&&<WeekPlanEditor day={editingDay} weekDays={weekPlan} homeWeek={homeWeek} onClose={()=>setEditingDate(null)} refresh={load}/>}
       {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
       <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} originalPlan={todayResolved.changed?{title:todayResolved.original.title,type:todayResolved.original.type}:null} planChanged={todayResolved.changed} changeReasonCode={todayResolved.reasonCode} today={today} onFoodSaved={load} quickActions={[
-        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId)}},
+        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");startTodayWorkout()}},
         {label:"Записать питание",icon:"🍽",onClick:()=>{setCoachChatOpen(false);setNav("Питание");setMobileMenu(false)}},
         {label:"Отметить самочувствие",icon:"❤",onClick:()=>{setCoachChatOpen(false);goCoach()}},
       ]}/>

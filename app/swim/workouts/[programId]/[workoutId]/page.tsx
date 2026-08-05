@@ -1,26 +1,38 @@
 "use client";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, ArrowLeft, Footprints, Play, Sparkles, Waves } from "lucide-react";
+import { Activity, Bell, CalendarDays, ChevronLeft, Clock3, Footprints, Gauge, Play, RefreshCw, Sparkles, Waves } from "lucide-react";
 import { SwimNavigation } from "../../../swim-navigation";
 import { GlassPanel } from "../../../components/glass-panel";
-import { StatusBadge } from "../../../components/status-badge";
 import { IntervalStepView } from "../../../components/interval-step-view";
 import { WorkoutSummaryForm } from "../../../components/workout-summary-form";
-import { buildConfirmationExercises, buildIntervalSteps, buildSwimSnapshot, intervalTypeLabel, totalDistanceMeters } from "@/lib/swim/workout-engine";
+import { buildConfirmationExercises, buildIntervalSteps, buildSwimSnapshot, intervalTotalMeters, totalDistanceMeters } from "@/lib/swim/workout-engine";
 import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
 import { formatMeters } from "@/lib/swim-metrics";
-import type { SwimInterval, SwimProgramProgress, SwimWorkoutDef } from "@/lib/swim/types";
+import type { SwimCalendarSlot, SwimInterval, SwimProgramProgress, SwimWorkoutDef, SwimWorkoutProgressStatus } from "@/lib/swim/types";
 
 type ApiDraft = { id: number; status: string; startedAt: string | null; finishedAt: string | null; planKey?: string };
 type Phase = "loading" | "not_found" | "preview" | "active" | "awaiting_confirmation" | "completed" | "error";
 type SessionMode = "swim" | "rest";
 type StageKey = "warmup" | "main" | "legs" | "cooldown";
 
+const DAY_LABEL = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const LEVEL_LABEL: Record<string, string> = { beginner: "Начальный", intermediate: "Средний", advanced: "Продвинутый" };
+const STATUS_LABEL: Record<SwimWorkoutProgressStatus, string> = { not_started: "Запланировано", in_progress: "Идёт сейчас", awaiting_confirmation: "Ожидает подтверждения", completed: "Выполнено" };
+const ORIGIN_LABEL: Record<SwimCalendarSlot["origin"], string> = { completed: "Фактическая дата выполнения", active: "Дата начала тренировки", projected: "По основному плану VOLT" };
+
+function formatCalendarDate(iso: string): string {
+  const date = new Date(`${iso}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? iso : new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long" }).format(date);
+}
+
+// Те же названия этапов, что и на утверждённом Плане тренировок
+// (app/swim/components/swim-plan-screen.tsx:STAGE_LABEL) — единая
+// терминология между Планом и Деталями.
 const STAGE_META: Record<StageKey, { title: string; eyebrow: string; className: string }> = {
   warmup: { title: "Разминка", eyebrow: "Войти в ритм", className: "warmup" },
-  main: { title: "Основной блок", eyebrow: "Техника и объём", className: "main" },
-  legs: { title: "Ноги", eyebrow: "Работа от бедра", className: "legs" },
+  main: { title: "Основной сет", eyebrow: "Техника и объём", className: "main" },
+  legs: { title: "Выносливость", eyebrow: "Работа от бедра", className: "legs" },
   cooldown: { title: "Заминка", eyebrow: "Восстановление", className: "cooldown" },
 };
 
@@ -29,13 +41,6 @@ function stageOf(interval: SwimInterval): StageKey {
   if (interval.exerciseId === "kick") return "legs";
   if (["cooldown", "recovery", "easy"].includes(interval.type)) return "cooldown";
   return "main";
-}
-
-function paceLabel(intervals: SwimInterval[]): string {
-  const pace = intervals.find((interval) => interval.targetPaceSecondsPer100)?.targetPaceSecondsPer100;
-  if (pace) return `${Math.floor(pace / 60)}:${String(pace % 60).padStart(2, "0")} / 100 м`;
-  if (intervals.every((interval) => ["cooldown", "recovery", "easy"].includes(interval.type))) return "Лёгкий";
-  return "Спокойный";
 }
 
 function restLabel(intervals: SwimInterval[]): string {
@@ -61,6 +66,9 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
   const [phase, setPhase] = useState<Phase>("loading");
   const [program, setProgram] = useState<SwimProgramProgress["program"] | null>(null);
   const [workout, setWorkout] = useState<SwimWorkoutDef | null>(null);
+  const [weekIndex, setWeekIndex] = useState<number | null>(null);
+  const [status, setStatus] = useState<SwimWorkoutProgressStatus | null>(null);
+  const [calendar, setCalendar] = useState<SwimCalendarSlot | null>(null);
   const [draft, setDraft] = useState<ApiDraft | null>(null);
   const [stepIndex, setStepIndex] = useState(0);
   const [completedMeters, setCompletedMeters] = useState(0);
@@ -83,6 +91,9 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
         }
         setProgram(programJson.progress.program);
         setWorkout(wp.workout);
+        setWeekIndex(wp.weekIndex);
+        setStatus(wp.status);
+        setCalendar(wp.calendar);
         if (wp.status === "completed") {
           setPhase("completed");
           return;
@@ -198,11 +209,17 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
     if (rest > 0) { setRestRemaining(rest); setMode("rest"); setRestPaused(false); }
   };
 
+  const backToPlanHref = weekIndex ? `/swim/workouts?week=${weekIndex}&workout=${workoutId}` : "/swim/workouts";
+
   return (
     <>
       {phase !== "preview" && <header className="swim-page-header">
         <div>
-          <p className="swim-eyebrow">VOLT SWIM</p>
+          <p className="swim-breadcrumb">
+            VOLT / Тренировки / Swim /{" "}
+            <Link href={backToPlanHref}>План тренировок</Link> /{" "}
+            <b>{workout ? workout.title : "Тренировка"}</b>
+          </p>
           <h1>{workout ? workout.title : "Тренировка"}</h1>
           {workout && program && <p>{program.name} · {workout.goal}</p>}
         </div>
@@ -228,8 +245,8 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
           <h4>Тренировка не найдена</h4>
           <p>
             Вернитесь к{" "}
-            <Link href={`/swim/workouts/${programId}`} style={{ color: "var(--swim-aqua)" }}>
-              программе
+            <Link href="/swim/workouts" style={{ color: "var(--swim-aqua)" }}>
+              плану тренировок
             </Link>
             .
           </p>
@@ -237,73 +254,88 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
       )}
 
       {phase === "preview" && workout && (
-        <>
-          <section className="swim-workout-hero">
-            <div className="swim-workout-hero-shade" />
-            <div className="swim-workout-hero-content">
-              <Link href={`/swim/workouts/${programId}`} className="swim-workout-back"><ArrowLeft size={15} /> К программе</Link>
-              <p className="swim-eyebrow">VOLT SWIM · {program?.name ?? "ТРЕНИРОВКА"}</p>
+        <div className="swim-detail">
+          <header className="swim-detail-header">
+            <div>
+              <p className="swim-breadcrumb">
+                VOLT / Тренировки / Swim /{" "}
+                <Link href={backToPlanHref}>План тренировок</Link> /{" "}
+                <b>{workout.title}</b>
+              </p>
+              <Link href={backToPlanHref} className="swim-detail-back"><ChevronLeft size={16} /> К плану тренировок</Link>
               <h1>{workout.title}</h1>
-              <p className="swim-workout-hero-goal">{workout.goal}</p>
-              <div className="swim-workout-stats">
-                <span><strong>{formatMeters(totalDistanceMeters(workout))}</strong><small>объём</small></span>
-                <span><strong>≈ {workout.estimatedMinutes}</strong><small>минут</small></span>
-                <span><strong>{stages.length}</strong><small>этапа</small></span>
-              </div>
-              <button type="button" className="swim-btn primary swim-workout-start" onClick={start} disabled={busy}>
-                <Play size={15} fill="currentColor" /> {busy ? "Начинаем…" : "Начать тренировку"}
-              </button>
+              <p className="swim-detail-goal">{workout.goal}</p>
             </div>
-            <div className="swim-workout-hero-mark">
-              <span><Waves size={30} /></span>
-              <small>ФОКУС ТРЕНИРОВКИ</small>
-              <strong>Длинный гребок</strong>
-              <p>Спокойная техника без лишних усилий</p>
+            <div className="swim-header-tools" aria-label="Состояние синхронизации">
+              <button type="button" aria-label="Календарь"><CalendarDays size={19} /></button>
+              <span><RefreshCw size={14} /> Синхронизировано <i /></span>
+              <button type="button" aria-label="Уведомления"><Bell size={18} /><i /></button>
+            </div>
+          </header>
+
+          <section className="swim-home-card swim-detail-hero">
+            <div className="swim-detail-hero-top">
+              <span className="swim-detail-week-badge">{weekIndex ? `Неделя ${weekIndex} из ${program?.weeks.length ?? weekIndex}` : program?.name}</span>
+              {calendar && (
+                <span className="swim-detail-date-badge">
+                  {DAY_LABEL[calendar.weekday - 1]}, {formatCalendarDate(calendar.date)}
+                  {calendar.isToday && <b> · Сегодня</b>}
+                </span>
+              )}
+              {calendar?.scheduleChangeId && <span className="swim-detail-changed-badge">План изменён</span>}
+              {status && <span className={`swim-detail-status-badge ${status}`}>{STATUS_LABEL[status]}</span>}
+            </div>
+            {calendar && <p className="swim-detail-origin">{ORIGIN_LABEL[calendar.origin]}</p>}
+            <div className="swim-detail-stats">
+              <span><Waves size={16} /><div><strong>{formatMeters(totalDistanceMeters(workout))}</strong><small>Объём</small></div></span>
+              <span><Clock3 size={16} /><div><strong>≈ {workout.estimatedMinutes} мин</strong><small>Время</small></div></span>
+              <span><Gauge size={16} /><div><strong>{LEVEL_LABEL[workout.level] ?? workout.level}</strong><small>Уровень</small></div></span>
             </div>
           </section>
 
-          <div className="swim-plan-heading">
-            <div><p className="swim-eyebrow">ПЛАН ТРЕНИРОВКИ</p><h2>Четыре этапа в одном ритме</h2></div>
-            <span><StatusBadge>Не начата</StatusBadge> · {formatMeters(totalDistanceMeters(workout))} · ≈ {workout.estimatedMinutes} мин</span>
-          </div>
-
-          <div className="swim-stage-grid">
-            {stages.map((stage, index) => {
-              const meta = STAGE_META[stage.key];
-              const volume = stage.intervals.reduce((sum, interval) => sum + interval.distanceMeters * Math.max(1, interval.repeats), 0);
-              const repetitions = stage.intervals.reduce((sum, interval) => sum + Math.max(1, interval.repeats), 0);
-              const StageIcon = stage.key === "legs" ? Footprints : stage.key === "main" ? Activity : stage.key === "cooldown" ? Sparkles : Waves;
-              return (
-                <article className={`swim-stage-card ${meta.className}`} key={stage.key}>
-                  <div className="swim-stage-summary">
-                    <span className="swim-stage-icon"><StageIcon size={25} /></span>
-                    <div><small>{index + 1}. {meta.title}</small><strong>{volume.toLocaleString("ru-RU")} м</strong><span>{meta.eyebrow}</span></div>
-                  </div>
-                  <div className="swim-stage-intervals">
-                    {stage.intervals.map((interval) => (
-                      <div key={interval.id}>
-                        <small>{exerciseLabelRu(interval.exerciseId)}</small>
-                        <strong>{interval.repeats > 1 ? `${interval.repeats} × ${interval.distanceMeters} м` : `${interval.distanceMeters} м`}</strong>
-                        {interval.equipment.length > 0 && <span>{interval.equipment.join(", ")}</span>}
+          <div className="swim-detail-grid">
+            <div className="swim-detail-main">
+              <section className="swim-home-card swim-detail-structure">
+                <h3>Структура тренировки</h3>
+                {stages.map((stage) => {
+                  const meta = STAGE_META[stage.key];
+                  const volume = stage.intervals.reduce((sum, interval) => sum + intervalTotalMeters(interval), 0);
+                  const first = stage.intervals[0];
+                  const StageIcon = stage.key === "legs" ? Footprints : stage.key === "main" ? Activity : stage.key === "cooldown" ? Sparkles : Waves;
+                  return (
+                    <div className={`swim-detail-stage-row ${meta.className}`} key={stage.key}>
+                      <span className="swim-detail-stage-icon"><StageIcon size={17} /></span>
+                      <div className="swim-detail-stage-copy">
+                        <b>{meta.title}</b>
+                        <small>{first.repeats > 1 ? `${first.repeats} × ${first.distanceMeters} м` : `${first.distanceMeters} м`} · {exerciseLabelRu(first.exerciseId)} · Отдых {restLabel(stage.intervals)}</small>
                       </div>
-                    ))}
-                  </div>
-                  <dl className="swim-stage-details">
-                    <div><dt>Отдых</dt><dd>{restLabel(stage.intervals)}</dd></div>
-                    <div><dt>Темп</dt><dd>{paceLabel(stage.intervals)}</dd></div>
-                    <div><dt>Фокус</dt><dd>{stage.intervals[0].description}</dd></div>
-                  </dl>
-                  <div className="swim-stage-reps"><span>{intervalTypeLabel(stage.intervals[0].type)}</span><small>{repetitions} {repetitions === 1 ? "подход" : repetitions < 5 ? "подхода" : "подходов"}</small></div>
-                </article>
-              );
-            })}
-          </div>
+                      <p className="swim-detail-stage-desc">{first.description}</p>
+                      <strong className="swim-detail-stage-volume">{volume.toLocaleString("ru-RU")} м</strong>
+                    </div>
+                  );
+                })}
+              </section>
 
-          <GlassPanel className="swim-coach-note">
-            <span><Sparkles size={22} /></span>
-            <div><small>СОВЕТ COACH</small><p>Плавание — это не спринт. Контроль дыхания и длинный гребок дадут скорость без лишних усилий.</p></div>
-          </GlassPanel>
-        </>
+              {(() => {
+                const equipment = Array.from(new Set(workout.intervals.flatMap((interval) => interval.equipment)));
+                return equipment.length > 0 ? (
+                  <section className="swim-home-card swim-detail-equipment">
+                    <h3>Оборудование</h3>
+                    <ul>{equipment.map((item) => <li key={item}>{item}</li>)}</ul>
+                  </section>
+                ) : null;
+              })()}
+            </div>
+
+            <aside className="swim-detail-side">
+              <div className="swim-home-card swim-detail-cta-card">
+                <button type="button" className="swim-plan-primary-action" onClick={start} disabled={busy}>
+                  <Play size={15} fill="currentColor" /> {busy ? "Начинаем…" : "Начать тренировку"}
+                </button>
+              </div>
+            </aside>
+          </div>
+        </div>
       )}
 
       {phase === "active" && currentStep && (

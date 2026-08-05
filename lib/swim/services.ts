@@ -7,7 +7,7 @@ import { changesByDateMap, localIso, resolvePlanForDate, weekRangeContaining } f
 import { listWeekScheduleChanges } from "@/lib/week-schedule-service";
 import { computeProgramProgress, getProgram, listPrograms } from "@/lib/swim/program-engine";
 import { assignSwimCalendar, isSwimSlot, type SwimScheduleWorkoutInput } from "@/lib/swim/schedule-sync";
-import type { SwimCalendarDay, SwimProgramProgress, SwimWorkoutActual, SwimWorkoutProgress } from "@/lib/swim/types";
+import type { ResolvedSwimSlot, SwimCalendarDay, SwimProgramProgress, SwimWorkoutActual, SwimWorkoutProgress } from "@/lib/swim/types";
 
 type OpenDraftStatus = "active" | "awaiting_confirmation";
 
@@ -119,4 +119,40 @@ export function getNextSwimWorkout(): SwimWorkoutProgress | null {
   const program = listPrograms().find((p) => p.status === "available");
   if (!program) return null;
   return getProgramProgress(program.id)?.nextWorkout ?? null;
+}
+
+// Единственный общий resolver "какая тренировка Swim назначена этой
+// календарной дате" — используется и глобальной Главной VOLT, и /swim,
+// и /swim/workouts. Не пересчитывает расписание заново: полностью опирается
+// на attachCalendar() (тот же resolvePlanForDate/isSwimSlot, что и основной
+// план VOLT) и на уже вычисленный progress.workouts[].calendar.
+export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimSlot | null {
+  const programStart = getProfileProgramStart();
+  if (!programStart) return null;
+  const homeWeek = buildHomeWeek(programStart);
+  const todayIso = localIso(new Date());
+  const { mondayIso: currentMonday, sundayIso: currentSunday } = weekRangeContaining(todayIso);
+  const changes = listWeekScheduleChanges(currentMonday, currentSunday);
+  const changesByDate = changesByDateMap(changes);
+  const resolved = resolvePlanForDate(calendarDate, homeWeek, changesByDate);
+  if (!isSwimSlot(resolved.scheduled)) return null;
+
+  const isToday = calendarDate === todayIso;
+  const base = { calendarDate, weekday: resolved.weekday, isToday, scheduleChangeId: resolved.changeId };
+
+  const program = listPrograms().find((p) => p.status === "available");
+  const progress = program ? getProgramProgress(program.id) : null;
+  const match = progress?.workouts.find((w) => w.calendar?.date === calendarDate) ?? null;
+  if (!program || !progress || !match || !match.calendar) return { kind: "unresolved", ...base };
+
+  return {
+    kind: "workout",
+    ...base,
+    programId: program.id,
+    workoutId: match.workout.id,
+    status: match.status,
+    draftId: match.draftId,
+    origin: match.calendar.origin,
+    route: `/swim/workouts/${program.id}/${match.workout.id}`,
+  };
 }
