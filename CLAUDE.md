@@ -11,5 +11,7 @@ session guidance; do not reload the entire documentation tree.
    push or deploy unless explicitly asked.
 5. Keep the final report concise: changed files, checks and limitations.
 
-For VOLT Swim UI work, the mandatory entry point is
+For any VOLT Swim work, read the current scope in
+[`docs/volt-swim/SPRINTS.md`](docs/volt-swim/SPRINTS.md). For Swim UI work,
+also use the mandatory entry point
 [`docs/ai/design-contract.md`](docs/ai/design-contract.md).
