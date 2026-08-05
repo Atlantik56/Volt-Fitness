@@ -47,11 +47,12 @@ test("computeProgramProgress: открытый черновик даёт in_prog
   const foundation = getProgram("foundation")!;
   const firstWorkout = foundation.weeks[0].days.find((d) => d.workout)!.workout!;
   const key = swimWorkoutPlanKey(foundation, firstWorkout)!;
-  const openDrafts = new Map([[key, { id: 42, status: "active" as const }]]);
+  const openDrafts = new Map([[key, { id: 42, status: "active" as const, date: "2026-07-21" }]]);
   const progress = computeProgramProgress(foundation, new Set(), openDrafts);
   const first = progress.workouts.find((w) => w.workout.id === firstWorkout.id);
   assert.equal(first?.status, "in_progress");
   assert.equal(first?.draftId, 42);
+  assert.equal(first?.draftDate, "2026-07-21");
   assert.equal(progress.nextWorkout?.workout.id, firstWorkout.id);
 });
 

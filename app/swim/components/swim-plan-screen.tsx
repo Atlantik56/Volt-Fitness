@@ -17,11 +17,10 @@ import {
   RefreshCw,
   Waves,
 } from "lucide-react";
-import { currentProgramWeek } from "@/app/personal-data";
 import { formatDuration, formatMeters } from "@/lib/swim-metrics";
 import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
 import { intervalTotalMeters, totalDistanceMeters } from "@/lib/swim/workout-engine";
-import type { SwimInterval, SwimProgramProgress, SwimWorkoutDef, SwimWorkoutProgress } from "@/lib/swim/types";
+import type { SwimCalendarDay, SwimInterval, SwimProgramProgress, SwimWorkoutProgress } from "@/lib/swim/types";
 import { SwimNavigation } from "../swim-navigation";
 
 const DAY_LABEL = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -39,83 +38,78 @@ function stageOf(interval: SwimInterval): StageKey {
   return "main";
 }
 
-function mondayOf(d: Date): Date {
-  const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  monday.setDate(monday.getDate() - ((d.getDay() + 6) % 7));
-  return monday;
+// Только форматирование для отображения — сама дата приходит с сервера
+// (progress.calendarDays), никакой логики расписания здесь больше нет.
+function shortDate(iso: string): string {
+  const date = new Date(`${iso}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? iso : new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date);
 }
-function addDays(d: Date, days: number): Date {
-  const next = new Date(d);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-function isoDate(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-function shortDate(d: Date): string {
-  return new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(d);
+function dayNumber(iso: string): number {
+  return Number(iso.slice(8, 10));
 }
 
 export function SwimPlanScreen({ programId }: { programId: string }) {
   const [progress, setProgress] = useState<SwimProgramProgress | null>(null);
-  const [programStart, setProgramStart] = useState<string | undefined>(undefined);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState(false);
   const [weekIndexOverride, setWeekIndexOverride] = useState<number | null>(null);
   const [selectedWorkoutIdOverride, setSelectedWorkoutIdOverride] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([
-      fetch(`/api/swim/programs/${programId}`, { cache: "no-store" }).then((r) => {
+    fetch(`/api/swim/programs/${programId}`, { cache: "no-store" })
+      .then((r) => {
         if (r.status === 404) return null;
         if (!r.ok) throw new Error("request failed");
         return r.json();
-      }),
-      fetch("/api/fitness", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    ])
-      .then(([programJson, fitnessJson]: [{ progress: SwimProgramProgress } | null, { profile?: { programStart?: string } } | null]) => {
-        if (!programJson) {
+      })
+      .then((json: { progress: SwimProgramProgress } | null) => {
+        if (!json) {
           setNotFound(true);
           return;
         }
-        setProgress(programJson.progress);
-        setProgramStart(fitnessJson?.profile?.programStart);
+        setProgress(json.progress);
       })
       .catch(() => setError(true));
   }, [programId]);
 
   const totalWeeks = progress?.program.weeks.length ?? 0;
-  const liveWeek = useMemo(() => Math.min(Math.max(currentProgramWeek(programStart), 1), Math.max(totalWeeks, 1)), [programStart, totalWeeks]);
-  const weekIndex = weekIndexOverride !== null && weekIndexOverride >= 1 && weekIndexOverride <= totalWeeks ? weekIndexOverride : totalWeeks > 0 ? liveWeek : null;
+  // "Текущая" неделя — та, что содержит сегодняшнюю дату в уже разрешённом
+  // календаре программы (progress.calendarDays, источник — общее расписание
+  // VOLT). Не пересчитывается на клиенте отдельным алгоритмом.
+  const liveWeekIndex = useMemo(() => {
+    if (!progress) return 1;
+    const todayIndex = progress.calendarDays.findIndex((d) => d.isToday);
+    if (todayIndex < 0) return 1;
+    return Math.min(totalWeeks, Math.floor(todayIndex / 7) + 1);
+  }, [progress, totalWeeks]);
+  const weekIndex = weekIndexOverride !== null && weekIndexOverride >= 1 && weekIndexOverride <= totalWeeks ? weekIndexOverride : totalWeeks > 0 ? liveWeekIndex : null;
   const setWeekIndex = (updater: (current: number) => number) =>
     setWeekIndexOverride((prevOverride) => {
-      const current = prevOverride !== null && prevOverride >= 1 && prevOverride <= totalWeeks ? prevOverride : liveWeek;
+      const current = prevOverride !== null && prevOverride >= 1 && prevOverride <= totalWeeks ? prevOverride : liveWeekIndex;
       return updater(current);
     });
 
-  const week = progress?.program.weeks.find((w) => w.weekIndex === weekIndex) ?? null;
-  const monday = useMemo(() => {
-    if (!programStart || !weekIndex) return null;
-    const start = new Date(`${programStart}T00:00:00`);
-    if (Number.isNaN(start.getTime())) return null;
-    return addDays(mondayOf(start), (weekIndex - 1) * 7);
-  }, [programStart, weekIndex]);
-  const todayIso = isoDate(new Date());
+  const weekCalendarDays: SwimCalendarDay[] = useMemo(() => {
+    if (!progress || !weekIndex) return [];
+    return progress.calendarDays.slice((weekIndex - 1) * 7, weekIndex * 7);
+  }, [progress, weekIndex]);
+  const monday = weekCalendarDays[0]?.date ?? null;
+  const sunday = weekCalendarDays[6]?.date ?? null;
 
   const rows = useMemo(() => {
-    if (!week || !progress) return [];
-    return week.days.map((day) => {
-      const date = monday ? addDays(monday, day.dayIndex - 1) : null;
-      const workoutProgress = day.workout ? progress.workouts.find((w) => w.workout.id === day.workout!.id) ?? null : null;
-      return { day, date, workoutProgress, isToday: date ? isoDate(date) === todayIso : false };
-    });
-  }, [week, progress, monday, todayIso]);
+    if (!progress) return [];
+    return weekCalendarDays.map((day) => ({
+      day,
+      workoutProgress: progress.workouts.find((w) => w.calendar?.date === day.date) ?? null,
+    }));
+  }, [progress, weekCalendarDays]);
 
   const defaultSelectedId = useMemo(() => {
-    const todayRow = rows.find((row) => row.isToday && row.workoutProgress);
+    const todayRow = rows.find((row) => row.day.isToday && row.workoutProgress);
+    const nextInWeek = rows.find((row) => row.workoutProgress?.workout.id === progress?.nextWorkout?.workout.id);
     const firstRow = rows.find((row) => row.workoutProgress);
-    return (todayRow ?? firstRow)?.workoutProgress?.workout.id ?? null;
-  }, [rows]);
+    return (todayRow ?? nextInWeek ?? firstRow)?.workoutProgress?.workout.id ?? null;
+  }, [rows, progress]);
   const selectedWorkoutId = selectedWorkoutIdOverride && rows.some((row) => row.workoutProgress?.workout.id === selectedWorkoutIdOverride)
     ? selectedWorkoutIdOverride
     : defaultSelectedId;
@@ -123,16 +117,21 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
 
   const selected = rows.find((row) => row.workoutProgress?.workout.id === selectedWorkoutId)?.workoutProgress ?? null;
 
+  // Цели недели (объём/сессии/время) остаются определением самой программы
+  // Foundation (weekIndex/plannedDistanceMeters) — расчёт прогресса не
+  // меняется, меняется только то, каким календарным дням соответствуют эти
+  // тренировки (см. rows выше).
+  const week = progress?.program.weeks.find((w) => w.weekIndex === weekIndex) ?? null;
   const summary = useMemo(() => {
-    if (!week) return null;
-    const withWorkout = rows.filter((row) => row.workoutProgress);
-    const targetSessions = withWorkout.length;
+    if (!week || !progress) return null;
+    const weekWorkouts = progress.workouts.filter((w) => w.weekIndex === weekIndex);
+    const targetSessions = weekWorkouts.length;
     const targetMeters = week.plannedDistanceMeters ?? 0;
-    const targetSeconds = withWorkout.reduce((sum, row) => sum + (row.workoutProgress!.workout.estimatedMinutes * 60), 0);
-    const doneSessions = withWorkout.filter((row) => row.workoutProgress!.status === "completed").length;
-    const actualMeters = withWorkout.reduce((sum, row) => sum + (row.workoutProgress!.actual?.distanceMeters ?? 0), 0);
-    const actualSeconds = withWorkout.reduce((sum, row) => sum + (row.workoutProgress!.actual?.durationSeconds ?? 0), 0);
-    const actualCalories = withWorkout.reduce((sum, row) => sum + (row.workoutProgress!.actual?.calories ?? 0), 0);
+    const targetSeconds = weekWorkouts.reduce((sum, w) => sum + w.workout.estimatedMinutes * 60, 0);
+    const doneSessions = weekWorkouts.filter((w) => w.status === "completed").length;
+    const actualMeters = weekWorkouts.reduce((sum, w) => sum + (w.actual?.distanceMeters ?? 0), 0);
+    const actualSeconds = weekWorkouts.reduce((sum, w) => sum + (w.actual?.durationSeconds ?? 0), 0);
+    const actualCalories = weekWorkouts.reduce((sum, w) => sum + (w.actual?.calories ?? 0), 0);
     const pct = (actual: number, target: number) => (target > 0 ? Math.min(100, Math.round((actual / target) * 100)) : null);
     return {
       volume: { actual: actualMeters, target: targetMeters, pct: pct(actualMeters, targetMeters) },
@@ -140,7 +139,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
       time: { actual: actualSeconds, target: targetSeconds, pct: pct(actualSeconds, targetSeconds) },
       calories: actualCalories,
     };
-  }, [week, rows]);
+  }, [week, progress, weekIndex]);
 
   const phase = useMemo(() => {
     if (!progress) return null;
@@ -229,7 +228,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
           <h1>План тренировок</h1>
           <p>
             Неделя {weekIndex} из {totalWeeks}
-            {monday && <> · {shortDate(monday)} – {shortDate(addDays(monday, 6))}</>}
+            {monday && sunday && <> · {shortDate(monday)} – {shortDate(sunday)}</>}
           </p>
         </div>
         <div className="swim-header-tools" aria-label="Состояние синхронизации">
@@ -270,8 +269,9 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
             </div>
             {rows.map((row) => (
               <PlanRow
-                key={row.day.dayIndex}
-                row={row}
+                key={row.day.date}
+                day={row.day}
+                workoutProgress={row.workoutProgress}
                 isNext={row.workoutProgress?.workout.id === progress.nextWorkout?.workout.id}
                 selected={row.workoutProgress?.workout.id === selectedWorkoutId}
                 onSelect={() => row.workoutProgress && setSelectedWorkoutId(row.workoutProgress.workout.id)}
@@ -331,50 +331,56 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
 }
 
 function PlanRow({
-  row,
+  day,
+  workoutProgress,
   isNext,
   selected,
   onSelect,
 }: {
-  row: { day: { dayIndex: number; workout: SwimWorkoutDef | null }; date: Date | null; workoutProgress: SwimWorkoutProgress | null; isToday: boolean };
+  day: SwimCalendarDay;
+  workoutProgress: SwimWorkoutProgress | null;
   isNext: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
-  const { day, date, workoutProgress, isToday } = row;
-  if (!day.workout) {
+  const label = DAY_LABEL[day.weekday - 1];
+  // Не Swim-слот основного плана VOLT (отдых, силовая, другая кардио и т.д.) —
+  // показываем реальный вид активности, а не выдуманный "день отдыха".
+  if (!day.isSwimSlot || !workoutProgress) {
     return (
-      <div className="swim-plan-row rest" aria-label={`${DAY_LABEL[day.dayIndex - 1]}: день отдыха`}>
-        <span className="swim-plan-row-day"><b>{DAY_LABEL[day.dayIndex - 1]}</b>{date && <small>{date.getDate()}</small>}</span>
-        <span className="swim-plan-row-title"><Moon size={14} /> День отдыха</span>
+      <div className="swim-plan-row rest" aria-label={`${label}: ${day.activityTitle}`}>
+        <span className="swim-plan-row-day"><b>{label}</b><small>{dayNumber(day.date)}</small></span>
+        <span className="swim-plan-row-title">
+          {day.activityType === "Отдых" ? <Moon size={14} /> : null} {day.activityTitle}
+        </span>
         <span className="swim-plan-row-meta">—</span>
-        <span className="swim-plan-row-meta">Восстановление</span>
+        <span className="swim-plan-row-meta">{day.activityType}</span>
         <span className="swim-plan-row-status" />
       </div>
     );
   }
-  const status = workoutProgress?.status ?? "not_started";
+  const status = workoutProgress.status;
   return (
     <button
       type="button"
-      className={`swim-plan-row${selected ? " selected" : ""}${isToday ? " today" : ""}`}
+      className={`swim-plan-row${selected ? " selected" : ""}${day.isToday ? " today" : ""}`}
       onClick={onSelect}
       aria-current={selected ? "true" : undefined}
     >
-      <span className="swim-plan-row-day"><b>{DAY_LABEL[day.dayIndex - 1]}</b>{date && <small>{date.getDate()}</small>}</span>
+      <span className="swim-plan-row-day"><b>{label}</b><small>{dayNumber(day.date)}</small></span>
       <span className="swim-plan-row-title">
-        <strong>{day.workout.title}</strong>
-        <small>{formatMeters(totalDistanceMeters(day.workout)) ?? "—"} · {day.workout.estimatedMinutes} мин</small>
+        <strong>{workoutProgress.workout.title}</strong>
+        <small>{formatMeters(totalDistanceMeters(workoutProgress.workout)) ?? "—"} · {workoutProgress.workout.estimatedMinutes} мин</small>
       </span>
-      <span className="swim-plan-row-meta">{formatMeters(totalDistanceMeters(day.workout)) ?? "—"}</span>
-      <span className="swim-plan-row-meta">{day.workout.goal}</span>
+      <span className="swim-plan-row-meta">{formatMeters(totalDistanceMeters(workoutProgress.workout)) ?? "—"}</span>
+      <span className="swim-plan-row-meta">{workoutProgress.workout.goal}</span>
       <span className="swim-plan-row-status">
-        {isToday && status !== "completed" ? (
+        {day.isToday && status !== "completed" ? (
           <span className="swim-plan-status-pill today">Сегодня</span>
         ) : (
           <StatusIcon status={status} />
         )}
-        {isNext && status === "not_started" && !isToday && <span className="swim-plan-status-pill">Далее</span>}
+        {isNext && status === "not_started" && !day.isToday && <span className="swim-plan-status-pill">Далее</span>}
       </span>
     </button>
   );

@@ -14,6 +14,11 @@ export type SwimNextWorkoutView = {
   estimatedMinutes: number;
   weekIndex: number;
   progressPercent: number;
+  // Из общего расписания VOLT (lib/swim/schedule-sync.ts) — не дублируется
+  // клиентом. calendarDate/isToday null, если дату не удалось спроецировать.
+  calendarDate: string | null;
+  weekday: number | null;
+  isToday: boolean;
 } | null;
 
 export type SwimLastSwimView = {

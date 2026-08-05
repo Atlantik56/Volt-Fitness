@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Activity, Bell, Bot, CalendarDays, ChevronRight, Clock3, CloudUpload, Dumbbell, Flame, Gauge, Heart, Medal, Plus, RefreshCw, Route, Waves } from "lucide-react";
 import { formatDuration, formatMeters } from "@/lib/swim-metrics";
 import { SwimNavigation } from "./swim-navigation";
-import type { SwimHomeData, SwimRecentSessionView } from "./types";
+import type { SwimHomeData, SwimNextWorkoutView, SwimRecentSessionView } from "./types";
 
 const DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const EMPTY: SwimHomeData = {
@@ -78,7 +78,7 @@ export default function SwimHomePage() {
 
       <section className="swim-home-grid">
         <article className="swim-home-card swim-next-card">
-          <div className="swim-next-top"><b>Следующая тренировка</b><span>{next?.status === "in_progress" ? "В процессе" : "Сегодня"}</span></div>
+          <div className="swim-next-top"><b>Следующая тренировка</b><span>{nextWorkoutBadge(next)}</span></div>
           {next ? <>
             <p className="swim-next-time"><Clock3 size={14} /> По плану Foundation</p>
             <h2>{next.title}</h2>
@@ -146,6 +146,17 @@ function KpiCard({ icon, label, value, kind, sub, loading, accent }: { icon: Rea
 function CardTitle({ title, icon, badge, action }: { title: string; icon?: React.ReactNode; badge?: string; action?: string }) { return <div className="swim-card-title"><h3>{title}</h3>{icon}{badge && <span>{badge}</span>}{action && <button type="button" disabled>{action} <ChevronRight size={14} /></button>}</div>; }
 function LastWorkoutCard({ session }: { session: SwimRecentSessionView | null }) { return <article className="swim-home-card swim-last-card"><CardTitle title="Последняя тренировка" />{session ? <><small>{session.date}</small><h3>{session.title}</h3><p>{formatMeters(session.distanceMeters ?? 0) ?? "—"}</p><div><span><Clock3 size={14} />{formatDuration(session.durationSeconds ?? 0) ?? "—"}</span><span><Gauge size={14} />{session.paceLabel ? `${session.paceLabel}/100м` : "—"}</span><span><Heart size={14} />{session.avgHeartRate ?? "—"}</span></div><button type="button" disabled>Смотреть в истории <ChevronRight size={14} /></button></> : <div className="swim-card-empty compact"><Dumbbell size={30} /><b>Нет завершённых тренировок</b></div>}</article>; }
 function shortDate(value: string) { const date = new Date(`${value}T12:00:00`); return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(date); }
+// Честная подпись даты следующей тренировки — из общего расписания VOLT
+// (next.calendarDate/isToday), а не всегда "Сегодня" (см. root cause в
+// docs аудита схемы: /swim/workouts раньше сам назначал дни).
+function nextWorkoutBadge(next: SwimNextWorkoutView): string {
+  if (!next) return "";
+  if (next.status === "in_progress") return "В процессе";
+  if (next.status === "awaiting_confirmation") return "Ожидает подтверждения";
+  if (next.isToday) return "Сегодня";
+  if (next.calendarDate && next.weekday) return `${DAYS[next.weekday - 1]}, ${shortDate(next.calendarDate)}`;
+  return "Скоро";
+}
 function useCountUp(value: number | null, loading: boolean) {
   const [display, setDisplay] = useState(value ?? 0);
   useEffect(() => {
