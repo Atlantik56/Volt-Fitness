@@ -1,6 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
-import { GlassPanel } from "./glass-panel";
+import { CloudUpload } from "lucide-react";
 import { matchLapsToIntervals } from "@/lib/swim/fit-match";
 import { formatDuration, formatMeters } from "@/lib/swim-metrics";
 import type { SwimWorkoutDef } from "@/lib/swim/types";
@@ -15,6 +15,9 @@ type ImportResult = { ok: true; id: number; workout: ImportedWorkout; draftId: n
 // паузы подтверждаются постфактум из Garmin/FIT, а не ручным чек-ином во время
 // заплыва (см. lib/swim/fit-match.ts). Ручной ввод (WorkoutSummaryForm) при
 // этом никуда не девается — импорт лишь предзаполняет его данными Гармина.
+// Визуально — вспомогательная карточка (тот же дизайн-контракт, что и на
+// Главной/Плане, .swim-home-card), а не отдельная финальная — ей остаётся
+// WorkoutSummaryForm ниже.
 export function GarminMatchPanel({ draftId, workout, onApply }: { draftId: number; workout: SwimWorkoutDef; onApply: (meters: number, seconds: number) => void }) {
   const fileInput = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
@@ -47,17 +50,17 @@ export function GarminMatchPanel({ draftId, workout, onApply }: { draftId: numbe
 
   if (!result) {
     return (
-      <GlassPanel style={{ padding: "16px 20px", marginBottom: 16 }}>
-        <p className="swim-eyebrow" style={{ marginBottom: 8 }}>ГАРМИН / FIT</p>
-        <p style={{ margin: "0 0 12px", color: "var(--swim-text-muted)", fontSize: 14 }}>
+      <section className="swim-home-card swim-garmin-panel">
+        <p className="swim-eyebrow">Гармин / FIT</p>
+        <p className="swim-garmin-hint">
           Загрузите файл заплыва из часов — фактические длины, темп и паузы возьмём оттуда, а не из ручных отметок во время тренировки.
         </p>
-        {error && <p style={{ color: "#ff8a8a", fontSize: 14, marginBottom: 10 }}>{error}</p>}
+        {error && <p className="swim-garmin-error">{error}</p>}
         <button type="button" className="swim-btn secondary" onClick={() => fileInput.current?.click()} disabled={busy}>
-          {busy ? "Загружаем…" : "Загрузить FIT из Garmin"}
+          <CloudUpload size={15} /> {busy ? "Загружаем…" : "Загрузить FIT из Garmin"}
         </button>
         <input ref={fileInput} type="file" accept=".fit" hidden onChange={(e) => { const file = e.target.files?.[0]; if (file) void upload(file); e.target.value = ""; }} />
-      </GlassPanel>
+      </section>
     );
   }
 
@@ -66,56 +69,38 @@ export function GarminMatchPanel({ draftId, workout, onApply }: { draftId: numbe
   const actualSeconds = result.workout.duration || match.totalActualSeconds;
 
   return (
-    <GlassPanel style={{ padding: "16px 20px", marginBottom: 16 }}>
-      <p className="swim-eyebrow" style={{ marginBottom: 8 }}>
-        ГАРМИН / FIT {result.duplicate ? "· уже импортирован" : "· импортирован"}
-      </p>
-      {error && <p style={{ color: "#ff8a8a", fontSize: 14, marginBottom: 10 }}>{error}</p>}
+    <section className="swim-home-card swim-garmin-panel">
+      <p className="swim-eyebrow">Гармин / FIT {result.duplicate ? "· уже импортирован" : "· импортирован"}</p>
+      {error && <p className="swim-garmin-error">{error}</p>}
 
-      <div className="swim-grid" style={{ marginBottom: 14 }}>
-        <div>
-          <p className="swim-metric-label">Факт (Garmin)</p>
-          <p className="swim-metric-value">{formatMeters(actualMeters) ?? "Нет данных"}</p>
-        </div>
-        <div>
-          <p className="swim-metric-label">Время</p>
-          <p className="swim-metric-value">{formatDuration(actualSeconds) ?? "Нет данных"}</p>
-        </div>
+      <div className="swim-garmin-totals">
+        <div><small>Факт (Garmin)</small><strong>{formatMeters(actualMeters) ?? "Нет данных"}</strong></div>
+        <div><small>Время</small><strong>{formatDuration(actualSeconds) ?? "Нет данных"}</strong></div>
       </div>
 
       {match.perInterval ? (
-        <table style={{ width: "100%", fontSize: 14, borderCollapse: "collapse", marginBottom: 14 }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "var(--swim-text-muted)" }}>
-              <th style={{ padding: "4px 8px 4px 0" }}>Интервал</th>
-              <th style={{ padding: "4px 8px" }}>План</th>
-              <th style={{ padding: "4px 0" }}>Факт</th>
-            </tr>
-          </thead>
-          <tbody>
-            {match.perInterval.map((row) => (
-              <tr key={row.interval.id} style={{ borderTop: "1px solid var(--swim-border)" }}>
-                <td style={{ padding: "6px 8px 6px 0" }}>{row.exerciseName}</td>
-                <td style={{ padding: "6px 8px" }}>{row.plannedMeters.toLocaleString("ru-RU")} м</td>
-                <td style={{ padding: "6px 0" }}>{row.actualMeters !== null ? `${row.actualMeters.toLocaleString("ru-RU")} м` : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="swim-garmin-rows">
+          <div className="swim-garmin-row head"><span>Интервал</span><span>План</span><span>Факт</span></div>
+          {match.perInterval.map((row) => (
+            <div className="swim-garmin-row" key={row.interval.id}>
+              <span>{row.exerciseName}</span>
+              <span>{row.plannedMeters.toLocaleString("ru-RU")} м</span>
+              <span>{row.actualMeters !== null ? `${row.actualMeters.toLocaleString("ru-RU")} м` : "—"}</span>
+            </div>
+          ))}
+        </div>
       ) : (
-        <p style={{ color: "var(--swim-text-muted)", fontSize: 13, marginBottom: 14 }}>
-          Число отрезков в FIT не совпало с планом — показан только общий итог.
-        </p>
+        <p className="swim-garmin-hint">Число отрезков в FIT не совпало с планом — показан только общий итог.</p>
       )}
 
       <button
         type="button"
-        className="swim-btn primary"
+        className="swim-btn secondary"
         disabled={applied}
         onClick={() => { onApply(actualMeters, actualSeconds); setApplied(true); }}
       >
         {applied ? "Данные Garmin применены" : "Использовать данные Garmin"}
       </button>
-    </GlassPanel>
+    </section>
   );
 }

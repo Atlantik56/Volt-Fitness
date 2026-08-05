@@ -517,9 +517,6 @@ function WorkoutDetailPanel({ programId, workoutProgress, isNext }: { programId:
           <Link href={href} className="swim-plan-primary-action">
             <Play size={15} fill="currentColor" /> {ctaLabel}
           </Link>
-          <Link href={href} className="swim-plan-secondary-action">
-            Подробнее
-          </Link>
         </div>
       )}
     </div>

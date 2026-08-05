@@ -1,7 +1,7 @@
 "use client";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Bell, CalendarDays, ChevronLeft, Clock3, Footprints, Gauge, Pause, Play, RefreshCw, Sparkles, Waves } from "lucide-react";
+import { Activity, Bell, CalendarDays, CheckCircle2, ChevronLeft, Clock3, Footprints, Gauge, Pause, Play, RefreshCw, Sparkles, Waves } from "lucide-react";
 import { SwimNavigation } from "../../../swim-navigation";
 import { GlassPanel } from "../../../components/glass-panel";
 import { WorkoutSummaryForm } from "../../../components/workout-summary-form";
@@ -40,6 +40,13 @@ function stageOf(interval: SwimInterval): StageKey {
   if (interval.exerciseId === "kick") return "legs";
   if (["cooldown", "recovery", "easy"].includes(interval.type)) return "cooldown";
   return "main";
+}
+
+// Одна и та же иконка на структуре тренировки (превью) и на активных
+// карточках блока — единый визуальный язык вместо двух наборов иконок.
+function StageIcon({ stage, ...props }: { stage: StageKey; size?: number }) {
+  const Icon = stage === "legs" ? Footprints : stage === "main" ? Activity : stage === "cooldown" ? Sparkles : Waves;
+  return <Icon {...props} />;
 }
 
 function restLabel(intervals: SwimInterval[]): string {
@@ -196,6 +203,10 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
   const nextStage = stages[blockIndex + 1] ?? null;
   const progressPercent = stages.length ? Math.round((blockIndex / stages.length) * 100) : 0;
   const totalIntervalCount = stages.reduce((sum, stage) => sum + stage.intervals.length, 0);
+  // Только для отображения "сколько по плану уже позади" на активном экране —
+  // не источник фактических метров (им остаётся Garmin/FIT на подтверждении).
+  const totalPlannedMeters = workout ? totalDistanceMeters(workout) : 0;
+  const plannedMetersThroughCurrentBlock = stages.slice(0, blockIndex + 1).reduce((sum, stage) => sum + stageVolume(stage), 0);
 
   useEffect(() => {
     if (phase !== "active") return;
@@ -312,10 +323,9 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
                   const meta = STAGE_META[stage.key];
                   const volume = stage.intervals.reduce((sum, interval) => sum + intervalTotalMeters(interval), 0);
                   const first = stage.intervals[0];
-                  const StageIcon = stage.key === "legs" ? Footprints : stage.key === "main" ? Activity : stage.key === "cooldown" ? Sparkles : Waves;
                   return (
                     <div className={`swim-detail-stage-row ${meta.className}`} key={stage.key}>
-                      <span className="swim-detail-stage-icon"><StageIcon size={17} /></span>
+                      <span className="swim-detail-stage-icon"><StageIcon stage={stage.key} size={17} /></span>
                       <div className="swim-detail-stage-copy">
                         <b>{meta.title}</b>
                         <small>{first.repeats > 1 ? `${first.repeats} × ${first.distanceMeters} м` : `${first.distanceMeters} м`} · {exerciseLabelRu(first.exerciseId)} · Отдых {restLabel(stage.intervals)}</small>
@@ -350,8 +360,14 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
       )}
 
       {phase === "active" && currentStage && (
-        <>
-          <div className="swim-session-progress" aria-label={`Выполнено ${progressPercent}%`}><i style={{ width: `${progressPercent}%` }} /></div>
+        <div className="swim-detail">
+          <div className="swim-active-progress">
+            <div className="swim-session-progress" aria-label={`Выполнено ${progressPercent}%`}><i style={{ width: `${progressPercent}%` }} /></div>
+            <p className="swim-active-progress-label">
+              <span>Блок {blockIndex + 1} из {stages.length}</span>
+              <span>{plannedMetersThroughCurrentBlock.toLocaleString("ru-RU")} из {totalPlannedMeters.toLocaleString("ru-RU")} м по плану</span>
+            </p>
+          </div>
 
           {paused ? (
             <GlassPanel variant="raised" className="swim-rest-panel">
@@ -364,58 +380,98 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
               </div>
             </GlassPanel>
           ) : (
-            <>
-              {/* Телефон сопровождает тренировку, а не управляет ей: во время
-                  заплыва показываем только текущий блок, его краткую цель,
-                  следующий блок и общий прогресс — без списка интервалов,
-                  отдыха и инвентаря (это уже видно в Плане тренировок). */}
-              <GlassPanel variant="raised" className="swim-active-block swim-active-block-minimal">
-                <p className="swim-eyebrow">БЛОК {blockIndex + 1} ИЗ {stages.length}</p>
-                <h2>{STAGE_META[currentStage.key].title}</h2>
-                <p className="swim-active-block-goal">{STAGE_META[currentStage.key].eyebrow}</p>
-                {nextStage && <p className="swim-active-next">Далее: {STAGE_META[nextStage.key].title}</p>}
-              </GlassPanel>
-              <div className="swim-session-actions">
-                <button type="button" className="swim-btn secondary" onClick={() => setPaused(true)} disabled={busy}><Pause size={14} /> Пауза</button>
-                <button type="button" className="swim-btn primary" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
-              </div>
-              {/* Необязательное ручное управление блоками — для тренировок без
-                  Garmin/FIT. Ничего не требует и не блокирует: основной
-                  источник фактических данных — импорт FIT на экране
-                  подтверждения (см. GarminMatchPanel). */}
-              <details className="swim-manual-block-control">
-                <summary>Без Garmin? Отметить блок вручную</summary>
+            <div className="swim-detail-grid">
+              <div className="swim-detail-main">
+                {/* Телефон сопровождает тренировку, а не управляет ей: во время
+                    заплыва — только текущий блок, его краткая цель и объём,
+                    без списка интервалов/отдыха/инвентаря (это уже видно в
+                    Плане тренировок). Акцент по цвету — тот же, что и на
+                    Структуре тренировки (STAGE_META), единый язык с превью. */}
+                <section className={`swim-home-card swim-active-hero ${currentStage.key}`}>
+                  <span className="swim-active-hero-icon"><StageIcon stage={currentStage.key} size={26} /></span>
+                  <div className="swim-active-hero-body">
+                    <p className="swim-eyebrow">БЛОК {blockIndex + 1} ИЗ {stages.length}</p>
+                    <h2>{STAGE_META[currentStage.key].title}</h2>
+                    <p className="swim-active-hero-goal">{STAGE_META[currentStage.key].eyebrow}</p>
+                  </div>
+                  <div className="swim-active-hero-stat">
+                    <strong>{stageVolume(currentStage).toLocaleString("ru-RU")}</strong>
+                    <small>метров в блоке</small>
+                  </div>
+                </section>
+
                 <div className="swim-session-actions">
-                  <button type="button" className="swim-btn secondary" onClick={backBlock} disabled={blockIndex === 0 || busy}>Назад</button>
-                  <button type="button" className="swim-btn secondary" onClick={completeBlock} disabled={busy}>{blockIndex === stages.length - 1 ? "Завершить тренировку" : "Блок завершён"}</button>
+                  <button type="button" className="swim-btn secondary" onClick={() => setPaused(true)} disabled={busy}><Pause size={14} /> Пауза</button>
+                  <button type="button" className="swim-btn primary" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
                 </div>
-              </details>
-            </>
+
+                {/* Необязательное ручное управление блоками — для тренировок
+                    без Garmin/FIT. Ничего не требует и не блокирует: основной
+                    источник фактических данных — импорт FIT на подтверждении
+                    (см. GarminMatchPanel). */}
+                <details className="swim-manual-block-control">
+                  <summary>Без Garmin? Отметить блок вручную</summary>
+                  <div className="swim-session-actions">
+                    <button type="button" className="swim-btn secondary" onClick={backBlock} disabled={blockIndex === 0 || busy}>Назад</button>
+                    <button type="button" className="swim-btn secondary" onClick={completeBlock} disabled={busy}>{blockIndex === stages.length - 1 ? "Завершить тренировку" : "Блок завершён"}</button>
+                  </div>
+                </details>
+              </div>
+
+              <aside className="swim-detail-side">
+                {nextStage ? (
+                  <section className={`swim-home-card swim-active-next ${nextStage.key}`}>
+                    <span className="swim-active-next-label">Далее</span>
+                    <div className="swim-active-next-body">
+                      <StageIcon stage={nextStage.key} size={18} />
+                      <div>
+                        <b>{STAGE_META[nextStage.key].title}</b>
+                        <small>{stageVolume(nextStage).toLocaleString("ru-RU")} м</small>
+                      </div>
+                    </div>
+                  </section>
+                ) : (
+                  <section className="swim-home-card swim-active-next final">
+                    <span className="swim-active-next-label">Далее</span>
+                    <div className="swim-active-next-body">
+                      <CheckCircle2 size={18} />
+                      <div>
+                        <b>Финиш</b>
+                        <small>Последний блок тренировки</small>
+                      </div>
+                    </div>
+                  </section>
+                )}
+              </aside>
+            </div>
           )}
-        </>
+        </div>
       )}
 
       {phase === "awaiting_confirmation" && workout && draft && (
-        <GarminMatchPanel draftId={draft.id} workout={workout} onApply={(meters, seconds) => { setGarminMeters(meters); setGarminSeconds(seconds); }} />
-      )}
-
-      {phase === "awaiting_confirmation" && workout && (
-        <WorkoutSummaryForm distanceMeters={garminMeters ?? (completedMeters || totalDistanceMeters(workout))} durationSeconds={garminSeconds ?? elapsedSeconds(draft)} intervalCount={totalIntervalCount} busy={busy} onSubmit={confirm} />
+        <div className="swim-detail">
+          <div className="swim-detail-main">
+            <GarminMatchPanel draftId={draft.id} workout={workout} onApply={(meters, seconds) => { setGarminMeters(meters); setGarminSeconds(seconds); }} />
+            <WorkoutSummaryForm distanceMeters={garminMeters ?? (completedMeters || totalDistanceMeters(workout))} durationSeconds={garminSeconds ?? elapsedSeconds(draft)} intervalCount={totalIntervalCount} busy={busy} onSubmit={confirm} />
+          </div>
+        </div>
       )}
 
       {phase === "completed" && (
-        <GlassPanel className="swim-empty">
-          <h4>Тренировка сохранена</h4>
-          <p>Результаты уже видны на главной странице VOLT Swim.</p>
-          <div className="swim-quick-actions" style={{ justifyContent: "center", marginTop: 12 }}>
-            <Link href="/swim" className="swim-btn primary">
-              На главную VOLT Swim
-            </Link>
-            <Link href={`/swim/workouts/${programId}`} className="swim-btn secondary">
-              К программе
-            </Link>
-          </div>
-        </GlassPanel>
+        <div className="swim-detail">
+          <GlassPanel className="swim-empty">
+            <h4>Тренировка сохранена</h4>
+            <p>Результаты уже видны на главной странице VOLT Swim.</p>
+            <div className="swim-quick-actions" style={{ justifyContent: "center", marginTop: 12 }}>
+              <Link href="/swim" className="swim-btn primary">
+                На главную VOLT Swim
+              </Link>
+              <Link href={`/swim/workouts/${programId}`} className="swim-btn secondary">
+                К программе
+              </Link>
+            </div>
+          </GlassPanel>
+        </div>
       )}
     </>
   );

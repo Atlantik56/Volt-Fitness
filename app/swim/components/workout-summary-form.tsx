@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { GlassPanel } from "./glass-panel";
 import { formatDuration, formatMeters } from "@/lib/swim-metrics";
 
 const EFFORT_VALUES = ["Легко", "Нормально", "Тяжело", "Боль"] as const;
@@ -23,22 +22,22 @@ export function WorkoutSummaryForm({
   const [notes, setNotes] = useState("");
 
   return (
-    <GlassPanel variant="raised" style={{ padding: "clamp(20px, 4vw, 32px)" }}>
+    <section className="swim-home-card swim-confirm-card">
       <p className="swim-eyebrow" style={{ marginBottom: 8 }}>
         ТРЕНИРОВКА ЗАВЕРШЕНА
       </p>
       <h2 style={{ margin: "0 0 20px" }}>Как прошёл заплыв?</h2>
 
       <div className="swim-grid" style={{ marginBottom: 24 }}>
-        <div>
+        <div className="swim-metric-card">
           <p className="swim-metric-label">Дистанция</p>
           <p className="swim-metric-value">{formatMeters(distanceMeters) ?? "Нет данных"}</p>
         </div>
-        <div>
+        <div className="swim-metric-card">
           <p className="swim-metric-label">Время</p>
           <p className="swim-metric-value">{formatDuration(durationSeconds) ?? "Нет данных"}</p>
         </div>
-        <div>
+        <div className="swim-metric-card">
           <p className="swim-metric-label">Интервалов</p>
           <p className="swim-metric-value">{intervalCount}</p>
         </div>
@@ -101,6 +100,6 @@ export function WorkoutSummaryForm({
           {busy ? "Сохраняем…" : "Подтвердить тренировку"}
         </button>
       </form>
-    </GlassPanel>
+    </section>
   );
 }

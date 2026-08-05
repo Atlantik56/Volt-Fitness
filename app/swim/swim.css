@@ -261,11 +261,12 @@
   outline-offset: 2px;
 }
 .swim-btn.primary {
-  background: var(--swim-aqua);
-  color: #03211d;
+  background: linear-gradient(135deg, #25d4ff 0%, #0a9ef5 46%, #086eea 100%);
+  color: #fff;
+  box-shadow: 0 7px 24px rgba(0, 141, 255, 0.38), 0 0 24px rgba(16, 199, 255, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 .swim-btn.primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.1) saturate(1.08);
 }
 .swim-btn.secondary {
   background: transparent;
@@ -413,33 +414,79 @@
 .swim-workout-plan-target{display:grid;gap:3px;min-width:112px;text-align:right;white-space:nowrap}
 .swim-workout-plan-target strong{font-size:15px;font-variant-numeric:tabular-nums;color:var(--swim-text)}
 .swim-workout-plan-target small{font-size:11px;color:var(--swim-text-muted)}
-.swim-session-progress i{display:block;height:100%;border-radius:inherit;background:var(--swim-aqua);box-shadow:0 0 20px rgba(53,230,208,.42);transition:width var(--swim-motion-base) var(--swim-ease-out)}
+.swim-session-progress i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#21cfff,#7fe6a8);box-shadow:0 0 20px rgba(33,207,255,.4);transition:width var(--swim-motion-base) var(--swim-ease-out)}
 .swim-session-actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:20px}
 .swim-rest-panel{padding:clamp(28px,6vw,64px);text-align:center}
-.swim-rest-panel strong{display:block;margin:20px 0 8px;font-size:clamp(72px,12vw,144px);line-height:.9;font-variant-numeric:tabular-nums;color:var(--swim-aqua)}
+.swim-rest-panel strong{display:block;margin:20px 0 8px;font-size:clamp(72px,12vw,144px);line-height:.9;font-variant-numeric:tabular-nums;color:#21cfff}
 .swim-rest-panel .swim-session-actions{justify-content:center}
 @media(max-width:600px){.swim-session-actions{position:sticky;bottom:76px;z-index:4;padding:12px;background:rgba(3,9,11,.9);backdrop-filter:blur(14px);border:1px solid var(--swim-border);border-radius:16px}.swim-session-actions .primary{flex:1}.swim-rest-panel .swim-session-actions{position:static;background:transparent;border:0;padding:0}}
 
 /* Активная тренировка на уровне блоков (разминка/основная часть/выносливость/
    заминка), не отдельных отрезков — см. app/swim/workouts/[programId]/
    [workoutId]/page.tsx. Телефон сопровождает тренировку, а не управляет ей:
-   во время заплыва — только текущий блок, его краткая цель, следующий блок и
-   общий прогресс, без списка интервалов/отдыха/инвентаря и без обязательного
-   чек-ина за блок или повтор. */
-.swim-active-block{padding:clamp(22px,4vw,36px);text-align:center}
-.swim-active-block h2{margin:0 0 10px;font-size:clamp(28px,4vw,40px);line-height:1.05}
-.swim-active-block-goal{margin:0;color:var(--swim-text-muted);font-size:16px}
-.swim-active-next{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--swim-border);color:var(--swim-text-muted);font-size:13px}
+   во время заплыва — только текущий блок, его краткая цель и объём, следующий
+   блок и общий прогресс, без списка интервалов/отдыха/инвентаря и без
+   обязательного чек-ина за блок или повтор. Карточки — тот же
+   .swim-home-card, что на Главной/Плане/Деталях, а не отдельный стиль;
+   акцентные цвета по этапу — та же пара, что уже красит «Структуру
+   тренировки» на превью и в Плане (.swim-detail-stage-row,
+   .swim-plan-structure-row: разминка/заминка — зелёный #3fe08a, основная
+   часть/выносливость — синий #21cfff), не новая палитра.
+   Текущий блок — главный акцент (крупная карточка в основной колонке);
+   следующий блок — вторичный (компактная карточка в sticky-колонке сбоку,
+   как .swim-detail-side на превью), а не ещё один такой же прямоугольник. */
+.swim-active-progress{margin-bottom:22px}
+.swim-active-progress-label{display:flex;justify-content:space-between;gap:12px;margin:10px 0 0;color:var(--swim-text-muted);font-size:12px}
+.swim-active-progress-label span:first-child{color:var(--swim-text);font-weight:650}
+
+.swim-active-hero{--stage-accent:#21cfff;position:relative;isolation:isolate;display:flex;align-items:center;gap:22px;padding:clamp(26px,4vw,40px);overflow:hidden}
+.swim-active-hero:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:var(--stage-accent);box-shadow:0 0 20px var(--stage-accent)}
+.swim-active-hero.warmup,.swim-active-hero.cooldown{--stage-accent:#3fe08a}
+.swim-active-hero-icon{width:64px;height:64px;flex:0 0 auto;display:grid;place-items:center;border-radius:50%;color:var(--stage-accent);background:color-mix(in srgb,var(--stage-accent) 12%,transparent);box-shadow:0 0 30px color-mix(in srgb,var(--stage-accent) 16%,transparent)}
+.swim-active-hero-body{flex:1;min-width:0}
+.swim-active-hero-body .swim-eyebrow{color:var(--stage-accent)}
+.swim-active-hero-body h2{margin:6px 0 6px;font-size:clamp(28px,3.6vw,38px);line-height:1.05}
+.swim-active-hero-goal{margin:0;color:var(--swim-text-muted);font-size:15px}
+.swim-active-hero-stat{flex:0 0 auto;text-align:right;padding-left:22px;border-left:1px solid var(--swim-border)}
+.swim-active-hero-stat strong{display:block;font-size:clamp(30px,3.4vw,40px);line-height:1;font-variant-numeric:tabular-nums;color:var(--swim-text)}
+.swim-active-hero-stat small{color:var(--swim-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+@media(max-width:640px){.swim-active-hero{flex-wrap:wrap}.swim-active-hero-stat{padding-left:0;border-left:0;text-align:left}}
+
+.swim-active-next{--stage-accent:#21cfff;padding:18px 20px}
+.swim-active-next.warmup,.swim-active-next.cooldown,.swim-active-next.final{--stage-accent:#3fe08a}
+.swim-active-next-label{display:block;margin-bottom:12px;color:var(--swim-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.08em}
+.swim-active-next-body{display:flex;align-items:center;gap:12px;color:var(--stage-accent)}
+.swim-active-next-body div{display:grid;gap:2px;color:var(--swim-text)}
+.swim-active-next-body b{font-size:15px;font-weight:650}
+.swim-active-next-body small{color:var(--swim-text-muted);font-size:12px}
 
 /* Ручное продвижение по блокам — необязательная опция для тренировок без
    Garmin/FIT, свёрнута по умолчанию (см. GarminMatchPanel: с Garmin факт
    подтверждается постфактум, ручной чек-ин не нужен вовсе). */
-.swim-manual-block-control{margin-top:16px;text-align:center}
+.swim-manual-block-control{margin-top:6px;text-align:center}
 .swim-manual-block-control summary{cursor:pointer;color:var(--swim-text-muted);font-size:13px;list-style:none}
 .swim-manual-block-control summary::-webkit-details-marker{display:none}
 .swim-manual-block-control summary:hover{color:var(--swim-text)}
 .swim-manual-block-control[open] summary{margin-bottom:12px}
 .swim-manual-block-control .swim-session-actions{justify-content:center}
+
+/* Экран подтверждения: Garmin/FIT — вспомогательная карточка (компактнее,
+   без большого числа), а WorkoutSummaryForm ниже — финальная (см.
+   .swim-confirm-card). Обе — тот же .swim-home-card. */
+.swim-garmin-panel{padding:18px 20px;margin-bottom:16px}
+.swim-garmin-hint{margin:8px 0 14px;color:var(--swim-text-muted);font-size:13px;line-height:1.5}
+.swim-garmin-error{margin:0 0 12px;color:#ff9a9a;font-size:13px}
+.swim-garmin-totals{display:flex;gap:28px;margin:14px 0 18px;padding:14px 0;border-top:1px solid var(--swim-border);border-bottom:1px solid var(--swim-border)}
+.swim-garmin-totals small{display:block;color:var(--swim-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+.swim-garmin-totals strong{font-size:20px;font-variant-numeric:tabular-nums;color:var(--swim-text)}
+.swim-garmin-rows{margin-bottom:16px}
+.swim-garmin-row{display:grid;grid-template-columns:minmax(0,1.4fr) auto auto;gap:16px;padding:10px 0;border-top:1px solid var(--swim-border);font-size:13px}
+.swim-garmin-row:first-child{border-top:0}
+.swim-garmin-row.head{color:var(--swim-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+.swim-garmin-row span:nth-child(2),.swim-garmin-row span:nth-child(3){text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+.swim-confirm-card{position:relative;padding:clamp(22px,4vw,32px)}
+.swim-confirm-card:before{content:"";position:absolute;inset:0 auto 0 0;width:4px;border-radius:var(--swim-radius-md) 0 0 var(--swim-radius-md);background:#21cfff;box-shadow:0 0 20px #21cfff}
 
 /* Approved VOLT Swim home, desktop source: docs/volt-swim/screens/01-home.png */
 .swim-shell{background:#02080d url('/swim/pool-background-v1.png') center top/cover fixed no-repeat;color:#f4f8fb;min-height:100vh}
