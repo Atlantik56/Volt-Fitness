@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Activity, Bell, Bot, CalendarDays, ChevronRight, Clock3, CloudUpload, Dumbbell, Flame, Gauge, Heart, Medal, Plus, RefreshCw, Route, Waves } from "lucide-react";
 import { formatDuration, formatMeters } from "@/lib/swim-metrics";
+import { SwimNavigation } from "./swim-navigation";
 import type { SwimHomeData, SwimRecentSessionView } from "./types";
 
 const DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -62,6 +63,8 @@ export default function SwimHomePage() {
           <button type="button" aria-label="Уведомления"><Bell size={18} /><i /></button>
         </div>
       </header>
+
+      <SwimNavigation />
 
       {error && <div className="swim-home-error" role="alert">Не удалось загрузить данные. <button onClick={load}>Повторить</button></div>}
 

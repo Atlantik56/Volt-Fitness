@@ -76,55 +76,75 @@
   font-weight: 700;
 }
 
-.swim-nav {
+/* Локальная навигация внутри VOLT Swim (Главная / План тренировок / …Скоро).
+   Один и тот же компонент на / swim и /swim/workouts*, визуальный язык —
+   тот же, что у .swim-home-card (см. ниже): тонкая translucent-панель поверх
+   фона бассейна, а не отдельный непрозрачный блок. */
+.swim-local-nav {
   display: flex;
-  gap: 6px;
-  border: 1px solid var(--swim-border);
-  border-radius: var(--swim-radius-md);
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(47, 142, 185, 0.18);
+  border-radius: 12px;
   padding: 4px;
-  background: rgba(8, 18, 21, 0.5);
+  background: rgba(3, 18, 28, 0.5);
+  backdrop-filter: blur(14px);
   overflow-x: auto;
-  margin-bottom: 28px;
+  margin-bottom: 16px;
+  width: fit-content;
+  max-width: 100%;
 }
-.swim-nav a,
-.swim-nav .swim-nav-soon {
+.swim-local-nav a,
+.swim-local-nav .swim-local-nav-soon {
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 16px;
-  border-radius: var(--swim-radius-sm);
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--swim-text-muted);
+  padding: 9px 15px;
+  border-radius: 9px;
+  font-weight: 650;
+  font-size: 13px;
+  color: #9fb0ba;
   text-decoration: none;
   white-space: nowrap;
-  transition: background var(--swim-motion-fast) var(--swim-ease-standard), color var(--swim-motion-fast) var(--swim-ease-standard);
+  transition: background 160ms ease, color 160ms ease;
 }
-.swim-nav a:hover {
-  color: var(--swim-text);
+.swim-local-nav a:hover {
+  color: #e9f2f7;
 }
-.swim-nav a.active {
-  background: var(--swim-surface-raised);
-  color: var(--swim-text);
+.swim-local-nav a.active {
+  background: linear-gradient(135deg, #1ec4ff, #087bea);
+  color: #fff;
+  box-shadow: 0 0 16px rgba(0, 151, 255, 0.28);
 }
-.swim-nav a:focus-visible,
-.swim-nav .swim-nav-soon:focus-visible {
-  outline: 2px solid var(--swim-focus);
+.swim-local-nav a:focus-visible,
+.swim-local-nav .swim-local-nav-soon:focus-visible {
+  outline: 2px solid #35e6d0;
   outline-offset: 2px;
 }
-.swim-nav .swim-nav-soon {
+.swim-local-nav .swim-local-nav-soon {
   cursor: default;
-  opacity: 0.55;
+  opacity: 0.5;
 }
-.swim-nav-soon-badge {
-  font-size: 10px;
+.swim-local-nav-soon-badge {
+  font-size: 9px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  border: 1px solid var(--swim-border);
+  border: 1px solid rgba(47, 142, 185, 0.24);
   border-radius: 999px;
   padding: 1px 6px;
-  color: var(--swim-text-muted);
+  color: #7e8e98;
+}
+@media (max-width: 760px) {
+  .swim-local-nav {
+    border: 0;
+    background: transparent;
+    padding: 0;
+    gap: 8px;
+  }
+  .swim-local-nav-soon-badge {
+    display: none;
+  }
 }
 
 .swim-glass {
@@ -532,8 +552,10 @@
 @media(max-width:1080px){.swim-plan-grid{grid-template-columns:1fr}}
 .swim-plan-main{display:grid;gap:16px;min-width:0}
 
-.swim-plan-glass{border:1px solid rgba(37,151,200,.32);border-radius:14px;background:linear-gradient(145deg,rgba(6,27,40,.82),rgba(3,18,29,.72));box-shadow:inset 0 1px rgba(161,230,255,.04),0 12px 32px rgba(0,0,0,.18);backdrop-filter:blur(18px)}
-
+/* Панели плана используют ровно тот же glass-рецепт, что и утверждённая
+   Главная (.swim-home-card, ниже по файлу) — background/border/blur/hover
+   там уже объявлены один раз. Здесь только структура/отступы конкретных
+   блоков, без второго набора непрозрачных панелей. */
 .swim-plan-table{padding:6px;overflow-x:auto}
 .swim-plan-table-head{display:grid;grid-template-columns:64px minmax(0,2.2fr) .8fr 1.1fr .9fr;gap:10px;padding:12px 16px;color:#7e8e98;font-size:11px;text-transform:uppercase;letter-spacing:.05em;min-width:640px}
 .swim-plan-row{display:grid;grid-template-columns:64px minmax(0,2.2fr) .8fr 1.1fr .9fr;gap:10px;align-items:center;width:100%;min-width:640px;padding:14px 16px;margin-bottom:6px;border:1px solid transparent;border-radius:10px;background:rgba(7,22,32,.4);color:inherit;text-align:left;font:inherit;cursor:pointer;transition:background 160ms ease,border-color 160ms ease,transform 160ms ease}
@@ -567,15 +589,17 @@
 .swim-plan-summary-tile p{margin:6px 0 2px;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;color:#f2f8fb}
 .swim-plan-summary-tile small{font-size:11px;color:#7e8e98}
 
-.swim-plan-phase{padding:20px 22px}
-.swim-plan-phase-head h3{margin:0;font-size:15px}
-.swim-plan-phase-head p{margin:4px 0 0;font-size:12px;color:#8b9aa3}
-.swim-plan-phase-pct{display:block;margin-top:14px;font-size:38px;font-weight:750;color:#f2f8fb}
-.swim-plan-phase-caption{margin:2px 0 12px;font-size:12px;color:#8b9aa3}
-.swim-plan-phase-bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:16px}
+.swim-plan-phase{padding:16px 18px}
+.swim-plan-phase-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}
+.swim-plan-phase-head h3{margin:0;font-size:14px}
+.swim-plan-phase-head p{margin:3px 0 0;font-size:11px;color:#8b9aa3}
+.swim-plan-phase-pct-block{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+.swim-plan-phase-pct{font-size:24px;font-weight:750;color:#f2f8fb}
+.swim-plan-phase-pct-block>span{font-size:11px;color:#8b9aa3}
+.swim-plan-phase-bar{height:6px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:12px}
 .swim-plan-phase-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#21cfff,#7fe6a8);box-shadow:0 0 16px rgba(33,207,255,.35);transition:width 400ms cubic-bezier(.16,1,.3,1)}
-.swim-plan-phase-goal{display:flex;gap:32px;margin-bottom:14px;font-size:12px;color:#7e8e98;line-height:1.6}
-.swim-plan-phase-goal b{color:#f2f8fb;font-size:14px;font-weight:700}
+.swim-plan-phase-goal{display:flex;gap:20px;margin-bottom:10px;font-size:11px;color:#8b9aa3;line-height:1.5}
+.swim-plan-phase-goal b{color:#f2f8fb;font-size:12px;font-weight:700}
 .swim-plan-chart{width:100%;height:auto;overflow:visible}
 .swim-plan-chart-target{fill:none;stroke:rgba(139,154,163,.5);stroke-width:1.5;stroke-dasharray:4 5}
 .swim-plan-chart-actual{fill:none;stroke:#21cfff;stroke-width:2.5;filter:drop-shadow(0 0 6px rgba(33,207,255,.4))}
