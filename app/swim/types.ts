@@ -54,6 +54,31 @@ export type SwimRecentSessionView = {
 
 export type SwimEffortDistribution = { easy: number; aerobic: number; hard: number };
 
+// История (Sprint 3) — тот же честный источник, что recentSwims/lastSwim
+// (workout_logs, отфильтрованные isSwimActivity), без отдельной аналитики.
+// route не null только когда лог удалось однозначно связать с конкретной
+// тренировкой программы через plan_key (см. lib/swim-data.ts) — иначе
+// "быстрый переход в детали" не показывается, а не ведёт в никуда.
+export type SwimHistorySource = "manual" | "imported_metric";
+
+export type SwimHistoryItem = {
+  id: number;
+  date: string;
+  title: string;
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  paceLabel: string | null;
+  avgHeartRate: number | null;
+  source: SwimHistorySource;
+  effort: string | null;
+  route: { programId: string; workoutId: string } | null;
+};
+
+export type SwimHistoryData = {
+  items: SwimHistoryItem[];
+  hasAnyHistory: boolean;
+};
+
 export type SwimMetricsView = {
   avgPaceLabel: string | null;
   swolf: number | null;

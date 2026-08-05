@@ -763,6 +763,132 @@
 .swim-detail-cta-card{padding:18px}
 .swim-detail-cta-card .swim-plan-primary-action{width:100%}
 
+/* История (Sprint 3) — журнал заплывов внутри уже утверждённой оболочки
+   .swim-plan (шапка/toolbar как на Плане). Карточки — тот же .swim-home-card /
+   .swim-glass.interactive и та же синяя акцентная пара #21cfff/#3fe08a, что на
+   Главной, Плане и Деталях; новой карточной системы и новой палитры нет.
+   Композиция намеренно НЕ табличная: у страницы есть свой итог-hero, месяцы —
+   главы со своим объёмом, а записи идут по «дорожке» с делениями (мотив
+   дорожки бассейна, VOLT_SWIM.md) и имеют два визуальных веса, чтобы главный
+   заплыв месяца читался как достижение, а не как ещё одна строка. */
+.swim-history{animation:swim-fade-in var(--swim-motion-base) var(--swim-ease-out)}
+
+.swim-history-empty{display:grid;justify-items:center;text-align:center;gap:10px;padding:56px 24px;color:var(--swim-text-muted)}
+.swim-history-empty svg{color:#21cfff}
+.swim-history-empty b{color:var(--swim-text);font-size:17px}
+.swim-history-empty p{margin:0;max-width:400px;font-size:13px;line-height:1.55}
+.swim-history-empty .swim-btn{margin-top:6px}
+
+/* Итог журнала — единственный hero страницы (VOLT_SWIM.md §Визуальная
+   иерархия): крупные табличные цифры, единица вторична. Это сумма ровно того,
+   что сейчас на экране, без дельт и сравнений — не аналитика.
+   Глубина усилена локально (только внутри .swim-history, общий .swim-glass/
+   .swim-home-card на других страницах не трогается): более плотный blur,
+   мягкое внутреннее свечение сверху и один статичный слой глубины — те же
+   токены (--swim-blur, --swim-radius-lg), просто взяты у верхней границы
+   допустимого диапазона, а не новый материал. */
+.swim-history .swim-home-card,.swim-history .swim-glass{
+  box-shadow:inset 0 1px 0 rgba(224,248,255,.08),inset 0 0 40px rgba(33,207,255,.03),0 18px 44px -26px rgba(0,0,0,.62);
+}
+@supports (backdrop-filter:blur(1px)){
+  .swim-history .swim-home-card,.swim-history .swim-glass{backdrop-filter:blur(calc(var(--swim-blur) + 3px)) saturate(115%)}
+}
+
+.swim-history-hero{position:relative;isolation:isolate;overflow:hidden;padding:26px 28px;margin-bottom:16px}
+.swim-history-hero .swim-eyebrow{color:#21cfff;font-size:11px}
+/* Блик — один раз проходит по герою после загрузки и останавливается;
+   слабое подводное отражение (низкая непрозрачность) остаётся статичным
+   фоном (VOLT_SWIM.md §Водные эффекты: ориентир 2–8%, не более одного
+   эффекта в viewport, без непрерывного мерцания). */
+.swim-history-hero-shine{position:absolute;inset:-40% -20%;z-index:0;background:linear-gradient(115deg,transparent 38%,rgba(33,207,255,.1) 48%,rgba(127,247,232,.06) 52%,transparent 62%);transform:translateX(-60%);animation:swim-history-shine 1.6s var(--swim-ease-out) 120ms 1 forwards;pointer-events:none}
+.swim-history-hero-track{position:absolute;left:0;right:0;bottom:0;height:56%;z-index:0;background:radial-gradient(ellipse at 20% 120%,rgba(33,207,255,.05),transparent 60%),linear-gradient(0deg,rgba(33,207,255,.05),transparent 70%);pointer-events:none}
+@keyframes swim-history-shine{to{transform:translateX(60%)}}
+.swim-history-hero .swim-eyebrow,.swim-history-hero-stats{position:relative;z-index:1}
+/* auto-fit + min:0 — значения переносятся и уменьшаются, но никогда не
+   обрезаются overflow'ом карточки, даже в узкой колонке. */
+.swim-history-hero-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr));gap:14px 40px;margin-top:14px}
+.swim-history-hero-stats>div{display:grid;gap:4px;min-width:0}
+.swim-history-hero-stats strong{font-size:clamp(24px,3.4vw,40px);line-height:1.05;font-weight:700;font-variant-numeric:tabular-nums;color:var(--swim-text);overflow-wrap:anywhere}
+.swim-history-hero-stats small{color:var(--swim-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+
+/* Фильтр + поиск — одна стеклянная панель вместо двух отдельных контролов.
+   Активная вкладка и фокус явно бирюзовые (#21cfff) — правки только внутри
+   .swim-history-toolbar, чтобы не менять общий .swim-plan-period-tabs на
+   Плане тренировок. */
+.swim-history-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;margin-bottom:18px}
+.swim-history-toolbar .swim-plan-period-tabs{border-color:transparent;background:rgba(3,18,28,.35)}
+.swim-history-toolbar .swim-plan-period-tabs button.active{background:rgba(33,207,255,.16);color:#21cfff;box-shadow:inset 0 0 0 1px rgba(33,207,255,.4)}
+.swim-history-toolbar-divider{width:1px;height:26px;background:var(--swim-border)}
+.swim-history-toolbar .swim-history-search{border:0;background:transparent;min-width:220px;flex:1}
+.swim-history-toolbar .swim-history-search:focus-within{background:rgba(33,207,255,.06)}
+
+.swim-history-search{display:flex;align-items:center;gap:8px;padding:0 14px;height:40px;border:1px solid var(--swim-border);border-radius:var(--swim-radius-sm);background:var(--swim-surface-raised);color:var(--swim-text-muted);min-width:260px;transition:border-color var(--swim-motion-fast) var(--swim-ease-standard),background-color var(--swim-motion-fast) var(--swim-ease-standard)}
+.swim-history-search:focus-within{border-color:#21cfff}
+.swim-history-search svg{color:#21cfff;flex:0 0 auto}
+.swim-history-search input{flex:1;border:0;background:none;color:var(--swim-text);font-size:13px;outline:none}
+.swim-history-search input::placeholder{color:var(--swim-text-muted)}
+
+/* Месяц — глава журнала со своим итогом, а не служебная подпись. */
+.swim-history-chapters{display:grid;gap:34px}
+.swim-history-chapter-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--swim-border)}
+.swim-history-chapter-head h3{margin:0;font-size:21px;font-weight:650;letter-spacing:-.01em;color:var(--swim-text)}
+.swim-history-chapter-head span{color:var(--swim-text-muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* Дорожка: одна вертикальная линия с делениями по записям — усилена лёгкой
+   штриховкой (мотив дорожечного троса) и статичным сверхслабым водным фоном.
+   Оба слоя статичны (без motion), поэтому не считаются вторым одновременным
+   эффектом наравне с однократным бликом hero. */
+.swim-history-lane{position:relative;display:grid;gap:10px;padding-left:26px;background:radial-gradient(ellipse 120% 60% at 0% 0%,rgba(33,207,255,.035),transparent 55%);background-repeat:no-repeat}
+.swim-history-lane:before{content:"";position:absolute;top:6px;bottom:6px;left:5px;width:1px;background:repeating-linear-gradient(180deg,var(--swim-border) 0 6px,transparent 6px 12px)}
+
+/* isolation:isolate (не overflow:hidden!) — ripple ниже это background на
+   собственном inset:0 псевдоэлементе, он не выходит за свои границы сам по
+   себе; overflow:hidden здесь отрезал бы узел дорожки, который стоит вне
+   рамки карточки (left:-24px) по замыслу. */
+.swim-history-entry{position:relative;isolation:isolate;display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;gap:20px;padding:15px 18px;text-decoration:none;color:inherit;transition:transform var(--swim-motion-fast) var(--swim-ease-standard),border-color var(--swim-motion-fast) var(--swim-ease-standard),box-shadow var(--swim-motion-fast) var(--swim-ease-standard)}
+.swim-history-entry.interactive:hover{transform:translateY(-2px);border-color:rgba(33,207,255,.55);box-shadow:0 14px 32px -20px rgba(33,207,255,.28)}
+.swim-history-entry.no-route{cursor:default}
+/* Ripple — центрированная вспышка при нажатии, чисто CSS: псевдоэлемент
+   размером в саму карточку, не выходит за её границы (VOLT_SWIM.md: ripple
+   ≤400ms, без выхода за границы поверхности). */
+.swim-history-entry.interactive:after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(circle at 50% 50%,rgba(33,207,255,.28),transparent 62%);opacity:0;transition:opacity var(--swim-motion-slow) var(--swim-ease-out);pointer-events:none}
+.swim-history-entry.interactive:active:after{opacity:1;transition-duration:80ms}
+.swim-history-entry-node{position:absolute;left:-24px;top:50%;width:9px;height:9px;margin-top:-4px;border-radius:50%;background:#0a1b24;border:1px solid var(--swim-border);box-shadow:0 0 0 3px rgba(3,9,11,1)}
+.swim-history-entry-chevron{position:absolute;right:14px;top:50%;margin-top:-8px;color:var(--swim-text-muted);transition:color var(--swim-motion-fast) var(--swim-ease-standard),transform var(--swim-motion-fast) var(--swim-ease-standard)}
+.swim-history-entry.interactive:hover .swim-history-entry-chevron{color:#21cfff;transform:translateX(2px)}
+.swim-history-entry.interactive{padding-right:38px}
+
+.swim-history-entry-day{display:grid;gap:1px;text-align:center;color:var(--swim-text)}
+.swim-history-entry-day b{font-size:20px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.swim-history-entry-day small{color:var(--swim-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+
+.swim-history-entry-body{min-width:0;display:grid;gap:7px}
+.swim-history-entry-head{display:flex;align-items:center;flex-wrap:wrap;gap:9px;min-width:0}
+/* Название читается первым — главный текстовый акцент записи; дистанция
+   справа остаётся главной ЦИФРОЙ, но уже не перетягивает всё внимание. */
+.swim-history-entry-head strong{font-size:16px;font-weight:700;color:var(--swim-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.swim-history-entry-flag{padding:3px 9px;border-radius:999px;border:1px solid rgba(63,224,138,.35);background:rgba(63,224,138,.1);color:#3fe08a;font-size:10px;font-weight:700;white-space:nowrap}
+.swim-history-entry-line{display:flex;flex-wrap:wrap;gap:6px 18px;margin:0;color:var(--swim-text-muted);font-size:13px;font-variant-numeric:tabular-nums}
+
+/* Дистанция — главная метрика записи (VOLT_SWIM.md §Метрики), но чуть
+   сдержаннее названия тренировки: она подтверждает факт, а не открывает его. */
+.swim-history-entry-distance{text-align:right;white-space:nowrap}
+.swim-history-entry-distance strong{display:block;font-size:20px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums;color:var(--swim-text)}
+.swim-history-entry-distance small{color:var(--swim-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+
+/* Главный заплыв месяца — укрупнённая подача внутри той же системы. */
+.swim-history-entry.featured{padding:22px 24px;gap:24px;border-color:rgba(33,207,255,.34);box-shadow:0 16px 40px -26px rgba(33,207,255,.22)}
+.swim-history-entry.featured.interactive{padding-right:44px}
+.swim-history-entry.featured .swim-history-entry-node{background:#21cfff;border-color:#21cfff;box-shadow:0 0 0 3px rgba(3,9,11,1),0 0 14px rgba(33,207,255,.6)}
+.swim-history-entry.featured .swim-history-entry-day b{font-size:26px}
+.swim-history-entry.featured .swim-history-entry-head strong{font-size:18px}
+.swim-history-entry.featured .swim-history-entry-distance strong{font-size:clamp(26px,2.6vw,34px)}
+.swim-history-entry-metrics{display:flex;flex-wrap:wrap;gap:12px 28px;margin-top:2px}
+.swim-history-metric{display:grid;gap:3px}
+.swim-history-metric b{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums;color:var(--swim-text)}
+.swim-history-metric b i{margin-left:3px;font-style:normal;font-size:11px;font-weight:600;color:var(--swim-text-muted)}
+.swim-history-metric small{color:var(--swim-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
+
 @media(max-width:1024px){
   .swim-detail-grid{grid-template-columns:1fr}
   .swim-detail-side{position:static}
@@ -782,9 +908,34 @@
   .swim-detail-stage-copy{grid-area:copy}
   .swim-detail-stage-desc{grid-area:desc;margin-top:4px}
   .swim-detail-stage-volume{grid-area:vol;text-align:left;margin-top:4px}
+  .swim-history-search{min-width:0;width:100%}
+  .swim-history-hero{padding:18px 20px}
+  .swim-history-hero-stats{grid-template-columns:1fr;gap:12px}
+  .swim-history-chapter-head{flex-wrap:wrap;gap:2px 12px}
+  .swim-history-chapter-head span{white-space:normal}
+  .swim-history-chapter-head h3{font-size:18px}
+  .swim-history-lane{padding-left:20px}
+  .swim-history-lane:before{left:4px}
+  /* Дистанция уходит под заголовок, но остаётся главной метрикой записи;
+     день слева сохраняет роль «корешка» журнала. */
+  .swim-history-entry,.swim-history-entry.featured{grid-template-columns:40px minmax(0,1fr);gap:8px 14px;padding:14px 16px}
+  .swim-history-entry.interactive,.swim-history-entry.featured.interactive{padding-right:34px}
+  .swim-history-entry-node{left:-19px}
+  .swim-history-entry-day{align-self:start}
+  .swim-history-entry-distance{grid-column:2;text-align:left}
+  .swim-history-entry-distance strong,.swim-history-entry.featured .swim-history-entry-distance strong{font-size:19px}
+  .swim-history-entry-metrics{gap:10px 20px}
+  .swim-history-toolbar{flex-direction:column;align-items:stretch}
+  .swim-history-toolbar-divider{display:none}
+  .swim-history-toolbar .swim-history-search{min-width:0}
 }
 @media(prefers-reduced-motion:reduce){
   .swim-plan-row,.swim-plan-week-nav button,.swim-plan-phase-bar i{transition:none!important}
   .swim-detail-back{transition:none!important}
   .swim-spin{animation:none!important}
+  .swim-history{animation:none!important}
+  .swim-history-entry{transition:none!important}
+  .swim-history-entry.interactive:hover{transform:none;box-shadow:none}
+  .swim-history-entry.interactive:after{display:none}
+  .swim-history-hero-shine{animation:none!important;display:none}
 }

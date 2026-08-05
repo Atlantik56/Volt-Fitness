@@ -5,13 +5,14 @@ import { usePathname } from "next/navigation";
 // Локальная навигация внутри VOLT Swim — единственная (не дублирует
 // глобальный VOLT-сайдбар). Показывает утверждённые контекстные разделы
 // (docs/volt-swim/VOLT_SWIM_DESIGN_CONTRACT.md §Navigation); реализованы
-// пока только Главная и План тренировок, остальные помечены «Скоро» без
-// выдуманной функциональности за ними.
+// Главная, План тренировок и История (Sprint 3), остальные помечены «Скоро»
+// без выдуманной функциональности за ними.
 const LIVE_ITEMS = [
   { href: "/swim", label: "Главная", match: (pathname: string) => pathname === "/swim" },
   { href: "/swim/workouts", label: "План тренировок", match: (pathname: string) => pathname === "/swim/workouts" || pathname.startsWith("/swim/workouts/") },
+  { href: "/swim/history", label: "История", match: (pathname: string) => pathname === "/swim/history" },
 ] as const;
-const FUTURE_ITEMS = ["История", "Аналитика", "Рекорды", "AI Coach"] as const;
+const FUTURE_ITEMS = ["Аналитика", "Рекорды", "AI Coach"] as const;
 
 export function SwimNavigation() {
   const pathname = usePathname();
