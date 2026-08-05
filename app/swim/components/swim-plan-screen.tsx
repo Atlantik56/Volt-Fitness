@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Bell,
   CalendarDays,
@@ -52,8 +53,16 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
   const [progress, setProgress] = useState<SwimProgramProgress | null>(null);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState(false);
-  const [weekIndexOverride, setWeekIndexOverride] = useState<number | null>(null);
-  const [selectedWorkoutIdOverride, setSelectedWorkoutIdOverride] = useState<string | null>(null);
+  // Восстановление недели/тренировки из query — так возврат с Деталей
+  // (?week=&workout=, см. app/swim/workouts/[programId]/[workoutId]/page.tsx)
+  // не сбрасывает План на неделю "по умолчанию". Читается только при первом
+  // монтировании — дальнейшая навигация внутри Плана работает как раньше.
+  const searchParams = useSearchParams();
+  const [weekIndexOverride, setWeekIndexOverride] = useState<number | null>(() => {
+    const raw = Number(searchParams.get("week"));
+    return Number.isInteger(raw) && raw >= 1 ? raw : null;
+  });
+  const [selectedWorkoutIdOverride, setSelectedWorkoutIdOverride] = useState<string | null>(() => searchParams.get("workout"));
 
   useEffect(() => {
     fetch(`/api/swim/programs/${programId}`, { cache: "no-store" })

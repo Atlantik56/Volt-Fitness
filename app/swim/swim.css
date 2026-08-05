@@ -644,6 +644,61 @@
 .swim-plan-detail-empty h4{margin:0 0 6px;color:#eef6f9}
 .swim-plan-detail-empty p{margin:0;font-size:13px}
 
+/* Детали тренировки (not_started) — desktop source:
+   docs/volt-swim/screens/03-workout-details.png. Тот же glass-рецепт
+   (.swim-home-card) и токены, что у утверждённых Главной и Плана — второй
+   визуальной системы здесь нет. */
+.swim-detail{max-width:1160px}
+.swim-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.swim-detail-back{display:inline-flex;align-items:center;gap:4px;margin:8px 0 10px;color:#8b9aa3;font-size:12px;text-decoration:none;transition:color 160ms ease}
+.swim-detail-back:hover{color:#21cfff}
+.swim-detail-back:focus-visible{outline:2px solid #35e6d0;outline-offset:2px;border-radius:6px}
+.swim-detail-header h1{margin:0;font-size:31px;line-height:1.08;letter-spacing:-.03em;color:#f2f8fb}
+.swim-detail-goal{margin:8px 0 0;max-width:64ch;color:#a7b4bd;font-size:14px;line-height:1.55}
+
+/* Без собственного background-image на карточке (см. VOLT_SWIM_DESIGN_CONTRACT) —
+   фон бассейна остаётся только на уровне .swim-shell и просвечивает через glass. */
+.swim-detail-hero{position:relative;padding:26px 28px;margin-bottom:16px}
+.swim-detail-hero-top{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:10px}
+.swim-detail-week-badge{padding:6px 12px;border-radius:8px;background:rgba(7,31,46,.75);border:1px solid rgba(37,126,169,.3);color:#dff3fb;font-size:12px;font-weight:650}
+.swim-detail-date-badge{padding:6px 12px;border-radius:8px;background:rgba(7,31,46,.5);color:#c4d1d9;font-size:12px}
+.swim-detail-date-badge b{color:#21cfff;font-weight:700}
+.swim-detail-changed-badge{padding:5px 10px;border-radius:999px;background:rgba(255,207,78,.14);border:1px solid rgba(255,207,78,.35);color:#ffcf4e;font-size:11px;font-weight:700}
+.swim-detail-status-badge{padding:5px 10px;border-radius:999px;font-size:11px;font-weight:700;background:rgba(255,255,255,.06);color:#c4d1d9;border:1px solid rgba(255,255,255,.12)}
+.swim-detail-status-badge.completed{background:rgba(63,224,138,.14);color:#7fe6a8;border-color:rgba(63,224,138,.35)}
+.swim-detail-status-badge.in_progress{background:rgba(33,207,255,.14);color:#21cfff;border-color:rgba(33,207,255,.35)}
+.swim-detail-status-badge.awaiting_confirmation{background:rgba(255,207,78,.14);color:#ffcf4e;border-color:rgba(255,207,78,.35)}
+.swim-detail-origin{margin:0 0 16px;color:#8b9aa3;font-size:11px}
+.swim-detail-stats{display:flex;flex-wrap:wrap;gap:28px}
+.swim-detail-stats>span{display:flex;align-items:center;gap:10px;color:#21cfff}
+.swim-detail-stats>span div{display:flex;flex-direction:column-reverse;gap:2px}
+.swim-detail-stats strong{font-size:16px;font-weight:700;color:#f2f8fb;font-variant-numeric:tabular-nums}
+.swim-detail-stats small{font-size:10px;color:#8b9aa3;text-transform:uppercase;letter-spacing:.04em}
+
+.swim-detail-grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:16px;align-items:start}
+.swim-detail-main{display:grid;gap:16px;min-width:0}
+.swim-detail-structure,.swim-detail-equipment{padding:20px 22px}
+.swim-detail-structure h3,.swim-detail-equipment h3{margin:0 0 14px;font-size:15px;color:#f2f8fb}
+.swim-detail-stage-row{display:grid;grid-template-columns:22px minmax(0,1.3fr) minmax(0,1.4fr) auto;align-items:center;gap:16px;padding:14px 0;border-top:1px solid rgba(56,122,151,.14)}
+.swim-detail-stage-row:first-of-type{border-top:0}
+.swim-detail-stage-icon{width:30px;height:30px;display:grid;place-items:center;border-radius:50%;color:#3fe08a;background:rgba(63,224,138,.1)}
+.swim-detail-stage-row.main .swim-detail-stage-icon,.swim-detail-stage-row.legs .swim-detail-stage-icon{color:#21cfff;background:rgba(33,207,255,.1)}
+.swim-detail-stage-copy{display:grid;gap:3px;min-width:0}
+.swim-detail-stage-copy b{font-size:14px;color:#f2f8fb;font-weight:650}
+.swim-detail-stage-copy small{font-size:11px;color:#8b9aa3}
+.swim-detail-stage-desc{margin:0;color:#a7b4bd;font-size:12px;line-height:1.5}
+.swim-detail-stage-volume{font-size:14px;font-variant-numeric:tabular-nums;color:#dbe8ee;white-space:nowrap;text-align:right}
+.swim-detail-equipment ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.swim-detail-equipment li{padding:8px 12px;border-radius:8px;background:rgba(13,42,58,.5);color:#c4d1d9;font-size:12px}
+
+.swim-detail-side{position:sticky;top:24px}
+.swim-detail-cta-card{padding:18px}
+.swim-detail-cta-card .swim-plan-primary-action{width:100%}
+
+@media(max-width:1024px){
+  .swim-detail-grid{grid-template-columns:1fr}
+  .swim-detail-side{position:static}
+}
 @media(max-width:760px){
   .swim-plan-header h1{font-size:26px}
   .swim-plan-toolbar{flex-direction:column;align-items:stretch}
@@ -653,8 +708,15 @@
   .swim-plan-row-meta{display:none}
   .swim-plan-row-day{align-items:flex-start}
   .swim-plan-detail{position:static}
+  .swim-detail-header h1{font-size:24px}
+  .swim-detail-stage-row{grid-template-columns:22px 1fr;grid-template-areas:"icon copy" "desc desc" "vol vol"}
+  .swim-detail-stage-icon{grid-area:icon}
+  .swim-detail-stage-copy{grid-area:copy}
+  .swim-detail-stage-desc{grid-area:desc;margin-top:4px}
+  .swim-detail-stage-volume{grid-area:vol;text-align:left;margin-top:4px}
 }
 @media(prefers-reduced-motion:reduce){
   .swim-plan-row,.swim-plan-week-nav button,.swim-plan-phase-bar i{transition:none!important}
+  .swim-detail-back{transition:none!important}
   .swim-spin{animation:none!important}
 }
