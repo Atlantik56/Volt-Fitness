@@ -3,7 +3,7 @@
 // реальными workout_drafts.
 import { db } from "@/lib/db";
 import { computeProgramProgress, getProgram, listPrograms } from "@/lib/swim/program-engine";
-import type { SwimProgramProgress, SwimWorkoutProgress } from "@/lib/swim/types";
+import type { SwimProgramProgress, SwimWorkoutActual, SwimWorkoutProgress } from "@/lib/swim/types";
 
 type OpenDraftStatus = "active" | "awaiting_confirmation";
 
@@ -17,18 +17,36 @@ function openDraftsByPlanKey(): Map<string, { id: number; status: OpenDraftStatu
   return new Map(rows.map((row) => [row.planKey, { id: row.id, status: row.status }]));
 }
 
+// Для каждого plan_key берётся самое свежее завершённое подтверждение
+// (ORDER BY wd.id DESC), на случай если один и тот же план был пройден
+// повторно. workout_logs остаётся единственным источником фактических метрик.
+function completedActualsByPlanKey(): Map<string, SwimWorkoutActual> {
+  const rows = db.prepare(
+    `SELECT wd.plan_key planKey, wl.distance_meters distanceMeters, wl.duration_seconds durationSeconds, wl.calories calories
+     FROM workout_drafts wd JOIN workout_logs wl ON wl.id = wd.workout_id
+     WHERE wd.status='completed' AND wd.workout_id IS NOT NULL
+     ORDER BY wd.id ASC`,
+  ).all() as { planKey: string; distanceMeters: number; durationSeconds: number; calories: number }[];
+  const map = new Map<string, SwimWorkoutActual>();
+  for (const row of rows) {
+    map.set(row.planKey, { distanceMeters: row.distanceMeters, durationSeconds: row.durationSeconds, calories: row.calories });
+  }
+  return map;
+}
+
 export function getProgramProgress(programId: string): SwimProgramProgress | null {
   const program = getProgram(programId);
   if (!program || program.status !== "available") return null;
-  return computeProgramProgress(program, completedPlanKeys(), openDraftsByPlanKey());
+  return computeProgramProgress(program, completedPlanKeys(), openDraftsByPlanKey(), completedActualsByPlanKey());
 }
 
 export function listProgramsWithProgress(): SwimProgramProgress[] {
   const completed = completedPlanKeys();
   const open = openDraftsByPlanKey();
+  const actuals = completedActualsByPlanKey();
   return listPrograms().map((program) =>
     program.status === "available"
-      ? computeProgramProgress(program, completed, open)
+      ? computeProgramProgress(program, completed, open, actuals)
       : { program, completedCount: 0, totalCount: 0, currentWeekIndex: null, nextWorkout: null, workouts: [] },
   );
 }

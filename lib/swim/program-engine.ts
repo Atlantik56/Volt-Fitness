@@ -1,5 +1,5 @@
 import { swimWorkoutPlanKey } from "@/lib/swim/workout-plan-key";
-import type { SwimDay, SwimInterval, SwimIntervalType, SwimProgramDef, SwimProgramProgress, SwimWeekDef, SwimWorkoutDef, SwimWorkoutProgress, SwimWorkoutProgressStatus } from "@/lib/swim/types";
+import type { SwimDay, SwimInterval, SwimIntervalType, SwimProgramDef, SwimProgramProgress, SwimWeekDef, SwimWorkoutActual, SwimWorkoutDef, SwimWorkoutProgress, SwimWorkoutProgressStatus } from "@/lib/swim/types";
 
 type SetInput = [type: SwimIntervalType, exerciseId: string, distance: number, repeats: number, rest: number | null, description: string, restMax?: number | null];
 
@@ -121,8 +121,8 @@ export const getProgram = (id: string): SwimProgramDef | null => PROGRAMS.find((
 export function getWorkout(program: SwimProgramDef, weekIndex: number, workoutId: string) { const week = program.weeks.find((w) => w.weekIndex === weekIndex); const found = week?.days.find((d) => d.workout?.id === workoutId); return week && found ? { day: found, week } : null; }
 export function findWorkoutById(program: SwimProgramDef, workoutId: string) { for (const w of program.weeks) for (const d of w.days) if (d.workout?.id === workoutId) return { workout: d.workout, weekIndex: w.weekIndex, dayIndex: d.dayIndex }; return null; }
 function ordered(program: SwimProgramDef) { return program.weeks.flatMap((week) => week.days.flatMap((day) => day.workout ? [{ workout: day.workout, weekIndex: week.weekIndex, dayIndex: day.dayIndex }] : [])); }
-export function computeProgramProgress(program: SwimProgramDef, completedPlanKeys: ReadonlySet<string>, openDraftsByPlanKey: ReadonlyMap<string, { id: number; status: "active" | "awaiting_confirmation" }>): SwimProgramProgress {
-  const workouts: SwimWorkoutProgress[] = ordered(program).map(({ workout, weekIndex, dayIndex }) => { const key = swimWorkoutPlanKey(program, workout) ?? ""; const open = openDraftsByPlanKey.get(key); const status: SwimWorkoutProgressStatus = completedPlanKeys.has(key) ? "completed" : open?.status === "awaiting_confirmation" ? "awaiting_confirmation" : open?.status === "active" ? "in_progress" : "not_started"; return { workout, weekIndex, dayIndex, status, planKey: key, draftId: open?.id ?? null }; });
+export function computeProgramProgress(program: SwimProgramDef, completedPlanKeys: ReadonlySet<string>, openDraftsByPlanKey: ReadonlyMap<string, { id: number; status: "active" | "awaiting_confirmation" }>, actualsByPlanKey: ReadonlyMap<string, SwimWorkoutActual> = new Map()): SwimProgramProgress {
+  const workouts: SwimWorkoutProgress[] = ordered(program).map(({ workout, weekIndex, dayIndex }) => { const key = swimWorkoutPlanKey(program, workout) ?? ""; const open = openDraftsByPlanKey.get(key); const status: SwimWorkoutProgressStatus = completedPlanKeys.has(key) ? "completed" : open?.status === "awaiting_confirmation" ? "awaiting_confirmation" : open?.status === "active" ? "in_progress" : "not_started"; return { workout, weekIndex, dayIndex, status, planKey: key, draftId: open?.id ?? null, actual: actualsByPlanKey.get(key) ?? null }; });
   const completedCount = workouts.filter((w) => w.status === "completed").length;
   const nextWorkout = workouts.find((w) => w.status === "in_progress" || w.status === "awaiting_confirmation") ?? workouts.find((w) => w.status === "not_started") ?? null;
   return { program, completedCount, totalCount: workouts.length, currentWeekIndex: nextWorkout?.weekIndex ?? (workouts.at(-1)?.weekIndex ?? null), nextWorkout, workouts };
