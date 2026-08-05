@@ -422,22 +422,24 @@
 
 /* Активная тренировка на уровне блоков (разминка/основная часть/выносливость/
    заминка), не отдельных отрезков — см. app/swim/workouts/[programId]/
-   [workoutId]/page.tsx. Интервалы внутри блока показаны как структура, без
-   обязательного чек-ина за каждый повтор. */
-.swim-active-block{padding:clamp(22px,4vw,36px)}
-.swim-active-block h2{margin:0 0 18px;font-size:clamp(28px,4vw,40px);line-height:1.05}
-.swim-active-block-intervals{display:grid;gap:14px;margin-bottom:20px}
-.swim-active-interval-row{display:grid;grid-template-columns:110px 1fr;gap:16px;align-items:baseline;padding-bottom:14px;border-bottom:1px solid var(--swim-border)}
-.swim-active-interval-row:last-child{border-bottom:0;padding-bottom:0}
-.swim-active-interval-row strong{font-size:20px;font-variant-numeric:tabular-nums;color:var(--swim-text)}
-.swim-active-interval-row div{display:grid;gap:2px}
-.swim-active-interval-row b{font-size:15px;color:var(--swim-text)}
-.swim-active-interval-row small{color:var(--swim-text-muted);font-size:13px}
-.swim-active-block-meta{display:flex;flex-wrap:wrap;gap:24px;padding-top:16px;border-top:1px solid var(--swim-border)}
-.swim-active-block-meta span{display:flex;flex-direction:column;gap:3px}
-.swim-active-block-meta small{color:var(--swim-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
-.swim-active-block-meta b{font-size:16px;color:var(--swim-aqua)}
-.swim-active-next{margin:16px 0 0;color:var(--swim-text-muted);font-size:13px}
+   [workoutId]/page.tsx. Телефон сопровождает тренировку, а не управляет ей:
+   во время заплыва — только текущий блок, его краткая цель, следующий блок и
+   общий прогресс, без списка интервалов/отдыха/инвентаря и без обязательного
+   чек-ина за блок или повтор. */
+.swim-active-block{padding:clamp(22px,4vw,36px);text-align:center}
+.swim-active-block h2{margin:0 0 10px;font-size:clamp(28px,4vw,40px);line-height:1.05}
+.swim-active-block-goal{margin:0;color:var(--swim-text-muted);font-size:16px}
+.swim-active-next{margin:20px 0 0;padding-top:16px;border-top:1px solid var(--swim-border);color:var(--swim-text-muted);font-size:13px}
+
+/* Ручное продвижение по блокам — необязательная опция для тренировок без
+   Garmin/FIT, свёрнута по умолчанию (см. GarminMatchPanel: с Garmin факт
+   подтверждается постфактум, ручной чек-ин не нужен вовсе). */
+.swim-manual-block-control{margin-top:16px;text-align:center}
+.swim-manual-block-control summary{cursor:pointer;color:var(--swim-text-muted);font-size:13px;list-style:none}
+.swim-manual-block-control summary::-webkit-details-marker{display:none}
+.swim-manual-block-control summary:hover{color:var(--swim-text)}
+.swim-manual-block-control[open] summary{margin-bottom:12px}
+.swim-manual-block-control .swim-session-actions{justify-content:center}
 
 /* Approved VOLT Swim home, desktop source: docs/volt-swim/screens/01-home.png */
 .swim-shell{background:#02080d url('/swim/pool-background-v1.png') center top/cover fixed no-repeat;color:#f4f8fb;min-height:100vh}

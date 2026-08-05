@@ -365,29 +365,31 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
             </GlassPanel>
           ) : (
             <>
-              <GlassPanel variant="raised" className="swim-active-block">
-                <p className="swim-eyebrow">БЛОК {blockIndex + 1} ИЗ {stages.length} · {STAGE_META[currentStage.key].eyebrow}</p>
+              {/* Телефон сопровождает тренировку, а не управляет ей: во время
+                  заплыва показываем только текущий блок, его краткую цель,
+                  следующий блок и общий прогресс — без списка интервалов,
+                  отдыха и инвентаря (это уже видно в Плане тренировок). */}
+              <GlassPanel variant="raised" className="swim-active-block swim-active-block-minimal">
+                <p className="swim-eyebrow">БЛОК {blockIndex + 1} ИЗ {stages.length}</p>
                 <h2>{STAGE_META[currentStage.key].title}</h2>
-                <div className="swim-active-block-intervals">
-                  {currentStage.intervals.map((interval) => (
-                    <div key={interval.id} className="swim-active-interval-row">
-                      <strong>{interval.repeats > 1 ? `${interval.repeats} × ${interval.distanceMeters} м` : `${interval.distanceMeters} м`}</strong>
-                      <div><b>{exerciseLabelRu(interval.exerciseId)}</b><small>{interval.description}</small></div>
-                    </div>
-                  ))}
-                </div>
-                <div className="swim-active-block-meta">
-                  <span><small>Объём блока</small><b>{stageVolume(currentStage).toLocaleString("ru-RU")} м</b></span>
-                  <span><small>Целевой отдых</small><b>{restLabel(currentStage.intervals)}</b></span>
-                </div>
-                {nextStage && <p className="swim-active-next">Далее: {STAGE_META[nextStage.key].title} · {stageVolume(nextStage).toLocaleString("ru-RU")} м</p>}
+                <p className="swim-active-block-goal">{STAGE_META[currentStage.key].eyebrow}</p>
+                {nextStage && <p className="swim-active-next">Далее: {STAGE_META[nextStage.key].title}</p>}
               </GlassPanel>
               <div className="swim-session-actions">
-                <button type="button" className="swim-btn secondary" onClick={backBlock} disabled={blockIndex === 0 || busy}>Назад</button>
-                <button type="button" className="swim-btn primary" onClick={completeBlock} disabled={busy}>{blockIndex === stages.length - 1 ? "Завершить тренировку" : "Блок завершён"}</button>
                 <button type="button" className="swim-btn secondary" onClick={() => setPaused(true)} disabled={busy}><Pause size={14} /> Пауза</button>
-                <button type="button" className="swim-btn ghost" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
+                <button type="button" className="swim-btn primary" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
               </div>
+              {/* Необязательное ручное управление блоками — для тренировок без
+                  Garmin/FIT. Ничего не требует и не блокирует: основной
+                  источник фактических данных — импорт FIT на экране
+                  подтверждения (см. GarminMatchPanel). */}
+              <details className="swim-manual-block-control">
+                <summary>Без Garmin? Отметить блок вручную</summary>
+                <div className="swim-session-actions">
+                  <button type="button" className="swim-btn secondary" onClick={backBlock} disabled={blockIndex === 0 || busy}>Назад</button>
+                  <button type="button" className="swim-btn secondary" onClick={completeBlock} disabled={busy}>{blockIndex === stages.length - 1 ? "Завершить тренировку" : "Блок завершён"}</button>
+                </div>
+              </details>
             </>
           )}
         </>
