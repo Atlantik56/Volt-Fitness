@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Decoder, Stream } from "@garmin/fitsdk";
-import type { FileIdMesg, SessionMesg } from "@garmin/fitsdk";
+import type { FileIdMesg, LapMesg, SessionMesg } from "@garmin/fitsdk";
 import { db } from "@/lib/db";
 
 export const MAX_FIT_FILE_SIZE=10_000_000;
@@ -17,8 +17,12 @@ export type ImportedWorkout={
  averageHeartRate:number|null;
  maxHeartRate:number|null;
  calories:number|null;
- metadata:{averageCadence:number|null;trainingEffect:number|null;fitSport:string};
+ metadata:{averageCadence:number|null;trainingEffect:number|null;fitSport:string;distanceMeters:number|null;laps:FitLap[]};
 };
+// Отрезки (lapMesgs) FIT-файла — используются только для сопоставления
+// фактических метров/времени со спланированными блоками тренировки Swim
+// (см. lib/swim/fit-match.ts). Для не-swim активностей остаётся [].
+export type FitLap={distanceMeters:number;durationSeconds:number;numLengths:number|null};
 export type DraftCandidate={id:number;title:string;startedAt:string|null;finishedAt:string|null;confidence:MatchConfidence;reasons:string[]};
 export type StoredImport={id:number;workout:ImportedWorkout;draftId:number|null;duplicate:boolean;autoLinked:boolean;candidates:DraftCandidate[]};
 export type ImportFailure={ok:false;error:string;status:number};
@@ -71,6 +75,13 @@ export function parseFit(bytes:Uint8Array):ImportFailure|{ok:true;workout:Import
   const fileId=(messages.fileIdMesgs??[])[0] as FileIdMesg|undefined;
   const externalParts=[fileId?.manufacturer,fileId?.product,fileId?.serialNumber,asDate(fileId?.timeCreated)?.toISOString()].filter(x=>x!==undefined&&x!==null&&x!=="");
   const integer=(value:unknown,min:number,max:number)=>{const n=finite(value,min,max);return n===null?null:Math.round(n)};
+  const laps:FitLap[]=activityType==="swim"?(messages.lapMesgs??[])
+   .filter((lap:LapMesg)=>finite(lap.totalDistance,0,100_000)!==null&&finite(lap.totalTimerTime??lap.totalElapsedTime,0,86_400)!==null)
+   .map((lap:LapMesg)=>({
+    distanceMeters:Math.round(finite(lap.totalDistance,0,100_000)!),
+    durationSeconds:Math.round(finite(lap.totalTimerTime??lap.totalElapsedTime,0,86_400)!),
+    numLengths:integer(lap.numLengths,0,10_000),
+   })):[];
   return {ok:true,workout:{
    source:"garmin_fit",
    externalId:externalParts.length?externalParts.join(":").slice(0,240):null,
@@ -85,6 +96,8 @@ export function parseFit(bytes:Uint8Array):ImportFailure|{ok:true;workout:Import
     averageCadence:finite(session.avgCadence??session.avgRunningCadence,0,500),
     trainingEffect:finite(session.totalTrainingEffect,0,10),
     fitSport:String(session.sport??""),
+    distanceMeters:finite(session.totalDistance,0,1_000_000),
+    laps,
    },
   }};
  }catch{
@@ -131,9 +144,11 @@ export function rankDrafts(workout:ImportedWorkout,rows:DraftRow[]):DraftCandida
 }
 
 function workoutFromRow(row:any):ImportedWorkout{
+ const extra=JSON.parse(row.metadata||"{}");
  return {source:row.source,externalId:row.externalId,fingerprint:row.fingerprint,startedAt:row.startedAt,duration:row.duration,
   activityType:row.activityType,averageHeartRate:row.averageHeartRate,maxHeartRate:row.maxHeartRate,calories:row.calories,
-  metadata:{averageCadence:row.averageCadence,trainingEffect:row.trainingEffect,fitSport:JSON.parse(row.metadata||"{}").fitSport??""}};
+  metadata:{averageCadence:row.averageCadence,trainingEffect:row.trainingEffect,fitSport:extra.fitSport??"",
+   distanceMeters:typeof extra.distanceMeters==="number"?extra.distanceMeters:null,laps:Array.isArray(extra.laps)?extra.laps:[]}};
 }
 const selectImport=`SELECT id,source,external_id externalId,fingerprint,started_at startedAt,duration_seconds duration,activity_type activityType,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,average_cadence averageCadence,training_effect trainingEffect,metadata,draft_id draftId FROM workout_imports`;
 
@@ -148,7 +163,7 @@ export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
    workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
-   JSON.stringify({fitSport:workout.metadata.fitSport}),autoDraftId);
+   JSON.stringify({fitSport:workout.metadata.fitSport,distanceMeters:workout.metadata.distanceMeters,laps:workout.metadata.laps}),autoDraftId);
  return {ok:true,result:{id:Number(result.lastInsertRowid),workout,draftId:autoDraftId,duplicate:false,autoLinked:autoDraftId!==null,candidates}};
 }
 

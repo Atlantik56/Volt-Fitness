@@ -17,6 +17,19 @@ function activityFit(start=new Date("2026-07-10T10:00:00.000Z"),sport="training"
  encoder.onMesg(Profile.MesgNum.ACTIVITY,{timestamp:end,totalTimerTime:duration,numSessions:1,type:"manual"} as any);
  return encoder.close();
 }
+function swimFit(start=new Date("2026-07-10T10:00:00.000Z"),laps=[{distance:50,duration:45},{distance:50,duration:47}]){
+ const encoder=new Encoder(),duration=laps.reduce((s,l)=>s+l.duration,0),end=new Date(start.getTime()+duration*1000);
+ let cursor=start.getTime();
+ encoder.onMesg(Profile.MesgNum.FILE_ID,{type:"activity",manufacturer:"development",product:1,serialNumber:124,timeCreated:start} as any);
+ for(const lap of laps){
+  const lapStart=new Date(cursor),lapEnd=new Date(cursor+lap.duration*1000);
+  encoder.onMesg(Profile.MesgNum.LAP,{timestamp:lapEnd,startTime:lapStart,totalElapsedTime:lap.duration,totalTimerTime:lap.duration,totalDistance:lap.distance,numLengths:Math.round(lap.distance/25)} as any);
+  cursor+=lap.duration*1000;
+ }
+ encoder.onMesg(Profile.MesgNum.SESSION,{timestamp:end,startTime:start,sport:"swimming",totalElapsedTime:duration,totalTimerTime:duration,totalDistance:laps.reduce((s,l)=>s+l.distance,0),avgHeartRate:118,maxHeartRate:150,totalCalories:220} as any);
+ encoder.onMesg(Profile.MesgNum.ACTIVITY,{timestamp:end,totalTimerTime:duration,numSessions:1,type:"manual"} as any);
+ return encoder.close();
+}
 function draft(planKey:string,start="2026-07-10 10:05:00",finish="2026-07-10 11:03:00",type="Силовая"){
  return Number(db.prepare(`INSERT INTO workout_drafts(date,plan_key,status,snapshot,started_at,finished_at)
   VALUES ('2026-07-10',?,'awaiting_confirmation',?,?,?)`).run(planKey,JSON.stringify({title:`План ${planKey}`,type}),start,finish).lastInsertRowid);
@@ -34,6 +47,24 @@ test("валидный FIT нормализуется только в досто
  assert.equal(parsed.workout.metadata.averageCadence,74);
  assert.equal(parsed.workout.metadata.trainingEffect,3.2);
  assert.equal("exercises" in parsed.workout,false);
+});
+
+test("swim-активность: totalDistance и лапы попадают в metadata для сопоставления с планом",()=>{
+ const parsed=fit.parseFit(swimFit());
+ assert.equal(parsed.ok,true);
+ if(!parsed.ok)return;
+ assert.equal(parsed.workout.activityType,"swim");
+ assert.equal(parsed.workout.metadata.distanceMeters,100);
+ assert.equal(parsed.workout.metadata.laps.length,2);
+ assert.deepEqual(parsed.workout.metadata.laps[0],{distanceMeters:50,durationSeconds:45,numLengths:2});
+ assert.deepEqual(parsed.workout.metadata.laps[1],{distanceMeters:50,durationSeconds:47,numLengths:2});
+});
+
+test("не-swim активность не собирает лапы даже если они есть в FIT",()=>{
+ const parsed=fit.parseFit(activityFit());
+ assert.equal(parsed.ok,true);
+ if(!parsed.ok)return;
+ assert.deepEqual(parsed.workout.metadata.laps,[]);
 });
 
 test("отклоняет пустой, слишком большой, неподдерживаемый и повреждённый файл",()=>{

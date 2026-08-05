@@ -1,19 +1,18 @@
 "use client";
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { Activity, Bell, CalendarDays, ChevronLeft, Clock3, Footprints, Gauge, Play, RefreshCw, Sparkles, Waves } from "lucide-react";
+import { Activity, Bell, CalendarDays, ChevronLeft, Clock3, Footprints, Gauge, Pause, Play, RefreshCw, Sparkles, Waves } from "lucide-react";
 import { SwimNavigation } from "../../../swim-navigation";
 import { GlassPanel } from "../../../components/glass-panel";
-import { IntervalStepView } from "../../../components/interval-step-view";
 import { WorkoutSummaryForm } from "../../../components/workout-summary-form";
-import { buildConfirmationExercises, buildIntervalSteps, buildSwimSnapshot, intervalTotalMeters, totalDistanceMeters } from "@/lib/swim/workout-engine";
+import { GarminMatchPanel } from "../../../components/garmin-match-panel";
+import { buildConfirmationExercises, buildSwimSnapshot, intervalTotalMeters, totalDistanceMeters } from "@/lib/swim/workout-engine";
 import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
 import { formatMeters } from "@/lib/swim-metrics";
 import type { SwimCalendarSlot, SwimInterval, SwimProgramProgress, SwimWorkoutDef, SwimWorkoutProgressStatus } from "@/lib/swim/types";
 
 type ApiDraft = { id: number; status: string; startedAt: string | null; finishedAt: string | null; planKey?: string };
 type Phase = "loading" | "not_found" | "preview" | "active" | "awaiting_confirmation" | "completed" | "error";
-type SessionMode = "swim" | "rest";
 type StageKey = "warmup" | "main" | "legs" | "cooldown";
 
 const DAY_LABEL = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -70,13 +69,23 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
   const [status, setStatus] = useState<SwimWorkoutProgressStatus | null>(null);
   const [calendar, setCalendar] = useState<SwimCalendarSlot | null>(null);
   const [draft, setDraft] = useState<ApiDraft | null>(null);
-  const [stepIndex, setStepIndex] = useState(0);
+  // Активная тренировка работает на уровне крупных блоков (разминка/основная
+  // часть/выносливость/заминка), а не на уровне каждого отдельного отрезка —
+  // в бассейне никто не подтверждает телефоном каждые 50 м. Интервалы и
+  // повторы внутри блока остаются видимыми как структура, но не требуют
+  // отдельного чек-ина. Фактические длины/темп/паузы подтверждаются после
+  // тренировки из Garmin/FIT (см. WorkoutSummaryForm) — completedMeters здесь
+  // лишь черновая оценка объёма для формы подтверждения, не точный лог.
+  const [blockIndex, setBlockIndex] = useState(0);
   const [completedMeters, setCompletedMeters] = useState(0);
-  const [mode, setMode] = useState<SessionMode>("swim");
-  const [restRemaining, setRestRemaining] = useState(0);
-  const [restPaused, setRestPaused] = useState(false);
+  const [paused, setPaused] = useState(false);
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Заполняется после подтверждения тренировки данными из Garmin/FIT
+  // (см. GarminMatchPanel) — фактические метры/время подтверждаются
+  // постфактум, а не оценкой прогресса по блокам.
+  const [garminMeters, setGarminMeters] = useState<number | null>(null);
+  const [garminSeconds, setGarminSeconds] = useState<number | null>(null);
 
   useEffect(() => {
     Promise.all([
@@ -103,7 +112,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
         if (wp.status === "in_progress") {
           try {
             const saved = JSON.parse(localStorage.getItem(`volt-swim-session:${programId}:${workoutId}`) || "null");
-            if (saved && Number.isInteger(saved.stepIndex)) setStepIndex(Math.max(0, saved.stepIndex));
+            if (saved && Number.isInteger(saved.blockIndex)) setBlockIndex(Math.max(0, saved.blockIndex));
             if (saved && Number.isFinite(saved.completedMeters)) setCompletedMeters(Math.max(0, saved.completedMeters));
           } catch {}
         }
@@ -123,8 +132,9 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return setActionError(json.error || "Не удалось начать тренировку");
       setDraft(json.draft);
-      setStepIndex(0);
+      setBlockIndex(0);
       setCompletedMeters(0);
+      setPaused(false);
       localStorage.removeItem(`volt-swim-session:${programId}:${workoutId}`);
       setPhase("active");
     } finally {
@@ -160,8 +170,8 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
           action: "confirmWorkoutDraft",
           id: draft.id,
           expectedStatus: "awaiting_confirmation",
-          durationSeconds: elapsedSeconds(draft),
-          distanceMeters: completedMeters || totalDistanceMeters(workout),
+          durationSeconds: garminSeconds ?? elapsedSeconds(draft),
+          distanceMeters: garminMeters ?? (completedMeters || totalDistanceMeters(workout)),
           effort,
           painAfter,
           notes,
@@ -178,35 +188,36 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
     }
   };
 
-  const steps = workout ? buildIntervalSteps(workout) : [];
   const stages = workout ? (["warmup", "main", "legs", "cooldown"] as StageKey[])
     .map((key) => ({ key, intervals: workout.intervals.filter((interval) => stageOf(interval) === key) }))
     .filter((stage) => stage.intervals.length > 0) : [];
-  const currentStep = steps[stepIndex] ?? null;
-  const progressPercent = steps.length ? Math.round((stepIndex / steps.length) * 100) : 0;
-
-  useEffect(() => {
-    if (phase !== "active" || mode !== "rest" || restPaused || restRemaining <= 0) return;
-    const timer = window.setInterval(() => setRestRemaining((value) => {
-      if (value <= 1) { window.clearInterval(timer); setMode("swim"); setRestPaused(false); return 0; }
-      return value - 1;
-    }), 1000);
-    return () => window.clearInterval(timer);
-  }, [phase, mode, restPaused, restRemaining]);
+  const stageVolume = (stage: (typeof stages)[number]) => stage.intervals.reduce((sum, interval) => sum + intervalTotalMeters(interval), 0);
+  const currentStage = stages[blockIndex] ?? null;
+  const nextStage = stages[blockIndex + 1] ?? null;
+  const progressPercent = stages.length ? Math.round((blockIndex / stages.length) * 100) : 0;
+  const totalIntervalCount = stages.reduce((sum, stage) => sum + stage.intervals.length, 0);
 
   useEffect(() => {
     if (phase !== "active") return;
-    localStorage.setItem(`volt-swim-session:${programId}:${workoutId}`, JSON.stringify({ stepIndex, completedMeters }));
-  }, [phase, programId, workoutId, stepIndex, completedMeters]);
+    localStorage.setItem(`volt-swim-session:${programId}:${workoutId}`, JSON.stringify({ blockIndex, completedMeters }));
+  }, [phase, programId, workoutId, blockIndex, completedMeters]);
 
-  const completeCurrent = () => {
-    if (!currentStep) return;
-    const nextMeters = completedMeters + currentStep.totalMeters;
+  // «Блок завершён» — необязательная навигация между крупными блоками, не
+  // чек-ин за каждый отрезок/повтор внутри блока (см. структуру ниже).
+  const completeBlock = () => {
+    if (!currentStage) return;
+    const nextMeters = completedMeters + stageVolume(currentStage);
     setCompletedMeters(nextMeters);
-    if (stepIndex >= steps.length - 1) { void finish(nextMeters); return; }
-    setStepIndex((index) => index + 1);
-    const rest = currentStep.interval.restSeconds ?? 0;
-    if (rest > 0) { setRestRemaining(rest); setMode("rest"); setRestPaused(false); }
+    if (blockIndex >= stages.length - 1) { void finish(nextMeters); return; }
+    setBlockIndex((index) => index + 1);
+    setPaused(false);
+  };
+  const backBlock = () => {
+    if (blockIndex === 0) return;
+    const prevStage = stages[blockIndex - 1];
+    setCompletedMeters((m) => Math.max(0, m - stageVolume(prevStage)));
+    setBlockIndex((index) => index - 1);
+    setPaused(false);
   };
 
   const backToPlanHref = weekIndex ? `/swim/workouts?week=${weekIndex}&workout=${workoutId}` : "/swim/workouts";
@@ -338,34 +349,58 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
         </div>
       )}
 
-      {phase === "active" && currentStep && (
+      {phase === "active" && currentStage && (
         <>
           <div className="swim-session-progress" aria-label={`Выполнено ${progressPercent}%`}><i style={{ width: `${progressPercent}%` }} /></div>
-          {mode === "rest" ? (
+
+          {paused ? (
             <GlassPanel variant="raised" className="swim-rest-panel">
-              <p className="swim-eyebrow">ОТДЫХ · СЛЕДУЮЩИЙ ОТРЕЗОК {stepIndex + 1} ИЗ {steps.length}</p>
-              <strong>{Math.floor(restRemaining / 60)}:{String(restRemaining % 60).padStart(2, "0")}</strong>
-              <p>Далее: {currentStep.totalMeters} м · {currentStep.exerciseName}</p>
+              <p className="swim-eyebrow">ТРЕНИРОВКА НА ПАУЗЕ</p>
+              <strong>Пауза</strong>
+              <p>Блок {blockIndex + 1} из {stages.length} · {STAGE_META[currentStage.key].title} подождёт вас.</p>
               <div className="swim-session-actions">
-                <button type="button" className="swim-btn secondary" onClick={() => setRestPaused((value) => !value)}>{restPaused ? "Продолжить таймер" : "Пауза"}</button>
-                <button type="button" className="swim-btn primary" onClick={() => { setMode("swim"); setRestRemaining(0); }}>Начать раньше</button>
+                <button type="button" className="swim-btn primary" onClick={() => setPaused(false)}>Продолжить</button>
+                <button type="button" className="swim-btn ghost" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
               </div>
             </GlassPanel>
           ) : (
             <>
-              <IntervalStepView step={currentStep} next={steps[stepIndex + 1] ?? null} />
+              {/* Телефон сопровождает тренировку, а не управляет ей: во время
+                  заплыва показываем только текущий блок, его краткую цель,
+                  следующий блок и общий прогресс — без списка интервалов,
+                  отдыха и инвентаря (это уже видно в Плане тренировок). */}
+              <GlassPanel variant="raised" className="swim-active-block swim-active-block-minimal">
+                <p className="swim-eyebrow">БЛОК {blockIndex + 1} ИЗ {stages.length}</p>
+                <h2>{STAGE_META[currentStage.key].title}</h2>
+                <p className="swim-active-block-goal">{STAGE_META[currentStage.key].eyebrow}</p>
+                {nextStage && <p className="swim-active-next">Далее: {STAGE_META[nextStage.key].title}</p>}
+              </GlassPanel>
               <div className="swim-session-actions">
-                <button type="button" className="swim-btn secondary" onClick={() => { setStepIndex((i) => Math.max(0, i - 1)); setCompletedMeters((m) => Math.max(0, m - (steps[stepIndex - 1]?.totalMeters ?? 0))); }} disabled={stepIndex === 0 || busy}>Назад</button>
-                <button type="button" className="swim-btn primary" onClick={completeCurrent} disabled={busy}>{stepIndex === steps.length - 1 ? "Завершить отрезок" : "Отрезок выполнен"}</button>
-                <button type="button" className="swim-btn ghost" onClick={() => void finish(completedMeters)} disabled={busy || completedMeters === 0}>Завершить раньше</button>
+                <button type="button" className="swim-btn secondary" onClick={() => setPaused(true)} disabled={busy}><Pause size={14} /> Пауза</button>
+                <button type="button" className="swim-btn primary" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
               </div>
+              {/* Необязательное ручное управление блоками — для тренировок без
+                  Garmin/FIT. Ничего не требует и не блокирует: основной
+                  источник фактических данных — импорт FIT на экране
+                  подтверждения (см. GarminMatchPanel). */}
+              <details className="swim-manual-block-control">
+                <summary>Без Garmin? Отметить блок вручную</summary>
+                <div className="swim-session-actions">
+                  <button type="button" className="swim-btn secondary" onClick={backBlock} disabled={blockIndex === 0 || busy}>Назад</button>
+                  <button type="button" className="swim-btn secondary" onClick={completeBlock} disabled={busy}>{blockIndex === stages.length - 1 ? "Завершить тренировку" : "Блок завершён"}</button>
+                </div>
+              </details>
             </>
           )}
         </>
       )}
 
+      {phase === "awaiting_confirmation" && workout && draft && (
+        <GarminMatchPanel draftId={draft.id} workout={workout} onApply={(meters, seconds) => { setGarminMeters(meters); setGarminSeconds(seconds); }} />
+      )}
+
       {phase === "awaiting_confirmation" && workout && (
-        <WorkoutSummaryForm distanceMeters={completedMeters || totalDistanceMeters(workout)} durationSeconds={elapsedSeconds(draft)} intervalCount={steps.length} busy={busy} onSubmit={confirm} />
+        <WorkoutSummaryForm distanceMeters={garminMeters ?? (completedMeters || totalDistanceMeters(workout))} durationSeconds={garminSeconds ?? elapsedSeconds(draft)} intervalCount={totalIntervalCount} busy={busy} onSubmit={confirm} />
       )}
 
       {phase === "completed" && (
