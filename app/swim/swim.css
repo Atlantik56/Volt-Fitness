@@ -502,3 +502,135 @@
     animation: none !important;
   }
 }
+
+/* План тренировок — desktop source: docs/volt-swim/screens/02-training-plan.png.
+   Токены и визуальный язык те же, что у утверждённой главной (.swim-home*). */
+.swim-plan{max-width:1440px;margin:0 auto}
+.swim-plan-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.swim-plan-header h1{margin:0;font-size:31px;line-height:1.05;letter-spacing:-.035em}
+.swim-plan-header>div>p:last-child{margin:6px 0 0;color:#a7b4bd;font-size:13px}
+.swim-plan-loading{display:flex;justify-content:center;padding:80px 0;color:#5fd6ff}
+.swim-spin{animation:swim-plan-spin 900ms linear infinite}
+@keyframes swim-plan-spin{to{transform:rotate(360deg)}}
+.swim-plan-empty{max-width:520px;margin:60px auto;padding:28px 24px;text-align:center;color:#a7b4bd;border:1px solid rgba(47,142,185,.18);border-radius:14px;background:rgba(3,18,28,.72)}
+.swim-plan-empty h4{color:#eef6f9;margin:0 0 8px}
+.swim-plan-link{color:#21cfff}
+
+.swim-plan-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+.swim-plan-period-tabs{display:flex;gap:4px;padding:4px;border:1px solid rgba(47,142,185,.18);border-radius:10px;background:rgba(3,18,28,.6)}
+.swim-plan-period-tabs button{border:0;background:none;color:#9fb0ba;font-size:13px;font-weight:650;padding:8px 16px;border-radius:8px;cursor:pointer}
+.swim-plan-period-tabs button.active{background:#0d2a3b;color:#fff}
+.swim-plan-period-tabs button:disabled{opacity:.4;cursor:not-allowed}
+.swim-plan-period-tabs button:focus-visible{outline:2px solid #35e6d0;outline-offset:2px}
+.swim-plan-week-nav{display:flex;align-items:center;gap:14px;color:#e9f2f7;font-size:13px;font-variant-numeric:tabular-nums}
+.swim-plan-week-nav button{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(47,142,185,.22);border-radius:8px;background:rgba(3,18,28,.72);color:#e9f2f7;cursor:pointer;transition:background 160ms ease,border-color 160ms ease}
+.swim-plan-week-nav button:hover:not(:disabled){background:rgba(13,42,58,.85);border-color:rgba(66,181,224,.4)}
+.swim-plan-week-nav button:disabled{opacity:.35;cursor:not-allowed}
+.swim-plan-week-nav button:focus-visible{outline:2px solid #35e6d0;outline-offset:2px}
+
+.swim-plan-grid{display:grid;grid-template-columns:minmax(0,2.05fr) minmax(300px,1fr);gap:18px;align-items:start}
+@media(max-width:1080px){.swim-plan-grid{grid-template-columns:1fr}}
+.swim-plan-main{display:grid;gap:16px;min-width:0}
+
+.swim-plan-glass{border:1px solid rgba(37,151,200,.32);border-radius:14px;background:linear-gradient(145deg,rgba(6,27,40,.82),rgba(3,18,29,.72));box-shadow:inset 0 1px rgba(161,230,255,.04),0 12px 32px rgba(0,0,0,.18);backdrop-filter:blur(18px)}
+
+.swim-plan-table{padding:6px;overflow-x:auto}
+.swim-plan-table-head{display:grid;grid-template-columns:64px minmax(0,2.2fr) .8fr 1.1fr .9fr;gap:10px;padding:12px 16px;color:#7e8e98;font-size:11px;text-transform:uppercase;letter-spacing:.05em;min-width:640px}
+.swim-plan-row{display:grid;grid-template-columns:64px minmax(0,2.2fr) .8fr 1.1fr .9fr;gap:10px;align-items:center;width:100%;min-width:640px;padding:14px 16px;margin-bottom:6px;border:1px solid transparent;border-radius:10px;background:rgba(7,22,32,.4);color:inherit;text-align:left;font:inherit;cursor:pointer;transition:background 160ms ease,border-color 160ms ease,transform 160ms ease}
+.swim-plan-row:last-child{margin-bottom:0}
+.swim-plan-row:not(.rest):hover{background:rgba(13,42,58,.6);border-color:rgba(66,181,224,.22)}
+.swim-plan-row:not(.rest):focus-visible{outline:2px solid #35e6d0;outline-offset:2px}
+.swim-plan-row.selected{background:rgba(13,52,75,.75);border-color:rgba(33,207,255,.55);box-shadow:0 0 0 1px rgba(33,207,255,.18),0 10px 26px rgba(0,0,0,.28)}
+.swim-plan-row.today:not(.selected){border-color:rgba(33,207,255,.3)}
+.swim-plan-row.rest{cursor:default;opacity:.55}
+.swim-plan-row-day{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#dbe8ee}
+.swim-plan-row-day b{font-size:13px;font-weight:700}
+.swim-plan-row-day small{font-size:10px;color:#7e8e98}
+.swim-plan-row-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.swim-plan-row-title strong{font-size:14px;font-weight:650;color:#f2f8fb;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.swim-plan-row-title small{font-size:11px;color:#8b9aa3}
+.swim-plan-row.rest .swim-plan-row-title{flex-direction:row;align-items:center;gap:7px;font-size:13px;color:#8b9aa3}
+.swim-plan-row-meta{font-size:12px;color:#a7b4bd;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.swim-plan-row-status{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.swim-plan-status-icon{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;color:#697982;background:rgba(255,255,255,.05)}
+.swim-plan-status-icon.completed{color:#0c1712;background:#3fe08a;box-shadow:0 0 14px rgba(63,224,138,.35)}
+.swim-plan-status-icon.progress{color:#04222f;background:#21cfff;box-shadow:0 0 14px rgba(33,207,255,.4)}
+.swim-plan-status-icon.waiting{color:#2a1f00;background:#ffcf4e}
+.swim-plan-status-pill{padding:4px 10px;border-radius:999px;font-size:10px;font-weight:700;color:#0a2230;background:#21cfff;white-space:nowrap}
+.swim-plan-status-pill.today{background:#21cfff}
+
+.swim-plan-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:640px){.swim-plan-summary{grid-template-columns:1fr 1fr}}
+.swim-plan-summary-tile{display:flex;align-items:flex-start;gap:12px;padding:16px}
+.swim-plan-summary-icon{width:34px;height:34px;display:grid;place-items:center;flex:0 0 auto;border-radius:9px;background:rgba(0,185,255,.09);color:#21cfff}
+.swim-plan-summary-tile b{display:block;font-size:11px;color:#8b9aa3;font-weight:600}
+.swim-plan-summary-tile p{margin:6px 0 2px;font-size:19px;font-weight:700;font-variant-numeric:tabular-nums;color:#f2f8fb}
+.swim-plan-summary-tile small{font-size:11px;color:#7e8e98}
+
+.swim-plan-phase{padding:20px 22px}
+.swim-plan-phase-head h3{margin:0;font-size:15px}
+.swim-plan-phase-head p{margin:4px 0 0;font-size:12px;color:#8b9aa3}
+.swim-plan-phase-pct{display:block;margin-top:14px;font-size:38px;font-weight:750;color:#f2f8fb}
+.swim-plan-phase-caption{margin:2px 0 12px;font-size:12px;color:#8b9aa3}
+.swim-plan-phase-bar{height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-bottom:16px}
+.swim-plan-phase-bar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#21cfff,#7fe6a8);box-shadow:0 0 16px rgba(33,207,255,.35);transition:width 400ms cubic-bezier(.16,1,.3,1)}
+.swim-plan-phase-goal{display:flex;gap:32px;margin-bottom:14px;font-size:12px;color:#7e8e98;line-height:1.6}
+.swim-plan-phase-goal b{color:#f2f8fb;font-size:14px;font-weight:700}
+.swim-plan-chart{width:100%;height:auto;overflow:visible}
+.swim-plan-chart-target{fill:none;stroke:rgba(139,154,163,.5);stroke-width:1.5;stroke-dasharray:4 5}
+.swim-plan-chart-actual{fill:none;stroke:#21cfff;stroke-width:2.5;filter:drop-shadow(0 0 6px rgba(33,207,255,.4))}
+.swim-plan-chart-dot{fill:#0a1f2c;stroke:#21cfff;stroke-width:2}
+.swim-plan-chart-dot.current{fill:#21cfff;stroke:#dff8ff}
+.swim-plan-chart-label{fill:#7e8e98;font-size:9px}
+
+.swim-plan-detail{position:sticky;top:24px}
+.swim-plan-detail-panel{padding:22px}
+.swim-plan-detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.swim-plan-detail-head h3{margin:0;font-size:19px;line-height:1.2}
+.swim-plan-badge{display:inline-block;margin-top:10px;padding:5px 10px;border-radius:7px;background:#073c5b;color:#d9f7ff;font-size:10px;font-weight:700}
+.swim-plan-detail-sub{margin:10px 0 0;font-size:12px;color:#8b9aa3}
+.swim-plan-detail-stats{display:flex;gap:20px;margin:18px 0;padding:14px 0;border-top:1px solid rgba(56,122,151,.15);border-bottom:1px solid rgba(56,122,151,.15)}
+.swim-plan-detail-stats span{display:flex;flex-direction:column-reverse;gap:3px}
+.swim-plan-detail-stats b{font-size:16px;font-weight:700;color:#f2f8fb;font-variant-numeric:tabular-nums}
+.swim-plan-detail-stats small{font-size:10px;color:#7e8e98;text-transform:uppercase;letter-spacing:.04em}
+.swim-plan-detail-heading{margin:18px 0 8px;font-size:11px;color:#7e8e98;text-transform:uppercase;letter-spacing:.06em}
+.swim-plan-detail-desc{margin:0;font-size:13px;line-height:1.5;color:#c4d1d9}
+.swim-plan-structure{display:grid;gap:8px}
+.swim-plan-structure-row{display:grid;grid-template-columns:8px 1fr auto;align-items:center;gap:12px;padding:10px 0}
+.swim-plan-structure-row i{width:8px;height:8px;border-radius:50%}
+.swim-plan-structure-row i.green{background:#3fe08a;box-shadow:0 0 8px rgba(63,224,138,.5)}
+.swim-plan-structure-row i.blue{background:#21cfff;box-shadow:0 0 8px rgba(33,207,255,.5)}
+.swim-plan-structure-row b{display:block;font-size:13px;font-weight:650;color:#f2f8fb}
+.swim-plan-structure-row small{display:block;margin-top:2px;font-size:11px;color:#8b9aa3}
+.swim-plan-structure-row strong{font-size:13px;font-variant-numeric:tabular-nums;color:#dbe8ee;white-space:nowrap}
+.swim-plan-recommend{display:flex;gap:14px}
+.swim-plan-recommend span{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:10px;background:rgba(13,42,58,.6);color:#21cfff}
+.swim-plan-recommend small{display:block;font-size:10px;color:#8b9aa3}
+.swim-plan-recommend b{display:block;font-size:13px;color:#f2f8fb}
+.swim-plan-detail-actions{display:grid;gap:10px;margin-top:22px}
+.swim-plan-primary-action,.swim-plan-secondary-action{height:46px;display:inline-flex;align-items:center;justify-content:center;gap:8px;border-radius:9px;text-decoration:none;font-size:13px;font-weight:750;cursor:pointer;border:0;transition:filter 190ms ease,box-shadow 190ms ease,transform 190ms ease}
+.swim-plan-primary-action{background:linear-gradient(135deg,#25d4ff 0%,#0a9ef5 46%,#086eea 100%);color:#fff;box-shadow:0 7px 24px rgba(0,141,255,.38),0 0 24px rgba(16,199,255,.24),inset 0 1px 0 rgba(255,255,255,.3)}
+.swim-plan-primary-action:hover{filter:brightness(1.1) saturate(1.08)}
+.swim-plan-primary-action:active{transform:scale(.98)}
+.swim-plan-primary-action:focus-visible,.swim-plan-secondary-action:focus-visible{outline:2px solid #35e6d0;outline-offset:2px}
+.swim-plan-secondary-action{color:#e9f4f8;background:rgba(7,31,46,.72);border:1px solid rgba(37,126,169,.24)}
+.swim-plan-secondary-action:hover{background:rgba(13,42,58,.85);border-color:rgba(66,181,224,.4)}
+.swim-plan-detail-empty{padding:40px 24px;text-align:center;color:#8b9aa3}
+.swim-plan-detail-empty svg{color:#5fa5c4;margin-bottom:10px}
+.swim-plan-detail-empty h4{margin:0 0 6px;color:#eef6f9}
+.swim-plan-detail-empty p{margin:0;font-size:13px}
+
+@media(max-width:760px){
+  .swim-plan-header h1{font-size:26px}
+  .swim-plan-toolbar{flex-direction:column;align-items:stretch}
+  .swim-plan-table{overflow-x:auto}
+  .swim-plan-table-head{display:none}
+  .swim-plan-row{grid-template-columns:44px 1fr auto;min-width:0}
+  .swim-plan-row-meta{display:none}
+  .swim-plan-row-day{align-items:flex-start}
+  .swim-plan-detail{position:static}
+}
+@media(prefers-reduced-motion:reduce){
+  .swim-plan-row,.swim-plan-week-nav button,.swim-plan-phase-bar i{transition:none!important}
+  .swim-spin{animation:none!important}
+}

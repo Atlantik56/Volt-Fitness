@@ -91,6 +91,12 @@ export type SwimInsight = {
 // --- Прогресс программы (вычисляется, не хранится) ---
 export type SwimWorkoutProgressStatus = "not_started" | "in_progress" | "awaiting_confirmation" | "completed";
 
+export type SwimWorkoutActual = {
+  distanceMeters: number;
+  durationSeconds: number;
+  calories: number;
+};
+
 export type SwimWorkoutProgress = {
   workout: SwimWorkoutDef;
   weekIndex: number;
@@ -98,6 +104,7 @@ export type SwimWorkoutProgress = {
   status: SwimWorkoutProgressStatus;
   planKey: string;
   draftId: number | null;
+  actual: SwimWorkoutActual | null;
 };
 
 export type SwimProgramProgress = {
