@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { computeProgramProgress, getProgram, listPrograms } from "../lib/swim/program-engine.ts";
 import { swimWorkoutPlanKey } from "../lib/swim/workout-plan-key.ts";
+import { totalDistanceMeters } from "../lib/swim/workout-engine.ts";
 
 test("listPrograms содержит ровно одну доступную программу и остальные — coming_soon", () => {
   const programs = listPrograms();
@@ -9,6 +10,17 @@ test("listPrograms содержит ровно одну доступную пр�
   assert.equal(available.length, 1);
   assert.equal(available[0].id, "foundation");
   assert.ok(programs.some((p) => p.status === "coming_soon"));
+});
+
+test("Foundation содержит все 6 недель, 12 тренировок и исходные недельные объёмы", () => {
+  const foundation = getProgram("foundation")!;
+  assert.equal(foundation.weeks.length, 6);
+  assert.equal(foundation.weeks.flatMap((week) => week.days.filter((day) => day.workout)).length, 12);
+  assert.deepEqual(foundation.weeks.map((week) => week.plannedDistanceMeters), [2000, 2200, 2500, 2000, 2900, 3200]);
+  for (const week of foundation.weeks) {
+    const actual = week.days.reduce((sum, day) => sum + (day.workout ? totalDistanceMeters(day.workout) : 0), 0);
+    assert.equal(actual, week.plannedDistanceMeters, `объём недели ${week.weekIndex}`);
+  }
 });
 
 test("computeProgramProgress: без завершённых тренировок все not_started, nextWorkout — первая по порядку", () => {

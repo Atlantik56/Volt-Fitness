@@ -1,184 +1,129 @@
-// Движок программ VOLT Swim: Program -> Week -> Workout -> Interval -> Step.
-// Программы — авторские данные (как app/personal-data.ts homeWeek), а не
-// пользовательские факты; прогресс по ним всегда вычисляется из реальных
-// workout_drafts/workout_logs (lib/swim/services.ts), а не хранится отдельно.
 import { swimWorkoutPlanKey } from "@/lib/swim/workout-plan-key";
-import type {
-  SwimDay,
-  SwimProgramDef,
-  SwimProgramProgress,
-  SwimWeekDef,
-  SwimWorkoutDef,
-  SwimWorkoutProgress,
-  SwimWorkoutProgressStatus,
-} from "@/lib/swim/types";
+import type { SwimDay, SwimInterval, SwimIntervalType, SwimProgramDef, SwimProgramProgress, SwimWeekDef, SwimWorkoutDef, SwimWorkoutProgress, SwimWorkoutProgressStatus } from "@/lib/swim/types";
 
-const FOUNDATION_WEEK_1: SwimWeekDef = {
-  weekIndex: 1,
-  days: [
-    {
-      dayIndex: 1,
-      workout: {
-        id: "w1d1",
-        title: "Техника и объём",
-        goal: "Освоить ровный вольный стиль на коротких отрезках",
-        level: "beginner",
-        estimatedMinutes: 35,
-        intervals: [
-          { id: "w1d1-1", type: "warmup", exerciseId: "easy-swim", distanceMeters: 200, repeats: 1, description: "Свободно, без ускорений", restSeconds: 30, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w1d1-2", type: "drill", exerciseId: "catch-up", distanceMeters: 50, repeats: 4, description: "Пауза руки впереди, длинный гребок", restSeconds: 20, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w1d1-3", type: "main_set", exerciseId: "freestyle", distanceMeters: 100, repeats: 4, description: "Ровный темп, свободное дыхание", restSeconds: 30, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w1d1-4", type: "cooldown", exerciseId: "easy-swim", distanceMeters: 100, repeats: 1, description: "Спокойно, восстановить дыхание", restSeconds: null, targetPaceSecondsPer100: null, equipment: [] },
-        ],
-      },
-    },
-    { dayIndex: 2, workout: null },
-    {
-      dayIndex: 3,
-      workout: {
-        id: "w1d3",
-        title: "Работа ног и баланс",
-        goal: "Укрепить работу ног, отработать баланс тела",
-        level: "beginner",
-        estimatedMinutes: 30,
-        intervals: [
-          { id: "w1d3-1", type: "warmup", exerciseId: "easy-swim", distanceMeters: 150, repeats: 1, description: "Свободно", restSeconds: 30, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w1d3-2", type: "drill", exerciseId: "kick", distanceMeters: 50, repeats: 4, description: "С доской, равномерный удар", restSeconds: 20, targetPaceSecondsPer100: null, equipment: ["доска"] },
-          { id: "w1d3-3", type: "drill", exerciseId: "6-1-6", distanceMeters: 50, repeats: 4, description: "6 ударов на боку — гребок — 6 ударов", restSeconds: 20, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w1d3-4", type: "cooldown", exerciseId: "easy-swim", distanceMeters: 100, repeats: 1, description: "Спокойно", restSeconds: null, targetPaceSecondsPer100: null, equipment: [] },
-        ],
-      },
-    },
-    { dayIndex: 4, workout: null },
-    { dayIndex: 5, workout: null },
-    { dayIndex: 6, workout: null },
-    { dayIndex: 7, workout: null },
-  ],
-};
+type SetInput = [type: SwimIntervalType, exerciseId: string, distance: number, repeats: number, rest: number | null, description: string, restMax?: number | null];
 
-const FOUNDATION_WEEK_2: SwimWeekDef = {
-  weekIndex: 2,
-  days: [
-    {
-      dayIndex: 1,
-      workout: {
-        id: "w2d1",
-        title: "Длинный гребок",
-        goal: "Удлинить гребок, снизить количество гребков на бассейн",
-        level: "beginner",
-        estimatedMinutes: 35,
-        intervals: [
-          { id: "w2d1-1", type: "warmup", exerciseId: "easy-swim", distanceMeters: 200, repeats: 1, description: "Свободно", restSeconds: 30, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d1-2", type: "drill", exerciseId: "fingertip-drag", distanceMeters: 50, repeats: 4, description: "Пальцы скользят по поверхности при проносе руки", restSeconds: 20, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d1-3", type: "drill", exerciseId: "single-arm", distanceMeters: 50, repeats: 4, description: "По очереди каждой рукой", restSeconds: 20, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d1-4", type: "main_set", exerciseId: "freestyle", distanceMeters: 100, repeats: 4, description: "Считать гребки, стараться уменьшить их число", restSeconds: 30, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d1-5", type: "cooldown", exerciseId: "easy-swim", distanceMeters: 100, repeats: 1, description: "Спокойно", restSeconds: null, targetPaceSecondsPer100: null, equipment: [] },
-        ],
-      },
-    },
-    { dayIndex: 2, workout: null },
-    {
-      dayIndex: 3,
-      workout: {
-        id: "w2d3",
-        title: "Смешанный объём",
-        goal: "Собрать технику и выносливость в одной тренировке",
-        level: "beginner",
-        estimatedMinutes: 40,
-        intervals: [
-          { id: "w2d3-1", type: "warmup", exerciseId: "easy-swim", distanceMeters: 200, repeats: 1, description: "Свободно", restSeconds: 30, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d3-2", type: "drill", exerciseId: "sculling", distanceMeters: 25, repeats: 4, description: "Мелкие движения кистями у поверхности", restSeconds: 20, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d3-3", type: "main_set", exerciseId: "freestyle", distanceMeters: 100, repeats: 6, description: "Ровный темп", restSeconds: 25, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d3-4", type: "recovery", exerciseId: "backstroke", distanceMeters: 100, repeats: 1, description: "На спине, спокойно", restSeconds: 30, targetPaceSecondsPer100: null, equipment: [] },
-          { id: "w2d3-5", type: "cooldown", exerciseId: "easy-swim", distanceMeters: 100, repeats: 1, description: "Спокойно", restSeconds: null, targetPaceSecondsPer100: null, equipment: [] },
-        ],
-      },
-    },
-    { dayIndex: 4, workout: null },
-    { dayIndex: 5, workout: null },
-    { dayIndex: 6, workout: null },
-    { dayIndex: 7, workout: null },
-  ],
-};
+const set = (workoutId: string, index: number, input: SetInput): SwimInterval => ({
+  id: `${workoutId}-${index + 1}`,
+  type: input[0], exerciseId: input[1], distanceMeters: input[2], repeats: input[3],
+  restSeconds: input[4], description: input[5], restSecondsMax: input[6],
+  targetPaceSecondsPer100: null, equipment: input[1] === "kick" ? ["доска — по желанию"] : [],
+});
 
-const PROGRAMS: readonly SwimProgramDef[] = [
-  {
-    id: "foundation",
-    name: "Основы техники",
-    description: "Первая программа VOLT Swim: техника вольного стиля, работа ног и базовая выносливость.",
-    level: "beginner",
-    status: "available",
-    version: 1,
-    weeks: [FOUNDATION_WEEK_1, FOUNDATION_WEEK_2],
-  },
-  { id: "endurance", name: "Выносливость", description: "Программа для увеличения непрерывного объёма плавания.", level: "intermediate", status: "coming_soon", version: 1, weeks: [] },
-  { id: "intervals", name: "Интервалы", description: "Интервальные серии с контролем темпа и отдыха.", level: "intermediate", status: "coming_soon", version: 1, weeks: [] },
-  { id: "speed", name: "Скорость", description: "Спринтерская работа и техника стартов/поворотов.", level: "advanced", status: "coming_soon", version: 1, weeks: [] },
+const workout = (id: string, title: string, goal: string, estimatedMinutes: number, sets: SetInput[]): SwimWorkoutDef => ({
+  id, title, goal, estimatedMinutes, level: "beginner", intervals: sets.map((item, index) => set(id, index, item)),
+});
+const day = (dayIndex: number, value: SwimWorkoutDef | null): SwimDay => ({ dayIndex, workout: value });
+const week = (weekIndex: number, title: string, plannedDistanceMeters: number, workouts: SwimWorkoutDef[]): SwimWeekDef => ({
+  weekIndex, title, plannedDistanceMeters,
+  days: [day(1, workouts[0]), day(2, null), day(3, workouts[1]), day(4, null), day(5, null), day(6, null), day(7, null)],
+});
+
+// VOLT Swim Foundation v2. Источник: Swim-Training-plan.md пользователя.
+// Объёмы, порядок блоков, число повторов и отдых перенесены без продуктовых догадок.
+const FOUNDATION_WEEKS: SwimWeekDef[] = [
+  week(1, "Адаптация", 2000, [
+    workout("w1d1", "Длинный гребок", "Спокойно скользить по воде, не торопиться и считать гребки", 38, [
+      ["warmup", "backstroke", 50, 1, 15, "Кроль на спине, 2 длины"],
+      ["warmup", "freestyle", 50, 1, 15, "Кроль на груди, 2 длины"],
+      ["warmup", "backstroke", 50, 1, 15, "Повтор круга: кроль на спине"],
+      ["warmup", "freestyle", 50, 1, 15, "Повтор круга: кроль на груди"],
+      ["main_set", "freestyle", 50, 8, 20, "Длинный гребок, спокойное дыхание, считать гребки", 30],
+      ["drill", "kick", 50, 6, 20, "Двухударная работа ног от бедра, не ускоряться"],
+      ["cooldown", "backstroke", 100, 1, null, "Максимально расслабленно"],
+    ]),
+    workout("w1d3", "Аэробная база", "Сохранить ровное дыхание в каждом отрезке", 38, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно: спина или кроль"],
+      ["main_set", "freestyle", 100, 4, 30, "Ровное дыхание", 40],
+      ["recovery", "backstroke", 50, 4, 20, "Кроль на спине"],
+      ["cooldown", "freestyle", 100, 1, null, "Очень спокойно"],
+      ["cooldown", "backstroke", 100, 1, null, "Очень спокойно"],
+    ]),
+  ]),
+  week(2, "Улучшение скольжения", 2200, [
+    workout("w2d1", "Меньше гребков", "Сделать на 1–2 гребка меньше, сохраняя спокойный темп", 38, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойное плавание"],
+      ["main_set", "freestyle", 50, 10, 20, "На 1–2 гребка меньше, чем на прошлой неделе"],
+      ["drill", "kick", 50, 4, 20, "Двухударная работа ног"],
+      ["cooldown", "backstroke", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w2d3", "Естественный ритм", "Найти естественный ритм двухударного кроля", 42, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойное плавание"],
+      ["main_set", "freestyle", 200, 3, 45, "Естественный ритм двухударного кроля"],
+      ["recovery", "backstroke", 50, 4, 20, "Кроль на спине"],
+      ["cooldown", "easy-swim", 200, 1, null, "Спокойно"],
+    ]),
+  ]),
+  week(3, "Экономичность", 2500, [
+    workout("w3d1", "Контроль SWOLF", "Сохранять экономичность; замедлиться при ухудшении последних интервалов", 40, [
+      ["warmup", "backstroke", 100, 1, null, "Спокойно"],
+      ["warmup", "freestyle", 100, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 6, 30, "Следить за SWOLF и не ускоряться"],
+      ["drill", "kick", 50, 4, 20, "Двухударная работа ног"],
+      ["cooldown", "backstroke", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w3d3", "Длинные отрезки", "Удерживать спокойную технику на 300-метровых отрезках", 48, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 300, 2, 45, "Ровная техника и дыхание", 60],
+      ["recovery", "backstroke", 100, 4, 30, "Кроль на спине"],
+      ["cooldown", "easy-swim", 200, 1, null, "Спокойно"],
+    ]),
+  ]),
+  week(4, "Разгрузочная", 2000, [
+    workout("w4d1", "Скольжение", "Вернуть лёгкость движений и сохранить технику", 38, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["technique", "drill", 50, 8, 20, "25 м упражнение на скольжение + 25 м полный кроль"],
+      ["drill", "kick", 50, 4, 20, "На спине, руки вдоль тела"],
+      ["cooldown", "easy-swim", 200, 1, null, "Расслабленно"],
+    ]),
+    workout("w4d3", "500 м без остановок", "Проплыть 20 длин непрерывно и максимально расслабленно", 40, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 500, 1, null, "Без остановок, открытые развороты"],
+      ["cooldown", "easy-swim", 300, 1, null, "Чередовать кроль и спину"],
+    ]),
+  ]),
+  week(5, "Рост объёма", 2900, [
+    workout("w5d1", "Стабильные сотни", "Удерживать одинаковое время на каждой сотне", 45, [
+      ["warmup", "easy-swim", 300, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 8, 30, "Одинаковое время и техника"],
+      ["drill", "kick", 50, 2, 20, "Двухударная работа ног"],
+      ["cooldown", "easy-swim", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w5d3", "Два по 400", "Сохранить технику на двух длинных заплывах", 55, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 400, 2, 60, "16 длин, ровное дыхание"],
+      ["recovery", "backstroke", 100, 4, 30, "Кроль на спине"],
+      ["cooldown", "easy-swim", 200, 1, null, "Расслабленно"],
+    ]),
+  ]),
+  week(6, "Контрольный цикл", 3200, [
+    workout("w6d1", "10 стабильных сотен", "Не сбивать дыхание и удерживать одинаковую технику", 50, [
+      ["warmup", "easy-swim", 300, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 10, 20, "Не сбивать дыхание", 30],
+      ["cooldown", "easy-swim", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w6d3", "Контрольные 1000 м", "Проплыть 40 длин без остановок и без ускорений", 60, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 1000, 1, null, "Не ставить рекорд: последние 200 м почти как первые"],
+      ["recovery", "backstroke", 100, 4, 30, "Кроль на спине"],
+      ["cooldown", "easy-swim", 200, 1, null, "Лёгкое расслабленное плавание"],
+    ]),
+  ]),
 ];
 
-export function listPrograms(): readonly SwimProgramDef[] {
-  return PROGRAMS;
-}
+const PROGRAMS: readonly SwimProgramDef[] = [
+  { id: "foundation", name: "Foundation", description: "6 недель: техника, двухударный кроль и спокойный рост непрерывной дистанции до 1000 м.", level: "beginner", status: "available", version: 2, weeks: FOUNDATION_WEEKS },
+  { id: "endurance", name: "Выносливость", description: "Следующий этап развития объёма.", level: "intermediate", status: "coming_soon", version: 1, weeks: [] },
+];
 
-export function getProgram(id: string): SwimProgramDef | null {
-  return PROGRAMS.find((program) => program.id === id) ?? null;
-}
-
-export function getWorkout(program: SwimProgramDef, weekIndex: number, workoutId: string): { day: SwimDay; week: SwimWeekDef } | null {
-  const week = program.weeks.find((w) => w.weekIndex === weekIndex);
-  if (!week) return null;
-  const day = week.days.find((d) => d.workout?.id === workoutId);
-  return day ? { day, week } : null;
-}
-
-export function findWorkoutById(program: SwimProgramDef, workoutId: string): { workout: SwimWorkoutDef; weekIndex: number; dayIndex: number } | null {
-  for (const week of program.weeks) {
-    for (const day of week.days) {
-      if (day.workout?.id === workoutId) return { workout: day.workout, weekIndex: week.weekIndex, dayIndex: day.dayIndex };
-    }
-  }
-  return null;
-}
-
-function allWorkoutsInOrder(program: SwimProgramDef): { workout: SwimWorkoutDef; weekIndex: number; dayIndex: number }[] {
-  const result: { workout: SwimWorkoutDef; weekIndex: number; dayIndex: number }[] = [];
-  for (const week of program.weeks) {
-    for (const day of week.days) {
-      if (day.workout) result.push({ workout: day.workout, weekIndex: week.weekIndex, dayIndex: day.dayIndex });
-    }
-  }
-  return result;
-}
-
-// completedPlanKeys — все plan_key завершённых черновиков (любой активности,
-// не только swim); openDraftsByPlanKey — активные/ожидающие подтверждения
-// черновики, тоже по всем активностям. Пересечение с ключами программы
-// вычисляется здесь, а не в lib/swim/services.ts — та часть остаётся чистой
-// доменной логикой без обращения к БД.
-export function computeProgramProgress(
-  program: SwimProgramDef,
-  completedPlanKeys: ReadonlySet<string>,
-  openDraftsByPlanKey: ReadonlyMap<string, { id: number; status: "active" | "awaiting_confirmation" }>,
-): SwimProgramProgress {
-  const ordered = allWorkoutsInOrder(program);
-  const workouts: SwimWorkoutProgress[] = ordered.map(({ workout, weekIndex, dayIndex }) => {
-    const key = swimWorkoutPlanKey(program, workout);
-    const open = key ? openDraftsByPlanKey.get(key) : undefined;
-    const status: SwimWorkoutProgressStatus = !key
-      ? "not_started"
-      : completedPlanKeys.has(key)
-        ? "completed"
-        : open?.status === "awaiting_confirmation"
-          ? "awaiting_confirmation"
-          : open?.status === "active"
-            ? "in_progress"
-            : "not_started";
-    return { workout, weekIndex, dayIndex, status, planKey: key ?? "", draftId: open?.id ?? null };
-  });
-
+export const listPrograms = (): readonly SwimProgramDef[] => PROGRAMS;
+export const getProgram = (id: string): SwimProgramDef | null => PROGRAMS.find((program) => program.id === id) ?? null;
+export function getWorkout(program: SwimProgramDef, weekIndex: number, workoutId: string) { const week = program.weeks.find((w) => w.weekIndex === weekIndex); const found = week?.days.find((d) => d.workout?.id === workoutId); return week && found ? { day: found, week } : null; }
+export function findWorkoutById(program: SwimProgramDef, workoutId: string) { for (const w of program.weeks) for (const d of w.days) if (d.workout?.id === workoutId) return { workout: d.workout, weekIndex: w.weekIndex, dayIndex: d.dayIndex }; return null; }
+function ordered(program: SwimProgramDef) { return program.weeks.flatMap((week) => week.days.flatMap((day) => day.workout ? [{ workout: day.workout, weekIndex: week.weekIndex, dayIndex: day.dayIndex }] : [])); }
+export function computeProgramProgress(program: SwimProgramDef, completedPlanKeys: ReadonlySet<string>, openDraftsByPlanKey: ReadonlyMap<string, { id: number; status: "active" | "awaiting_confirmation" }>): SwimProgramProgress {
+  const workouts: SwimWorkoutProgress[] = ordered(program).map(({ workout, weekIndex, dayIndex }) => { const key = swimWorkoutPlanKey(program, workout) ?? ""; const open = openDraftsByPlanKey.get(key); const status: SwimWorkoutProgressStatus = completedPlanKeys.has(key) ? "completed" : open?.status === "awaiting_confirmation" ? "awaiting_confirmation" : open?.status === "active" ? "in_progress" : "not_started"; return { workout, weekIndex, dayIndex, status, planKey: key, draftId: open?.id ?? null }; });
   const completedCount = workouts.filter((w) => w.status === "completed").length;
   const nextWorkout = workouts.find((w) => w.status === "in_progress" || w.status === "awaiting_confirmation") ?? workouts.find((w) => w.status === "not_started") ?? null;
-  const currentWeekIndex = nextWorkout?.weekIndex ?? (workouts.length ? workouts[workouts.length - 1].weekIndex : null);
-
-  return { program, completedCount, totalCount: workouts.length, currentWeekIndex, nextWorkout, workouts };
+  return { program, completedCount, totalCount: workouts.length, currentWeekIndex: nextWorkout?.weekIndex ?? (workouts.at(-1)?.weekIndex ?? null), nextWorkout, workouts };
 }

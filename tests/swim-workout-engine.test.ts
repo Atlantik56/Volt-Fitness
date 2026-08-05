@@ -47,14 +47,15 @@ test("swimWorkoutPlanKey стабилен для одинаковой прогр
   assert.notEqual(key1a, key2);
 });
 
-test("buildIntervalSteps нумерует шаги по порядку и считает totalMeters", () => {
+test("buildIntervalSteps разворачивает каждый повтор в отдельный отрезок", () => {
   const w = workout({ intervals: [interval({ distanceMeters: 100, repeats: 2 }), interval({ id: "i2", distanceMeters: 50, repeats: 1 })] });
   const steps = buildIntervalSteps(w);
-  assert.equal(steps.length, 2);
+  assert.equal(steps.length, 3);
   assert.equal(steps[0].index, 0);
-  assert.equal(steps[0].total, 2);
-  assert.equal(steps[0].totalMeters, 200);
-  assert.equal(steps[1].totalMeters, 50);
+  assert.equal(steps[0].total, 3);
+  assert.equal(steps[0].totalMeters, 100);
+  assert.equal(steps[1].repeatIndex, 1);
+  assert.equal(steps[2].totalMeters, 50);
 });
 
 test("buildConfirmationExercises кодирует дистанцию интервала в reps набора", () => {

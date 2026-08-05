@@ -31,6 +31,7 @@ export type SwimInterval = {
   repeats: number;
   description: string;
   restSeconds: number | null;
+  restSecondsMax?: number | null;
   targetPaceSecondsPer100: number | null;
   equipment: string[];
 };
@@ -55,6 +56,8 @@ export type SwimDay = {
 
 export type SwimWeekDef = {
   weekIndex: number; // 1-based
+  title?: string;
+  plannedDistanceMeters?: number;
   days: SwimDay[];
 };
 

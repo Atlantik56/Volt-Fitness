@@ -1,10 +1,10 @@
 import { db } from "@/lib/db";
 import { isSwimActivity } from "@/lib/swim-classify";
 import { formatPace100m } from "@/lib/swim-metrics";
-import { getNextSwimWorkout } from "@/lib/swim/services";
+import { getProgramProgress } from "@/lib/swim/services";
 import { totalDistanceMeters } from "@/lib/swim/workout-engine";
 import { getSwimInsights } from "@/lib/swim/insight-service";
-import type { SwimHomeData, SwimLastSwimView, SwimNextWorkoutView, SwimWeeklyActivityView, SwimMetricsView } from "@/app/swim/types";
+import type { SwimHomeData, SwimLastSwimView, SwimNextWorkoutView, SwimWeeklyActivityView, SwimMetricsView, SwimRecentSessionView, SwimEffortDistribution } from "@/app/swim/types";
 
 type WorkoutLogRow = {
   id: number;
@@ -17,9 +17,10 @@ type WorkoutLogRow = {
   calories: number;
   metricsSource: string;
   notes: string;
+  effort: string;
 };
 
-const selectLogs = `SELECT id,date,type,title,duration_seconds durationSeconds,distance_meters distanceMeters,avg_heart_rate avgHeartRate,calories,metrics_source metricsSource,notes FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400`;
+const selectLogs = `SELECT id,date,type,title,duration_seconds durationSeconds,distance_meters distanceMeters,avg_heart_rate avgHeartRate,calories,metrics_source metricsSource,notes,effort FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400`;
 
 function mondayIso(date: Date): string {
   const day = date.getDay() || 7;
@@ -35,7 +36,8 @@ function sundayIso(date: Date): string {
 }
 
 function buildNextWorkoutView(): SwimNextWorkoutView {
-  const next = getNextSwimWorkout();
+  const progress = getProgramProgress("foundation");
+  const next = progress?.nextWorkout;
   if (!next) return null;
   return {
     status: next.status === "completed" ? "not_started" : next.status,
@@ -45,6 +47,8 @@ function buildNextWorkoutView(): SwimNextWorkoutView {
     goal: next.workout.goal,
     distanceMeters: totalDistanceMeters(next.workout),
     estimatedMinutes: next.workout.estimatedMinutes,
+    weekIndex: next.weekIndex,
+    progressPercent: progress?.totalCount ? Math.round((progress.completedCount / progress.totalCount) * 100) : 0,
   };
 }
 
@@ -70,10 +74,16 @@ export function getSwimHomeData(): SwimHomeData {
   const weekStart = mondayIso(now);
   const weekEnd = sundayIso(now);
   const weekLogs = logs.filter((row) => row.date >= weekStart && row.date <= weekEnd);
+  const weekDates = Array.from({ length: 7 }, (_, index) => { const value = new Date(`${weekStart}T12:00:00`); value.setDate(value.getDate() + index); return value.toISOString().slice(0, 10); });
+  const weekHeartRates = weekLogs.map((row) => row.avgHeartRate).filter((value) => value > 0);
   const weeklyActivity: SwimWeeklyActivityView = {
     swimCount: weekLogs.length,
     totalDistanceMeters: weekLogs.reduce((sum, row) => sum + (row.distanceMeters > 0 ? row.distanceMeters : 0), 0),
     goalMeters: null,
+    totalDurationSeconds: weekLogs.reduce((sum, row) => sum + Math.max(0, row.durationSeconds), 0),
+    totalCalories: weekLogs.reduce((sum, row) => sum + Math.max(0, row.calories), 0),
+    avgHeartRate: weekHeartRates.length ? Math.round(weekHeartRates.reduce((sum, value) => sum + value, 0) / weekHeartRates.length) : null,
+    dailyMeters: weekDates.map((date) => weekLogs.filter((row) => row.date === date).reduce((sum, row) => sum + Math.max(0, row.distanceMeters), 0)),
   };
 
   const recentWithPace = logs.find((row) => formatPace100m(row.distanceMeters, row.durationSeconds) !== null);
@@ -86,5 +96,10 @@ export function getSwimHomeData(): SwimHomeData {
     calories: recentWithCalories ? recentWithCalories.calories : null,
   };
 
-  return { nextWorkout, lastSwim, weeklyActivity, metrics, hasAnySwimHistory: logs.length > 0, insights: getSwimInsights() };
+  const toRecent = (row: WorkoutLogRow): SwimRecentSessionView => ({ id: row.id, date: row.date, title: row.title, distanceMeters: row.distanceMeters > 0 ? row.distanceMeters : null, durationSeconds: row.durationSeconds > 0 ? row.durationSeconds : null, paceLabel: formatPace100m(row.distanceMeters, row.durationSeconds), avgHeartRate: row.avgHeartRate > 0 ? row.avgHeartRate : null, effort: row.effort || null });
+  const recentSwims = logs.slice(0, 3).map(toRecent);
+  const monthPrefix = now.toISOString().slice(0, 7);
+  const monthBest = logs.filter((row) => row.date.startsWith(monthPrefix) && row.distanceMeters > 0).sort((a, b) => b.distanceMeters - a.distanceMeters)[0];
+  const effortDistribution = logs.slice(0, 12).reduce<SwimEffortDistribution>((result, row) => { const effort = row.effort.toLowerCase(); if (effort.includes("лег")) result.easy += 1; else if (effort.includes("тяж") || effort.includes("боль")) result.hard += 1; else result.aerobic += 1; return result; }, { easy: 0, aerobic: 0, hard: 0 });
+  return { nextWorkout, lastSwim, weeklyActivity, metrics, hasAnySwimHistory: logs.length > 0, insights: getSwimInsights(), recentSwims, monthRecord: monthBest ? toRecent(monthBest) : null, effortDistribution };
 }

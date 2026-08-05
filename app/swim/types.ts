@@ -12,6 +12,8 @@ export type SwimNextWorkoutView = {
   goal: string;
   distanceMeters: number;
   estimatedMinutes: number;
+  weekIndex: number;
+  progressPercent: number;
 } | null;
 
 export type SwimLastSwimView = {
@@ -28,7 +30,24 @@ export type SwimWeeklyActivityView = {
   swimCount: number;
   totalDistanceMeters: number;
   goalMeters: number | null;
+  totalDurationSeconds: number;
+  totalCalories: number;
+  avgHeartRate: number | null;
+  dailyMeters: number[];
 };
+
+export type SwimRecentSessionView = {
+  id: number;
+  date: string;
+  title: string;
+  distanceMeters: number | null;
+  durationSeconds: number | null;
+  paceLabel: string | null;
+  avgHeartRate: number | null;
+  effort: string | null;
+};
+
+export type SwimEffortDistribution = { easy: number; aerobic: number; hard: number };
 
 export type SwimMetricsView = {
   avgPaceLabel: string | null;
@@ -44,4 +63,7 @@ export type SwimHomeData = {
   metrics: SwimMetricsView;
   hasAnySwimHistory: boolean;
   insights: SwimInsight[];
+  recentSwims: SwimRecentSessionView[];
+  monthRecord: SwimRecentSessionView | null;
+  effortDistribution: SwimEffortDistribution;
 };

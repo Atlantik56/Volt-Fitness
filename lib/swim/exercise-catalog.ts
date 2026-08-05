@@ -156,3 +156,22 @@ export function listExercises(): readonly SwimExercise[] {
 export function getExerciseById(id: string): SwimExercise | null {
   return EXERCISE_CATALOG.find((exercise) => exercise.id === id) ?? null;
 }
+
+const EXERCISE_LABELS_RU: Readonly<Record<string, string>> = {
+  freestyle: "Кроль",
+  backstroke: "Кроль на спине",
+  kick: "Работа ног",
+  pull: "Тяга руками",
+  "catch-up": "Догоняющий кроль",
+  "single-arm": "Кроль одной рукой",
+  sculling: "Скаллинг",
+  "6-1-6": "6–1–6",
+  "fingertip-drag": "Пронос пальцев по воде",
+  "easy-swim": "Лёгкое плавание",
+  drill: "Техническое упражнение",
+};
+
+// UI-перевод отделён от name: name входит в сохранённый snapshot/planKey.
+export function exerciseLabelRu(id: string): string {
+  return EXERCISE_LABELS_RU[id] ?? getExerciseById(id)?.name ?? id;
+}

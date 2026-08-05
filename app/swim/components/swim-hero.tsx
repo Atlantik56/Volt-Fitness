@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { GlassPanel } from "./glass-panel";
 import { StatusBadge } from "./status-badge";
 import { formatMeters } from "@/lib/swim-metrics";
@@ -57,8 +58,8 @@ export function SwimHero({ nextWorkout, loading }: { nextWorkout: SwimNextWorkou
   return (
     <GlassPanel as="section" variant="raised" className="swim-hero">
       <div className="swim-hero-inner">
-        <div>
-          <p className="swim-eyebrow">СЛЕДУЮЩАЯ ТРЕНИРОВКА · ПЛАВАНИЕ</p>
+        <div className="swim-hero-copy">
+          <p className="swim-eyebrow">FOUNDATION · НЕДЕЛЯ {nextWorkout.weekIndex}</p>
           <h2>{nextWorkout.title}</h2>
           <p style={{ color: "var(--swim-text-muted)", maxWidth: "50ch", marginTop: -6 }}>{nextWorkout.goal}</p>
           <div className="swim-hero-meta">
@@ -69,6 +70,10 @@ export function SwimHero({ nextWorkout, loading }: { nextWorkout: SwimNextWorkou
           <Link href={`/swim/workouts/${nextWorkout.programId}/${nextWorkout.workoutId}`} className="swim-btn primary">
             {nextWorkout.status === "not_started" ? "Начать тренировку" : "Продолжить тренировку"}
           </Link>
+        </div>
+        <div className="swim-hero-status" aria-label={`Программа завершена на ${nextWorkout.progressPercent}%`}>
+          <div className="swim-progress-ring" style={{ "--progress": `${nextWorkout.progressPercent * 3.6}deg` } as CSSProperties}><span>{nextWorkout.progressPercent}<small>%</small></span></div>
+          <div><small>ПРОГРЕСС FOUNDATION</small><b>{nextWorkout.weekIndex} неделя</b><p>Путь к непрерывным 1000 м</p></div>
         </div>
       </div>
     </GlassPanel>

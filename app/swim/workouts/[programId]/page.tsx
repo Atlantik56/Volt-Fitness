@@ -65,9 +65,7 @@ export default function SwimProgramPage({ params }: { params: Promise<{ programI
           if (workoutsThisWeek.length === 0) return null;
           return (
             <section className="swim-section" key={week.weekIndex}>
-              <p className="swim-eyebrow" style={{ marginBottom: 10 }}>
-                НЕДЕЛЯ {week.weekIndex}
-              </p>
+              <div className="swim-week-heading"><div><p className="swim-eyebrow">НЕДЕЛЯ {week.weekIndex}</p><h2>{week.title}</h2></div><span>{week.plannedDistanceMeters?.toLocaleString("ru-RU")} м</span></div>
               <div className="swim-grid">
                 {workoutsThisWeek.map((day) => {
                   const workout = day.workout!;

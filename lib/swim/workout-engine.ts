@@ -14,7 +14,7 @@
 // клиентскую сборку). planKey (node:crypto, только сервер) — в
 // lib/swim/workout-plan-key.ts, не здесь.
 import { normalizeSnapshot, type WorkoutSnapshot } from "@/lib/workout-snapshot";
-import { getExerciseById } from "@/lib/swim/exercise-catalog";
+import { exerciseLabelRu, getExerciseById } from "@/lib/swim/exercise-catalog";
 import type { SwimInterval, SwimProgramDef, SwimWorkoutDef } from "@/lib/swim/types";
 
 export const SWIM_WORKOUT_TYPE_PREFIX = "Плавание";
@@ -79,15 +79,18 @@ export type SwimIntervalStepView = {
   interval: SwimInterval;
   exerciseName: string;
   totalMeters: number;
+  repeatIndex: number;
+  repeatTotal: number;
+  key: string;
 };
 
 export function buildIntervalSteps(workout: SwimWorkoutDef): SwimIntervalStepView[] {
-  return workout.intervals.map((interval, index) => ({
-    index,
-    total: workout.intervals.length,
-    interval,
-    exerciseName: getExerciseById(interval.exerciseId)?.name ?? interval.exerciseId,
-    totalMeters: intervalTotalMeters(interval),
+  const flat = workout.intervals.flatMap((interval) => Array.from({ length: Math.max(1, interval.repeats) }, (_, repeatIndex) => ({ interval, repeatIndex })));
+  return flat.map(({ interval, repeatIndex }, index) => ({
+    index, total: flat.length, interval,
+    exerciseName: exerciseLabelRu(interval.exerciseId),
+    totalMeters: interval.distanceMeters,
+    repeatIndex, repeatTotal: Math.max(1, interval.repeats), key: `${interval.id}:${repeatIndex}`,
   }));
 }
 

@@ -1,60 +1,31 @@
 "use client";
-import Link from "next/link";
-import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Moon, Route, Waves } from "lucide-react";
 
-// Отражает ту же боковую/мобильную навигацию, что и app/page.tsx (общие CSS-классы
-// .sidebar/.side-nav/.mobile-nav), но пункты — обычные ссылки на "/", а не
-// переключатели локального state: /swim ещё не умеет управлять табами на "/".
-// Один и тот же логический sidebar на экран — здесь не второй постоянный rail,
-// а тот же самый, показанный для маршрута /swim.
-const HOME_NAV_ITEMS = [
-  ["Сегодня", "⌂", HomeIcon],
-  ["План", "▦", CalendarDays],
-  ["Дорожная карта", "⌁", Route],
-  ["Питание", "◒", Apple],
-  ["Вечерний прогресс", "☾", Moon],
-  ["Моя история", "◎", ChartColumn],
-] as const;
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { Activity, Apple, BarChart3, Bot, ChevronDown, ChevronRight, Dumbbell, HeartPulse, History, Home, Settings, Waves } from "lucide-react";
 
 export function SwimGlobalNav() {
-  return (
-    <>
-      <aside className="sidebar">
-        <Link className="brand" href="/" aria-label="VOLT — на главную">
-          <span className="brand-mark">V</span>
-          <b>VOLT</b>
-        </Link>
-        <nav className="side-nav" aria-label="Основная навигация">
-          {HOME_NAV_ITEMS.map(([label, icon]) => (
-            <Link key={label} href="/">
-              <span>{icon}</span>
-              {label}
-            </Link>
-          ))}
-          <Link href="/swim" className="active">
-            <span aria-hidden="true">
-              <Waves size={18} strokeWidth={2} style={{ verticalAlign: "middle" }} />
-            </span>
-            VOLT Swim
-          </Link>
-        </nav>
-      </aside>
-      <nav className="mobile-nav" aria-label="Мобильная навигация">
-        {HOME_NAV_ITEMS.map(([label, , Icon]) => (
-          <Link key={label} href="/">
-            <span aria-hidden="true">
-              <Icon size={20} strokeWidth={2} />
-            </span>
-            {label === "Дорожная карта" ? "Карта" : label === "Вечерний прогресс" ? "Вечер" : label === "Моя история" ? "История" : label}
-          </Link>
-        ))}
-        <Link href="/swim" className="active">
-          <span aria-hidden="true">
-            <Waves size={20} strokeWidth={2} />
-          </span>
-          Swim
-        </Link>
+  const [name, setName] = useState("Профиль");
+  useEffect(() => { fetch("/api/fitness").then((response) => response.ok ? response.json() : null).then((data) => { if (data?.profile?.name) setName(data.profile.name); }).catch(() => {}); }, []);
+  return <>
+    <aside className="swim-global-sidebar">
+      <Link className="swim-global-brand" href="/" aria-label="VOLT — на главную"><span>V</span><b>VOLT</b></Link>
+      <nav aria-label="Основная навигация VOLT">
+        <Link href="/"><Home />Главная</Link>
+        <div className="swim-nav-group open"><span><Dumbbell />Тренировки <ChevronDown /></span><Link href="/">Силовые</Link><Link href="/swim" className="active"><Waves />Swim <i /></Link><Link href="/">Bike</Link><Link href="/">Run</Link></div>
+        <Link href="/"><Apple />Питание</Link>
+        <Link href="/"><History />История</Link>
+        <Link href="/"><BarChart3 />Аналитика</Link>
+        <Link href="/"><HeartPulse />Здоровье</Link>
+        <Link href="/"><Bot />AI Coach</Link>
+        <Link href="/"><Settings />Настройки</Link>
       </nav>
-    </>
-  );
+      <div className="swim-sidebar-bottom">
+        <Link href="/" className="swim-profile-card"><span>{name.slice(0, 1).toUpperCase()}</span><b>{name}</b><ChevronRight /></Link>
+        <div className="swim-readiness-mini"><div><small>Готовность</small><b>Нет данных</b></div><Activity /></div>
+        <span className="swim-sidebar-signature">V VOLT</span>
+      </div>
+    </aside>
+    <nav className="mobile-nav" aria-label="Мобильная навигация"><Link href="/"><Home />VOLT</Link><Link href="/swim" className="active"><Waves />Swim</Link><Link href="/swim/workouts"><Dumbbell />План</Link><Link href="/"><History />История</Link><Link href="/"><Settings />Ещё</Link></nav>
+  </>;
 }
