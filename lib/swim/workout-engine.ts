@@ -84,6 +84,10 @@ export type SwimIntervalStepView = {
   key: string;
 };
 
+// Разворачивает каждый повтор интервала в отдельный шаг — используется для
+// подсчёта плановых метров и сопоставления с FIT-лапами (см. lib/swim/fit-match.ts),
+// НЕ для управления активной тренировкой (там пользователь работает с
+// целыми интервалами плана, см. app/swim/workouts/[programId]/[workoutId]/page.tsx).
 export function buildIntervalSteps(workout: SwimWorkoutDef): SwimIntervalStepView[] {
   const flat = workout.intervals.flatMap((interval) => Array.from({ length: Math.max(1, interval.repeats) }, (_, repeatIndex) => ({ interval, repeatIndex })));
   return flat.map(({ interval, repeatIndex }, index) => ({
