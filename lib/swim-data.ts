@@ -49,6 +49,9 @@ function buildNextWorkoutView(): SwimNextWorkoutView {
     estimatedMinutes: next.workout.estimatedMinutes,
     weekIndex: next.weekIndex,
     progressPercent: progress?.totalCount ? Math.round((progress.completedCount / progress.totalCount) * 100) : 0,
+    calendarDate: next.calendar?.date ?? null,
+    weekday: next.calendar?.weekday ?? null,
+    isToday: next.calendar?.isToday ?? false,
   };
 }
 

@@ -95,6 +95,37 @@ export type SwimWorkoutActual = {
   distanceMeters: number;
   durationSeconds: number;
   calories: number;
+  // Реальная дата подтверждённого workout_log — источник истины для
+  // календарной синхронизации (lib/swim/schedule-sync.ts), а не для метрик.
+  date: string;
+};
+
+// --- Синхронизация с основным расписанием VOLT (app/week-schedule-model.ts) ---
+// Единственное место, где решается "в какой день у меня плавание": слот
+// плавания в Foundation получает дату не из собственной нумерации дней
+// программы, а из итогового расписания VOLT (buildHomeWeek + week_schedule_
+// changes). См. lib/swim/schedule-sync.ts.
+export type SwimCalendarOrigin = "completed" | "active" | "projected";
+
+export type SwimCalendarSlot = {
+  date: string;
+  weekday: number; // 1..7, Пн..Вс
+  isToday: boolean;
+  origin: SwimCalendarOrigin;
+  scheduleChangeId: number | null;
+};
+
+// Разрешённый вид одного календарного дня в горизонте программы (используется
+// для отображения всех 7 дней недели на экране плана, не только тех, где
+// назначено плавание) — "итоговый вид активности" и "статус слота" из API.
+export type SwimCalendarDay = {
+  date: string;
+  weekday: number;
+  isToday: boolean;
+  isSwimSlot: boolean;
+  activityType: string;
+  activityTitle: string;
+  scheduleChangeId: number | null;
 };
 
 export type SwimWorkoutProgress = {
@@ -104,7 +135,13 @@ export type SwimWorkoutProgress = {
   status: SwimWorkoutProgressStatus;
   planKey: string;
   draftId: number | null;
+  // Дата активного/ожидающего подтверждения черновика (workout_drafts.date),
+  // если он есть — используется как "закреплённая" дата слота, см. schedule-sync.
+  draftDate: string | null;
   actual: SwimWorkoutActual | null;
+  // Итоговая календарная привязка тренировки (null, только если не удалось
+  // спроецировать в пределах горизонта — не должно происходить на практике).
+  calendar: SwimCalendarSlot | null;
 };
 
 export type SwimProgramProgress = {
@@ -114,4 +151,8 @@ export type SwimProgramProgress = {
   currentWeekIndex: number | null;
   nextWorkout: SwimWorkoutProgress | null;
   workouts: SwimWorkoutProgress[];
+  // Разрешённый календарь всей программы (6 недель × 7 дней, от понедельника
+  // недели старта профиля) — единственный источник дат/дней недели для UI,
+  // клиент по нему больше не считает расписание сам.
+  calendarDays: SwimCalendarDay[];
 };
