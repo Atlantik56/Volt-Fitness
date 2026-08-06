@@ -939,3 +939,35 @@
   .swim-history-entry.interactive:after{display:none}
   .swim-history-hero-shine{animation:none!important;display:none}
 }
+
+/* Analytics развивает существующие GlassPanel/MetricCard и period-tabs.
+   График объёма — дорожки без декоративных или интерполированных данных. */
+.swim-analytics{animation:swim-fade-in var(--swim-motion-base) var(--swim-ease-out)}
+.swim-analytics-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:9px 12px;margin-bottom:22px}
+.swim-analytics-toolbar>span{color:var(--swim-text-muted);font-size:12px}
+.swim-analytics-toolbar .swim-plan-period-tabs button.active{background:rgba(33,207,255,.16);color:#21cfff;box-shadow:inset 0 0 0 1px rgba(33,207,255,.4)}
+.swim-analytics-overview{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:16px}
+.swim-analytics-volume,.swim-analytics-total{padding:22px 24px;min-width:0}
+.swim-analytics-volume-head{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.swim-analytics-volume-head>div{display:grid;gap:4px}
+.swim-analytics-volume-head strong{font-size:clamp(32px,4vw,48px);font-variant-numeric:tabular-nums}
+.swim-analytics-volume-head span,.swim-analytics-volume-head small{color:var(--swim-text-muted);font-size:11px}
+.swim-analytics-volume-head>b{display:grid;gap:3px;color:#3fe08a;font-size:17px;font-variant-numeric:tabular-nums;text-align:right}
+.swim-analytics-volume-head>b.negative{color:#ff8b8b}
+.swim-analytics-bars{height:190px;display:flex;align-items:end;gap:clamp(6px,1.4vw,16px);margin-top:20px;padding-top:14px;background:repeating-linear-gradient(to bottom,rgba(160,220,213,.09) 0 1px,transparent 1px 47px);overflow-x:auto}
+.swim-analytics-bars>div{height:100%;min-width:24px;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px}
+.swim-analytics-bars span{width:min(34px,75%);min-height:4px;border-radius:5px 5px 1px 1px;background:linear-gradient(180deg,#35e6d0,#087bea)}
+.swim-analytics-bars small{font-size:9px;color:var(--swim-text-muted);white-space:nowrap}
+.swim-analytics-no-data{margin:46px 0;color:var(--swim-text-muted)}
+.swim-analytics-total h3{margin:0 0 12px;font-size:17px}
+.swim-analytics-total dl{margin:0;display:grid}
+.swim-analytics-total dl>div{display:flex;justify-content:space-between;gap:16px;padding:13px 0;border-top:1px solid var(--swim-border)}
+.swim-analytics-total dt{color:var(--swim-text-muted);font-size:12px}
+.swim-analytics-total dd{margin:0;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
+.swim-analytics-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
+.swim-analytics-period-empty{display:flex;align-items:center;gap:14px;padding:18px 20px;color:#21cfff}
+.swim-analytics-period-empty b{color:var(--swim-text)}
+.swim-analytics-period-empty p{margin:4px 0 0;color:var(--swim-text-muted);font-size:12px}
+@media(max-width:1024px){.swim-analytics-overview{grid-template-columns:1fr}.swim-analytics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.swim-analytics-toolbar{align-items:stretch;flex-direction:column}.swim-analytics-overview{display:block}.swim-analytics-total{margin-top:12px}.swim-analytics-volume,.swim-analytics-total{padding:18px}.swim-analytics-metrics{grid-template-columns:1fr}.swim-analytics-bars{height:150px}}
+@media(prefers-reduced-motion:reduce){.swim-analytics{animation:none!important}}

@@ -45,6 +45,8 @@ const today = todayIso;
 const thisWeekThursday = nextForwardWeekday(4);
 const thisWeekFriday = nextForwardWeekday(5);
 const nextWeekThursday = addDays(dateForWeekday(4), 7);
+const swapSwimDay = [2, 4].map(dateForWeekday).find((date) => date >= todayIso);
+const swapNonSwimDay = [1, 3, 5, 6, 7].map(dateForWeekday).find((date) => date >= todayIso);
 
 test("базовый Swim-слот открывает правильную тренировку Foundation (реальный Вт/Чт основного плана)", () => {
   const swim = resolveScheduledSwimWorkout(thisWeekThursday);
@@ -71,11 +73,14 @@ test("resolveScheduledSwimWorkout ведёт на /swim/workouts/[programId]/[wo
   assert.match((slot as any).route, /^\/swim\/workouts\/foundation\/w\d/);
 });
 
-test("обмен двух дней учитывается резолвером", () => {
-  const result = applySwap({ dateA: today, dateB: thisWeekThursday, todayIso: today });
+test("обмен двух дней учитывается резолвером", { skip: !swapSwimDay || !swapNonSwimDay }, () => {
+  // Берём две разные будущие даты текущей редактируемой недели. Исходная
+  // today/Thursday превращалась в обмен даты самой с собой по четвергам.
+  assert.ok(swapSwimDay && swapNonSwimDay);
+  const result = applySwap({ dateA: swapNonSwimDay, dateB: swapSwimDay, todayIso: today });
   assert.equal(result.ok, true);
-  assert.equal(resolveScheduledSwimWorkout(today)?.kind, "workout");
-  assert.equal(resolveScheduledSwimWorkout(thisWeekThursday), null);
+  assert.equal(resolveScheduledSwimWorkout(swapNonSwimDay)?.kind, "workout");
+  assert.equal(resolveScheduledSwimWorkout(swapSwimDay), null);
 });
 
 test("перенос (замена дня шаблоном бассейна) создаёт новый Swim-слот", () => {
@@ -84,11 +89,12 @@ test("перенос (замена дня шаблоном бассейна) с�
   assert.equal(resolveScheduledSwimWorkout(thisWeekFriday)?.kind, "workout");
 });
 
-test("замена Swim другой активностью убирает тренировку с даты", () => {
-  // today сейчас Swim (после обмена выше) — заменяем его на шаблон силовой.
-  const result = applyReplace({ date: today, assignedSourceDay: 1, todayIso: today });
+test("замена Swim другой активностью убирает тренировку с даты", { skip: !swapSwimDay || !swapNonSwimDay }, () => {
+  // swapNonSwimDay сейчас Swim (после обмена выше) — заменяем его на шаблон силовой.
+  assert.ok(swapNonSwimDay);
+  const result = applyReplace({ date: swapNonSwimDay, assignedSourceDay: 1, todayIso: today });
   assert.equal(result.ok, true);
-  assert.equal(resolveScheduledSwimWorkout(today), null);
+  assert.equal(resolveScheduledSwimWorkout(swapNonSwimDay), null);
 });
 
 test("отдых вместо Swim не запускает плавание", () => {

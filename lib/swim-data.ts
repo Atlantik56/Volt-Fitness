@@ -1,12 +1,12 @@
 import { db } from "@/lib/db";
 import { isSwimActivity } from "@/lib/swim-classify";
-import { formatPace100m } from "@/lib/swim-metrics";
+import { computeSwimPeriodMetrics, formatPace100m } from "@/lib/swim-metrics";
 import { getProgramProgress } from "@/lib/swim/services";
 import { listPrograms } from "@/lib/swim/program-engine";
 import { swimWorkoutPlanKey } from "@/lib/swim/workout-plan-key";
 import { totalDistanceMeters } from "@/lib/swim/workout-engine";
 import { getSwimInsights } from "@/lib/swim/insight-service";
-import type { SwimHomeData, SwimLastSwimView, SwimNextWorkoutView, SwimWeeklyActivityView, SwimMetricsView, SwimRecentSessionView, SwimEffortDistribution, SwimHistoryData, SwimHistoryItem } from "@/app/swim/types";
+import type { SwimAnalyticsData, SwimAnalyticsPeriod, SwimHomeData, SwimLastSwimView, SwimNextWorkoutView, SwimWeeklyActivityView, SwimMetricsView, SwimRecentSessionView, SwimEffortDistribution, SwimHistoryData, SwimHistoryItem } from "@/app/swim/types";
 
 type WorkoutLogRow = {
   id: number;
@@ -149,4 +149,13 @@ export function getSwimHistory(): SwimHistoryData {
     route: row.planKey ? routeByPlanKey.get(row.planKey) ?? null : null,
   }));
   return { items, hasAnyHistory: items.length > 0 };
+}
+
+export function getSwimAnalytics(period: SwimAnalyticsPeriod, todayIso = new Date().toISOString().slice(0, 10)): SwimAnalyticsData {
+  const logs = (db.prepare(selectLogs).all() as WorkoutLogRow[]).filter((row) => isSwimActivity(row.type, row.title));
+  return {
+    period,
+    ...computeSwimPeriodMetrics(logs, period, todayIso),
+    hasAnyHistory: logs.length > 0,
+  };
 }

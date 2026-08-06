@@ -79,6 +79,30 @@ export type SwimHistoryData = {
   hasAnyHistory: boolean;
 };
 
+export type SwimAnalyticsPeriod = "30d" | "90d" | "1y";
+
+export type SwimAnalyticsPoint = {
+  label: string;
+  distanceMeters: number;
+  workoutCount: number;
+};
+
+export type SwimAnalyticsData = {
+  period: SwimAnalyticsPeriod;
+  fromDate: string;
+  toDate: string;
+  workoutCount: number;
+  distanceMeters: number;
+  durationSeconds: number;
+  calories: number | null;
+  avgHeartRate: number | null;
+  avgPaceLabel: string | null;
+  averageDistanceMeters: number | null;
+  distanceDeltaPercent: number | null;
+  volume: SwimAnalyticsPoint[];
+  hasAnyHistory: boolean;
+};
+
 export type SwimMetricsView = {
   avgPaceLabel: string | null;
   swolf: number | null;
