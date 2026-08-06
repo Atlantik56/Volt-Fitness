@@ -19,7 +19,7 @@
 - Основа: [философия](00-philosophy.md),
   [принципы](01-design-principles.md), [цвет](02-colors.md),
   [типографика](03-typography.md), [отступы](04-spacing.md),
-  [Glass 2.0](05-glass-system.md), [motion](06-motion.md).
+  [VOLT Glass](05-glass-system.md), [motion](06-motion.md).
 - Компоненты: [buttons](components/buttons.md), [cards](components/cards.md),
   [hero](components/hero.md), [charts](components/charts.md),
   [navigation](components/navigation.md), [dialogs](components/dialogs.md),
