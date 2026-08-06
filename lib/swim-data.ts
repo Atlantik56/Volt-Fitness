@@ -1,4 +1,5 @@
 import { db } from "@/lib/db";
+import { localIso, weekRangeContaining } from "@/app/week-schedule-model";
 import { isSwimActivity } from "@/lib/swim-classify";
 import { computeSwimPeriodMetrics, computeSwimRecords, formatPace100m } from "@/lib/swim-metrics";
 import { getProgramProgress } from "@/lib/swim/services";
@@ -24,19 +25,6 @@ type WorkoutLogRow = {
 
 const selectLogFields = `SELECT id,date,type,title,duration_seconds durationSeconds,distance_meters distanceMeters,avg_heart_rate avgHeartRate,calories,metrics_source metricsSource,notes,effort FROM workout_logs`;
 const selectLogs = `${selectLogFields} ORDER BY date DESC,id DESC LIMIT 400`;
-
-function mondayIso(date: Date): string {
-  const day = date.getDay() || 7;
-  const monday = new Date(date);
-  monday.setDate(date.getDate() - (day - 1));
-  return monday.toISOString().slice(0, 10);
-}
-function sundayIso(date: Date): string {
-  const day = date.getDay() || 7;
-  const sunday = new Date(date);
-  sunday.setDate(date.getDate() + (7 - day));
-  return sunday.toISOString().slice(0, 10);
-}
 
 function buildNextWorkoutView(): SwimNextWorkoutView {
   const progress = getProgramProgress("foundation");
@@ -77,8 +65,7 @@ export function getSwimHomeData(): SwimHomeData {
     : null;
 
   const now = new Date();
-  const weekStart = mondayIso(now);
-  const weekEnd = sundayIso(now);
+  const { mondayIso: weekStart, sundayIso: weekEnd } = weekRangeContaining(localIso(now));
   const weekLogs = logs.filter((row) => row.date >= weekStart && row.date <= weekEnd);
   const weekDates = Array.from({ length: 7 }, (_, index) => { const value = new Date(`${weekStart}T12:00:00`); value.setDate(value.getDate() + index); return value.toISOString().slice(0, 10); });
   const weekHeartRates = weekLogs.map((row) => row.avgHeartRate).filter((value) => value > 0);
