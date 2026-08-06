@@ -103,6 +103,42 @@ export type SwimAnalyticsData = {
   hasAnyHistory: boolean;
 };
 
+export type SwimRecordEntry = {
+  id: number;
+  date: string;
+  title: string;
+  value: number;
+};
+
+export type SwimAggregateRecord = {
+  period: string;
+  value: number;
+  swimCount: number;
+} | null;
+
+export type SwimRecordsData = {
+  hasAnyHistory: boolean;
+  totalDistanceMeters: number | null;
+  totalSwims: number;
+  totalDurationSeconds: number | null;
+  firstSwimDate: string | null;
+  periodBest: {
+    week: { record: SwimRecordEntry | null; swimCount: number };
+    month: { record: SwimRecordEntry | null; swimCount: number };
+  };
+  largestSwim: SwimRecordEntry | null;
+  fastestPace: SwimRecordEntry | null;
+  longestDuration: SwimRecordEntry | null;
+  highestHeartRate: SwimRecordEntry | null;
+  mostCalories: SwimRecordEntry | null;
+  longestWeek: SwimAggregateRecord;
+  longestMonth: SwimAggregateRecord;
+  mostActiveMonth: SwimAggregateRecord;
+  longestStreakDays: number | null;
+  bestTrainingDay: SwimAggregateRecord;
+  averageDistanceMeters: number | null;
+};
+
 export type SwimMetricsView = {
   avgPaceLabel: string | null;
   swolf: number | null;

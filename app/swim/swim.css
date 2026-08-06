@@ -988,3 +988,55 @@
 .swim-analytics-period-empty{display:flex;align-items:center;gap:14px;padding:18px 20px;color:#21cfff}.swim-analytics-period-empty b{color:var(--swim-text)}.swim-analytics-period-empty p{margin:4px 0 0;color:var(--swim-text-muted);font-size:12px}
 @media(max-width:760px){.swim-shell:has(.swim-analytics) .swim-global-sidebar{display:none}.swim-content:has(.swim-analytics){margin-left:0;width:100%;padding:20px 16px 96px}.swim-analytics .swim-local-nav{width:100%;gap:2px}.swim-analytics .swim-local-nav a{padding:8px 7px;font-size:11px}.swim-analytics .swim-local-nav-soon{display:none}.swim-analytics-toolbar{align-items:stretch;flex-direction:column}.swim-analytics-story-hero{grid-template-columns:1fr;gap:20px;padding:22px 20px}.swim-analytics-story-meta{grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 0 0;border-left:0;border-top:1px solid rgba(33,207,255,.2)}.swim-analytics-story-meta span{display:grid;gap:2px}.swim-analytics-story-meta b{font-size:17px}.swim-analytics-volume-story{padding-right:16px}.swim-analytics-volume-moment{grid-template-columns:1fr;gap:10px;padding:15px 0}.swim-analytics-volume-moment>span{width:100%}.swim-analytics-volume-moment>strong{justify-self:start}.swim-analytics-reading{padding:0 18px}.swim-analytics-reading article{grid-template-columns:1fr;gap:8px;padding:18px 0}.swim-analytics-reading article.primary:before{left:-18px}}
 @media(prefers-reduced-motion:reduce){.swim-analytics{animation:none!important}}
+
+/* Records — продолжение повествовательной композиции History/Analytics:
+   один lifetime hero, затем разновесные рекорды и единая панель достижений. */
+.swim-records{animation:swim-fade-in var(--swim-motion-base) var(--swim-ease-out)}
+.swim-records .swim-glass,.swim-records .swim-home-card{border:1px solid rgba(105,207,243,.46);border-radius:12px;background:linear-gradient(145deg,rgba(7,34,49,.34),rgba(2,15,25,.17));box-shadow:inset 0 1px 0 rgba(224,248,255,.08),inset 0 0 40px rgba(33,207,255,.03),0 18px 44px -26px rgba(0,0,0,.62)}
+@supports (backdrop-filter:blur(1px)){.swim-records .swim-glass,.swim-records .swim-home-card{backdrop-filter:blur(calc(var(--swim-blur) + 3px)) saturate(115%)}}
+.swim-records-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.35fr) minmax(300px,.8fr);gap:32px;align-items:stretch;padding:28px;margin-bottom:30px}
+.swim-records-lifetime,.swim-records-spotlight{position:relative;z-index:1}
+.swim-records-lifetime>span{display:block;margin-top:14px;color:var(--swim-text-muted);font-size:12px}
+.swim-records-lifetime h2{margin:4px 0 24px;font-size:clamp(44px,6vw,72px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+.swim-records-lifetime-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px 28px}
+.swim-records-lifetime-stats>div{display:grid;gap:4px;min-width:0}
+.swim-records-lifetime-stats strong{font-size:17px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.swim-records-lifetime-stats small{color:var(--swim-text-muted);font-size:9px;text-transform:uppercase;letter-spacing:.06em}
+.swim-records-spotlight{display:flex;flex-direction:column;justify-content:center;padding:20px 22px!important;background:linear-gradient(145deg,rgba(8,44,58,.64),rgba(2,18,28,.5))!important}
+.swim-records-spotlight-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px}
+.swim-records-spotlight-head>span{display:flex;align-items:center;gap:7px;color:#21cfff;font-size:10px;font-weight:750;text-transform:uppercase;letter-spacing:.08em}
+.swim-records-spotlight .swim-plan-period-tabs{padding:2px}
+.swim-records-spotlight .swim-plan-period-tabs button{padding:5px 8px;font-size:9px}
+.swim-records-spotlight .swim-plan-period-tabs button.active{background:rgba(33,207,255,.16);color:#21cfff;box-shadow:inset 0 0 0 1px rgba(33,207,255,.4)}
+.swim-records-spotlight>small{color:var(--swim-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.swim-records-spotlight>strong{margin:6px 0 8px;font-size:clamp(30px,4vw,44px);line-height:1;font-variant-numeric:tabular-nums}
+.swim-records-spotlight>b{font-size:13px;font-weight:650}
+.swim-records-spotlight>p{margin:5px 0 0;color:var(--swim-text-muted);font-size:11px;line-height:1.4}
+.swim-records-section{margin-bottom:30px}
+.swim-records-section .swim-section-header{margin-bottom:12px}
+.swim-records-featured{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(260px,.7fr);gap:12px}
+.swim-records-card{min-height:128px;display:flex;flex-direction:column;justify-content:flex-end;padding:20px 22px;transition:transform var(--swim-motion-fast) var(--swim-ease-standard),border-color var(--swim-motion-fast) var(--swim-ease-standard),background-color var(--swim-motion-fast) var(--swim-ease-standard)}
+.swim-records-card:hover{transform:translateY(-2px);border-color:rgba(33,207,255,.64);background:linear-gradient(145deg,rgba(9,42,57,.46),rgba(2,18,28,.28))}
+.swim-records-card.featured{grid-row:span 2;min-height:268px;padding:28px;background:linear-gradient(145deg,rgba(8,44,58,.5),rgba(2,17,27,.24))}
+.swim-records-card>span{color:#21cfff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em}
+.swim-records-card>strong{margin:7px 0 12px;font-size:25px;line-height:1.05;font-variant-numeric:tabular-nums}
+.swim-records-card.featured>strong{font-size:clamp(42px,5vw,62px)}
+.swim-records-card>b{font-size:12px;font-weight:650}
+.swim-records-card>small{margin-top:4px;color:var(--swim-text-muted);font-size:10px;line-height:1.4}
+.swim-records-card.unavailable>strong{color:var(--swim-text-muted);font-size:20px}
+.swim-records-achievements{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));padding:0 22px}
+.swim-record-achievement{position:relative;display:flex;min-height:132px;flex-direction:column;justify-content:center;padding:21px 20px;border-left:1px solid rgba(160,220,213,.11);border-top:1px solid rgba(160,220,213,.11)}
+.swim-record-achievement:nth-child(-n+3){border-top:0}
+.swim-record-achievement:nth-child(3n+1){border-left:0}
+.swim-record-achievement:before{content:"";position:absolute;left:20px;top:20px;width:18px;height:2px;background:#21cfff;box-shadow:0 0 8px rgba(33,207,255,.45)}
+.swim-record-achievement>span{margin-top:10px;color:var(--swim-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.swim-record-achievement>strong{margin:6px 0 4px;font-size:23px;font-variant-numeric:tabular-nums}
+.swim-record-achievement>small{color:var(--swim-text-muted);font-size:10px;line-height:1.35}
+.swim-record-achievement.unavailable:before{background:var(--swim-border);box-shadow:none}
+.swim-record-achievement.unavailable>strong{font-size:17px;color:var(--swim-text-muted)}
+.swim-records-footnote{display:flex;align-items:center;gap:8px;color:var(--swim-text-muted);font-size:10px}.swim-records-footnote svg{color:#21cfff}
+.swim-records-loading{display:grid;gap:12px}.swim-records-loading .swim-loading-line:first-child{height:270px}.swim-records-loading .swim-loading-line:not(:first-child){height:128px}
+@media(max-width:1024px){.swim-records-hero{grid-template-columns:minmax(0,1fr) minmax(280px,.8fr);gap:20px}.swim-records-lifetime-stats{gap:12px}.swim-records-achievements{grid-template-columns:repeat(2,minmax(0,1fr))}.swim-record-achievement:nth-child(3n+1){border-left:1px solid rgba(160,220,213,.11)}.swim-record-achievement:nth-child(-n+3){border-top:1px solid rgba(160,220,213,.11)}.swim-record-achievement:nth-child(-n+2){border-top:0}.swim-record-achievement:nth-child(odd){border-left:0}}
+@media(max-width:760px){.swim-shell:has(.swim-records) .swim-global-sidebar{display:none}.swim-content:has(.swim-records){margin-left:0;width:100%;padding:20px 16px 96px}.swim-records .swim-local-nav{width:100%;gap:1px}.swim-records .swim-local-nav a{padding:8px 6px;font-size:10px}.swim-records .swim-local-nav-soon{display:none}.swim-records-hero{grid-template-columns:1fr;gap:20px;padding:20px}.swim-records-lifetime h2{margin-bottom:20px}.swim-records-lifetime-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.swim-records-lifetime-stats strong{font-size:14px}.swim-records-spotlight{padding:18px!important}.swim-records-featured{grid-template-columns:1fr}.swim-records-card,.swim-records-card.featured{grid-row:auto;min-height:142px;padding:20px}.swim-records-card.featured>strong{font-size:38px}.swim-records-achievements{grid-template-columns:1fr;padding:0 18px}.swim-record-achievement,.swim-record-achievement:nth-child(n){min-height:112px;padding:18px 4px;border-left:0;border-top:1px solid rgba(160,220,213,.11)}.swim-record-achievement:first-child{border-top:0}.swim-record-achievement:before{left:4px;top:16px}}
+@media(max-width:420px){.swim-records-lifetime-stats{grid-template-columns:1fr 1fr}.swim-records-lifetime-stats>div:last-child{grid-column:1/-1}.swim-records-spotlight-head{align-items:flex-start;flex-direction:column}.swim-records-spotlight .swim-plan-period-tabs{width:100%}.swim-records-spotlight .swim-plan-period-tabs button{flex:1}}
+@media(prefers-reduced-motion:reduce){.swim-records{animation:none!important}.swim-records-card{transition:none!important}.swim-records-card:hover{transform:none}}

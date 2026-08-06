@@ -1,12 +1,12 @@
 import { db } from "@/lib/db";
 import { isSwimActivity } from "@/lib/swim-classify";
-import { computeSwimPeriodMetrics, formatPace100m } from "@/lib/swim-metrics";
+import { computeSwimPeriodMetrics, computeSwimRecords, formatPace100m } from "@/lib/swim-metrics";
 import { getProgramProgress } from "@/lib/swim/services";
 import { listPrograms } from "@/lib/swim/program-engine";
 import { swimWorkoutPlanKey } from "@/lib/swim/workout-plan-key";
 import { totalDistanceMeters } from "@/lib/swim/workout-engine";
 import { getSwimInsights } from "@/lib/swim/insight-service";
-import type { SwimAnalyticsData, SwimAnalyticsPeriod, SwimHomeData, SwimLastSwimView, SwimNextWorkoutView, SwimWeeklyActivityView, SwimMetricsView, SwimRecentSessionView, SwimEffortDistribution, SwimHistoryData, SwimHistoryItem } from "@/app/swim/types";
+import type { SwimAnalyticsData, SwimAnalyticsPeriod, SwimHomeData, SwimLastSwimView, SwimNextWorkoutView, SwimWeeklyActivityView, SwimMetricsView, SwimRecentSessionView, SwimEffortDistribution, SwimHistoryData, SwimHistoryItem, SwimRecordsData } from "@/app/swim/types";
 
 type WorkoutLogRow = {
   id: number;
@@ -22,7 +22,8 @@ type WorkoutLogRow = {
   effort: string;
 };
 
-const selectLogs = `SELECT id,date,type,title,duration_seconds durationSeconds,distance_meters distanceMeters,avg_heart_rate avgHeartRate,calories,metrics_source metricsSource,notes,effort FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400`;
+const selectLogFields = `SELECT id,date,type,title,duration_seconds durationSeconds,distance_meters distanceMeters,avg_heart_rate avgHeartRate,calories,metrics_source metricsSource,notes,effort FROM workout_logs`;
+const selectLogs = `${selectLogFields} ORDER BY date DESC,id DESC LIMIT 400`;
 
 function mondayIso(date: Date): string {
   const day = date.getDay() || 7;
@@ -158,4 +159,12 @@ export function getSwimAnalytics(period: SwimAnalyticsPeriod, todayIso = new Dat
     ...computeSwimPeriodMetrics(logs, period, todayIso),
     hasAnyHistory: logs.length > 0,
   };
+}
+
+export function getSwimRecords(todayIso = new Date().toISOString().slice(0, 10)): SwimRecordsData {
+  // Lifetime-рекорды не ограничиваются последними 400 строками: источник тот
+  // же workout_logs, но выборка должна охватывать всю историю пользователя.
+  const logs = (db.prepare(`${selectLogFields} ORDER BY date ASC,id ASC`).all() as WorkoutLogRow[])
+    .filter((row) => isSwimActivity(row.type, row.title));
+  return { hasAnyHistory: logs.length > 0, ...computeSwimRecords(logs, todayIso) };
 }

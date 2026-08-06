@@ -1,6 +1,7 @@
 // Чистые функции форматирования и расчёта метрик VOLT Swim. Никогда не
 // подставляют 0/NaN/Infinity вместо отсутствующих данных — вызывающий код
 // показывает «Нет данных», получив null.
+import type { SwimAggregateRecord, SwimRecordEntry, SwimRecordsData } from "@/app/swim/types";
 
 export function formatMeters(meters: number): string | null {
   if (!Number.isFinite(meters) || meters <= 0) return null;
@@ -104,5 +105,124 @@ export function computeSwimPeriodMetrics(logs: readonly SwimMetricLog[], period:
     averageDistanceMeters: positiveDistance.length ? Math.round(distanceMeters / positiveDistance.length) : null,
     distanceDeltaPercent: percentDelta(distanceMeters, previousDistance),
     volume: [...buckets.entries()].filter(([, value]) => value.distanceMeters > 0).sort(([a], [b]) => a.localeCompare(b)).map(([label, value]) => ({ label, ...value })),
+  };
+}
+
+export type SwimRecordsLog = SwimMetricLog & { id: number; title: string };
+
+function validMetric(value: number): boolean {
+  return Number.isFinite(value) && value > 0;
+}
+
+function recordOf(log: SwimRecordsLog, value: number): SwimRecordEntry {
+  return { id: log.id, date: log.date, title: log.title, value };
+}
+
+// При равенстве метрики выигрывает более свежая тренировка, затем больший id.
+// Это делает выбор стабильным независимо от порядка строк в запросе.
+function bestLog(
+  logs: readonly SwimRecordsLog[],
+  valueOf: (log: SwimRecordsLog) => number | null,
+  direction: "max" | "min" = "max",
+): SwimRecordEntry | null {
+  let best: SwimRecordEntry | null = null;
+  for (const log of logs) {
+    const value = valueOf(log);
+    if (value === null || !validMetric(value)) continue;
+    if (!best) { best = recordOf(log, value); continue; }
+    const improves = direction === "max" ? value > best.value : value < best.value;
+    const tiedAndNewer = value === best.value && (log.date > best.date || (log.date === best.date && log.id > best.id));
+    if (improves || tiedAndNewer) best = recordOf(log, value);
+  }
+  return best;
+}
+
+function isoWeekStart(iso: string): string {
+  const date = new Date(`${iso}T12:00:00Z`);
+  const weekday = date.getUTCDay() || 7;
+  return addDays(iso, -(weekday - 1));
+}
+
+function aggregateBy(
+  logs: readonly SwimRecordsLog[],
+  keyOf: (log: SwimRecordsLog) => string,
+): Map<string, { value: number; swimCount: number }> {
+  const groups = new Map<string, { value: number; swimCount: number }>();
+  for (const log of logs) {
+    const key = keyOf(log);
+    const group = groups.get(key) ?? { value: 0, swimCount: 0 };
+    group.swimCount += 1;
+    if (validMetric(log.distanceMeters)) group.value += log.distanceMeters;
+    groups.set(key, group);
+  }
+  return groups;
+}
+
+function bestAggregate(
+  groups: ReadonlyMap<string, { value: number; swimCount: number }>,
+  score: (group: { value: number; swimCount: number }) => number,
+): SwimAggregateRecord {
+  let best: SwimAggregateRecord = null;
+  let bestScore = 0;
+  for (const [period, group] of groups) {
+    const current = score(group);
+    if (!validMetric(current)) continue;
+    if (!best || current > bestScore || (current === bestScore && period > best.period)) {
+      best = { period, value: current, swimCount: group.swimCount };
+      bestScore = current;
+    }
+  }
+  return best;
+}
+
+function longestStreak(logs: readonly SwimRecordsLog[]): number | null {
+  const dates = [...new Set(logs.map((log) => log.date))].sort();
+  if (!dates.length) return null;
+  let longest = 1;
+  let current = 1;
+  for (let index = 1; index < dates.length; index += 1) {
+    if (dates[index] === addDays(dates[index - 1], 1)) current += 1;
+    else current = 1;
+    longest = Math.max(longest, current);
+  }
+  return longest;
+}
+
+// Records строятся исключительно из уже отфильтрованных workout_logs.
+// Неполные метрики исключаются из конкретного рекорда, но сам заплыв остаётся
+// в lifetime count и календарных сериях.
+export function computeSwimRecords(logs: readonly SwimRecordsLog[], todayIso: string): Omit<SwimRecordsData, "hasAnyHistory"> {
+  const weekStart = isoWeekStart(todayIso);
+  const monthStart = todayIso.slice(0, 7);
+  const weekLogs = logs.filter((log) => log.date >= weekStart && log.date <= todayIso);
+  const monthLogs = logs.filter((log) => log.date.startsWith(monthStart) && log.date <= todayIso);
+  const distances = logs.filter((log) => validMetric(log.distanceMeters));
+  const durations = logs.filter((log) => validMetric(log.durationSeconds));
+  const weeks = aggregateBy(logs, (log) => isoWeekStart(log.date));
+  const months = aggregateBy(logs, (log) => log.date.slice(0, 7));
+  const days = aggregateBy(logs, (log) => log.date);
+  const totalDistanceMeters = distances.length ? distances.reduce((sum, log) => sum + log.distanceMeters, 0) : null;
+  const totalDurationSeconds = durations.length ? durations.reduce((sum, log) => sum + log.durationSeconds, 0) : null;
+
+  return {
+    totalDistanceMeters,
+    totalSwims: logs.length,
+    totalDurationSeconds,
+    firstSwimDate: logs.length ? logs.reduce((first, log) => log.date < first ? log.date : first, logs[0].date) : null,
+    periodBest: {
+      week: { record: bestLog(weekLogs, (log) => validMetric(log.distanceMeters) ? log.distanceMeters : null), swimCount: weekLogs.length },
+      month: { record: bestLog(monthLogs, (log) => validMetric(log.distanceMeters) ? log.distanceMeters : null), swimCount: monthLogs.length },
+    },
+    largestSwim: bestLog(logs, (log) => validMetric(log.distanceMeters) ? log.distanceMeters : null),
+    fastestPace: bestLog(logs, (log) => validMetric(log.distanceMeters) && validMetric(log.durationSeconds) ? log.durationSeconds / (log.distanceMeters / 100) : null, "min"),
+    longestDuration: bestLog(logs, (log) => validMetric(log.durationSeconds) ? log.durationSeconds : null),
+    highestHeartRate: bestLog(logs, (log) => validMetric(log.avgHeartRate) ? log.avgHeartRate : null),
+    mostCalories: bestLog(logs, (log) => validMetric(log.calories) ? log.calories : null),
+    longestWeek: bestAggregate(weeks, (group) => group.value),
+    longestMonth: bestAggregate(months, (group) => group.value),
+    mostActiveMonth: bestAggregate(months, (group) => group.swimCount),
+    longestStreakDays: longestStreak(logs),
+    bestTrainingDay: bestAggregate(days, (group) => group.value),
+    averageDistanceMeters: distances.length && totalDistanceMeters !== null ? Math.round(totalDistanceMeters / distances.length) : null,
   };
 }

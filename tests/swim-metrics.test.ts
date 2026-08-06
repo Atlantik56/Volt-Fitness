@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { computeSwimPeriodMetrics, formatDuration, formatKm, formatMeters, formatPace100m, weeklyVolumeMeters } from "../lib/swim-metrics.ts";
+import { computeSwimPeriodMetrics, computeSwimRecords, formatDuration, formatKm, formatMeters, formatPace100m, weeklyVolumeMeters } from "../lib/swim-metrics.ts";
 
 test("formatMeters округляет и требует положительное значение", () => {
   assert.equal(formatMeters(650), "650 м");
@@ -66,4 +66,58 @@ test("computeSwimPeriodMetrics не выдумывает отсутствующ�
   assert.equal(result.averageDistanceMeters, null);
   assert.equal(result.distanceDeltaPercent, null);
   assert.deepEqual(result.volume, []);
+});
+
+test("computeSwimRecords детерминированно считает lifetime, рекорды и календарные достижения", () => {
+  const result = computeSwimRecords([
+    { id: 1, date: "2026-07-31", title: "Июль", distanceMeters: 500, durationSeconds: 900, avgHeartRate: 0, calories: 100 },
+    { id: 2, date: "2026-08-01", title: "Первый", distanceMeters: 900, durationSeconds: 1500, avgHeartRate: 120, calories: 180 },
+    { id: 3, date: "2026-08-02", title: "Быстрый", distanceMeters: 900, durationSeconds: 1200, avgHeartRate: 135, calories: 220 },
+    { id: 4, date: "2026-08-04", title: "Длинный", distanceMeters: 1200, durationSeconds: 2400, avgHeartRate: 128, calories: 0 },
+    { id: 5, date: "2026-08-04", title: "Второй за день", distanceMeters: 300, durationSeconds: 600, avgHeartRate: 0, calories: 60 },
+  ], "2026-08-06");
+
+  assert.equal(result.totalDistanceMeters, 3800);
+  assert.equal(result.totalSwims, 5);
+  assert.equal(result.totalDurationSeconds, 6600);
+  assert.equal(result.firstSwimDate, "2026-07-31");
+  assert.equal(result.largestSwim?.id, 4);
+  assert.equal(result.fastestPace?.id, 3);
+  assert.equal(result.longestDuration?.id, 4);
+  assert.equal(result.highestHeartRate?.value, 135);
+  assert.equal(result.mostCalories?.value, 220);
+  assert.equal(result.longestWeek?.value, 2300);
+  assert.equal(result.longestMonth?.value, 3300);
+  assert.equal(result.mostActiveMonth?.swimCount, 4);
+  assert.equal(result.longestStreakDays, 3);
+  assert.equal(result.bestTrainingDay?.value, 1500);
+  assert.equal(result.averageDistanceMeters, 760);
+  assert.equal(result.periodBest.week.record?.id, 4);
+  assert.equal(result.periodBest.month.record?.id, 4);
+});
+
+test("computeSwimRecords честно возвращает null для отсутствующих метрик", () => {
+  const result = computeSwimRecords([
+    { id: 1, date: "2026-08-03", title: "Без метрик", distanceMeters: 0, durationSeconds: 0, avgHeartRate: 0, calories: 0 },
+  ], "2026-08-06");
+  assert.equal(result.totalDistanceMeters, null);
+  assert.equal(result.totalDurationSeconds, null);
+  assert.equal(result.largestSwim, null);
+  assert.equal(result.fastestPace, null);
+  assert.equal(result.highestHeartRate, null);
+  assert.equal(result.mostCalories, null);
+  assert.equal(result.longestWeek, null);
+  assert.equal(result.averageDistanceMeters, null);
+  assert.equal(result.longestStreakDays, 1);
+  assert.equal(result.periodBest.week.swimCount, 1);
+});
+
+test("computeSwimRecords разрешает ничью в пользу более свежего лога", () => {
+  const result = computeSwimRecords([
+    { id: 1, date: "2026-08-02", title: "Раньше", distanceMeters: 900, durationSeconds: 1200, avgHeartRate: 120, calories: 100 },
+    { id: 2, date: "2026-08-05", title: "Позже", distanceMeters: 900, durationSeconds: 1200, avgHeartRate: 120, calories: 100 },
+  ], "2026-08-06");
+  assert.equal(result.largestSwim?.id, 2);
+  assert.equal(result.fastestPace?.id, 2);
+  assert.equal(result.highestHeartRate?.id, 2);
 });
