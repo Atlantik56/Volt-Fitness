@@ -43,7 +43,6 @@ export function HistoryItem({ item, featured = false }: { item: SwimHistoryItemT
 
   const content = (
     <>
-      <span className="swim-history-entry-node" aria-hidden="true" />
       <div className="swim-history-entry-day">
         <b>{dayNumber(item.date)}</b>
         <small>{weekday(item.date)}</small>

@@ -6,7 +6,6 @@ import { Activity, Bell, CalendarDays, RefreshCw, Waves } from "lucide-react";
 import { formatDuration, formatKm, formatMeters } from "@/lib/swim-metrics";
 import type { SwimAnalyticsData, SwimAnalyticsPeriod } from "@/app/swim/types";
 import { SwimNavigation } from "../swim-navigation";
-import { MetricCard } from "./metric-card";
 import { GlassPanel } from "./glass-panel";
 import { SectionHeader } from "./section-header";
 
@@ -29,6 +28,17 @@ export function SwimAnalyticsScreen() {
   const maxVolume = useMemo(() => Math.max(1, ...(data?.volume.map((point) => point.distanceMeters) ?? [])), [data]);
   const delta = data?.distanceDeltaPercent;
   const dateLabel = data ? `${data.fromDate.split("-").reverse().join(".")} — ${data.toDate.split("-").reverse().join(".")}` : "";
+  const periodStory = !data || data.workoutCount === 0
+    ? "В выбранном периоде ещё нет подтверждённых заплывов."
+    : data.workoutCount < 3
+      ? "Пока это точка отсчёта. Следующие заплывы превратят её в историю прогресса."
+      : delta === null || delta === undefined
+        ? "Ритм уже виден, но для честного сравнения нужен полный предыдущий период."
+        : delta > 0
+          ? `Объём вырос на ${delta}% относительно предыдущего периода.`
+          : delta < 0
+            ? `Объём ниже прошлого периода на ${Math.abs(delta)}%. Это изменение ритма, а не оценка результата.`
+            : "Объём сохранился на уровне предыдущего периода.";
 
   return (
     <div className="swim-plan swim-analytics">
@@ -57,29 +67,49 @@ export function SwimAnalyticsScreen() {
 
       {error && <div className="swim-home-error" role="alert">Не удалось загрузить аналитику. <button onClick={() => { setLoading(true); void fetchAnalytics(); }}>Повторить</button></div>}
       {loading || !data ? (
-        <div className="swim-history-loading" aria-busy="true"><div className="swim-loading-line" style={{ height: 210, marginBottom: 16 }} /><div className="swim-loading-line" style={{ height: 120 }} /></div>
+        <div className="swim-history-loading swim-analytics-loading" aria-busy="true"><div className="swim-loading-line" /><div className="swim-loading-line" /><div className="swim-loading-line" /></div>
       ) : !data.hasAnyHistory ? (
         <GlassPanel className="swim-history-empty"><Waves size={30} /><b>Пока нечего анализировать</b><p>Аналитика появится после первого завершённого и подтверждённого заплыва.</p><Link href="/swim/workouts" className="swim-btn primary">Открыть план тренировок</Link></GlassPanel>
       ) : (
         <>
-          <section className="swim-section">
-            <SectionHeader eyebrow={dateLabel} title="Объём плавания" />
-            <div className="swim-analytics-overview">
-              <GlassPanel variant="raised" className="swim-analytics-volume">
-                <div className="swim-analytics-volume-head"><div><strong>{formatKm(data.distanceMeters) ?? "Нет данных"}</strong><span>за период</span></div>{delta !== null && delta !== undefined && <b className={delta >= 0 ? "positive" : "negative"}>{delta > 0 ? "+" : ""}{delta}% <small>к прошлому периоду</small></b>}</div>
-                {data.volume.length ? <div className="swim-analytics-bars" role="img" aria-label={`Объём по неделям: ${data.volume.map((point) => `${point.label}: ${point.distanceMeters} м`).join(", ")}`}>{data.volume.map((point) => <div key={point.label}><span style={{ height: `${Math.max(4, Math.round(point.distanceMeters / maxVolume * 100))}%` }} /><small>{point.label.slice(5).split("-").reverse().join(".")}</small></div>)}</div> : <p className="swim-analytics-no-data">В выбранном периоде нет заплывов.</p>}
-              </GlassPanel>
-              <GlassPanel className="swim-analytics-total"><h3>Итого</h3><dl><div><dt>Тренировки</dt><dd>{data.workoutCount}</dd></div><div><dt>Время</dt><dd>{formatDuration(data.durationSeconds) ?? "Нет данных"}</dd></div><div><dt>Средняя дистанция</dt><dd>{data.averageDistanceMeters ? formatMeters(data.averageDistanceMeters) : "Нет данных"}</dd></div><div><dt>Калории</dt><dd>{data.calories ? `${data.calories} ккал` : "Нет данных"}</dd></div></dl></GlassPanel>
+          <section className="swim-home-card swim-history-hero swim-analytics-story-hero" aria-label="История периода">
+            <span className="swim-history-hero-track" aria-hidden="true" />
+            <div className="swim-analytics-story-copy">
+              <p className="swim-eyebrow">{dateLabel}</p>
+              <h2>{formatKm(data.distanceMeters) ?? "Пока без дистанции"}</h2>
+              <p>{periodStory}</p>
+            </div>
+            <div className="swim-analytics-story-meta">
+              <span><b>{data.workoutCount}</b>{data.workoutCount === 1 ? "заплыв" : "заплывов"}</span>
+              <span><b>{formatDuration(data.durationSeconds) ?? "—"}</b>в воде</span>
+              <span><b>{data.averageDistanceMeters ? formatMeters(data.averageDistanceMeters) : "—"}</b>в среднем</span>
             </div>
           </section>
-          <section className="swim-section">
-            <SectionHeader eyebrow="Эффективность" title="Ключевые показатели" />
-            <div className="swim-grid swim-analytics-metrics">
-              <MetricCard label="Средний темп" value={data.avgPaceLabel} unit="/100 м" period={PERIOD_LABELS[period]} />
-              <MetricCard label="Средний пульс" value={data.avgHeartRate ? String(data.avgHeartRate) : null} unit="уд/мин" period={PERIOD_LABELS[period]} />
-              <MetricCard label="SWOLF" value={null} period="Не записан в тренировках" />
-              <MetricCard label="Техника" value={null} period="Нет Stroke Count в журнале" />
-            </div>
+
+          <section className="swim-section swim-analytics-chapter">
+            <SectionHeader eyebrow="Глава 1" title="Как складывался объём" />
+            {data.volume.length ? (
+              <GlassPanel className={`swim-analytics-volume-story ${data.volume.length <= 3 ? "sparse" : ""}`} role="img" aria-label={`Объём по неделям: ${data.volume.map((point) => `${point.label}: ${point.distanceMeters} м`).join(", ")}`}>
+                <div className="swim-analytics-story-line" aria-hidden="true" />
+                {data.volume.map((point, index) => (
+                  <div className="swim-analytics-volume-moment" key={point.label}>
+                    <i aria-hidden="true" />
+                    <div><small>{point.label.split("-").reverse().join(".")}</small><b>{formatMeters(point.distanceMeters)}</b><p>{point.workoutCount} {point.workoutCount === 1 ? "заплыв" : "заплыва"} за неделю</p></div>
+                    <span aria-hidden="true"><em style={{ width: `${Math.max(12, Math.round(point.distanceMeters / maxVolume * 100))}%` }} /></span>
+                    {index === 0 && data.volume.length <= 3 && <strong>Точка отсчёта</strong>}
+                  </div>
+                ))}
+              </GlassPanel>
+            ) : <GlassPanel className="swim-analytics-chapter-empty">Завершённый заплыв откроет первую главу динамики.</GlassPanel>}
+          </section>
+
+          <section className="swim-section swim-analytics-chapter">
+            <SectionHeader eyebrow="Глава 2" title="Что уже можно понять" />
+            <GlassPanel className="swim-analytics-reading">
+              <article className="primary"><div><span>Темп</span><h3>{data.avgPaceLabel ? `${data.avgPaceLabel} /100 м` : "Пока неизвестен"}</h3></div><p>{data.avgPaceLabel ? "Средний темп по заплывам, где записаны и время, и дистанция." : "Нужны одновременно время и дистанция — без них VOLT не делает предположений."}</p></article>
+              <article><div><span>Пульс</span><h3>{data.avgHeartRate ? `${data.avgHeartRate} уд/мин` : "Нет данных"}</h3></div><p>{data.avgHeartRate ? "Среднее только по тренировкам с записанным пульсом." : "Пульс не был записан, поэтому он не участвует в истории эффективности."}</p></article>
+              <article><div><span>Техника</span><h3>Ожидает данных</h3></div><p>SWOLF и Stroke Count появятся здесь, когда эти значения будут сохранены в подтверждённых тренировках.</p></article>
+            </GlassPanel>
           </section>
           {data.workoutCount === 0 && <GlassPanel className="swim-analytics-period-empty"><Activity size={22} /><div><b>В выбранном периоде нет заплывов</b><p>Выберите более длинный период, чтобы увидеть накопленную динамику.</p></div></GlassPanel>}
         </>

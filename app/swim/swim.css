@@ -834,18 +834,13 @@
 .swim-history-chapter-head h3{margin:0;font-size:21px;font-weight:650;letter-spacing:-.01em;color:var(--swim-text)}
 .swim-history-chapter-head span{color:var(--swim-text-muted);font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}
 
-/* Дорожка: одна вертикальная линия с делениями по записям — усилена лёгкой
-   штриховкой (мотив дорожечного троса) и статичным сверхслабым водным фоном.
-   Оба слоя статичны (без motion), поэтому не считаются вторым одновременным
-   эффектом наравне с однократным бликом hero. */
-.swim-history-lane{position:relative;display:grid;gap:10px;padding-left:26px;background:radial-gradient(ellipse 120% 60% at 0% 0%,rgba(33,207,255,.035),transparent 55%);background-repeat:no-repeat}
-.swim-history-lane:before{content:"";position:absolute;top:6px;bottom:6px;left:5px;width:1px;background:repeating-linear-gradient(180deg,var(--swim-border) 0 6px,transparent 6px 12px)}
+.swim-history-lane{display:grid;gap:10px}
 
 /* isolation:isolate (не overflow:hidden!) — ripple ниже это background на
    собственном inset:0 псевдоэлементе, он не выходит за свои границы сам по
    себе; overflow:hidden здесь отрезал бы узел дорожки, который стоит вне
    рамки карточки (left:-24px) по замыслу. */
-.swim-history-entry{position:relative;isolation:isolate;display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;gap:20px;padding:15px 18px;text-decoration:none;color:inherit;transition:transform var(--swim-motion-fast) var(--swim-ease-standard),border-color var(--swim-motion-fast) var(--swim-ease-standard),box-shadow var(--swim-motion-fast) var(--swim-ease-standard)}
+.swim-history-entry{position:relative;isolation:isolate;display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;gap:20px;padding:15px 18px;text-decoration:none;color:inherit;border:1px solid rgba(105,207,243,.46);border-radius:12px;background:linear-gradient(145deg,rgba(7,34,49,.34),rgba(2,15,25,.17));box-shadow:inset 0 1px 0 rgba(224,248,255,.08),inset 0 0 40px rgba(33,207,255,.03),0 18px 44px -26px rgba(0,0,0,.62);transition:transform var(--swim-motion-fast) var(--swim-ease-standard),border-color var(--swim-motion-fast) var(--swim-ease-standard),box-shadow var(--swim-motion-fast) var(--swim-ease-standard)}
 .swim-history-entry.interactive:hover{transform:translateY(-2px);border-color:rgba(33,207,255,.55);box-shadow:0 14px 32px -20px rgba(33,207,255,.28)}
 .swim-history-entry.no-route{cursor:default}
 /* Ripple — центрированная вспышка при нажатии, чисто CSS: псевдоэлемент
@@ -853,7 +848,6 @@
    ≤400ms, без выхода за границы поверхности). */
 .swim-history-entry.interactive:after{content:"";position:absolute;inset:0;border-radius:inherit;background:radial-gradient(circle at 50% 50%,rgba(33,207,255,.28),transparent 62%);opacity:0;transition:opacity var(--swim-motion-slow) var(--swim-ease-out);pointer-events:none}
 .swim-history-entry.interactive:active:after{opacity:1;transition-duration:80ms}
-.swim-history-entry-node{position:absolute;left:-24px;top:50%;width:9px;height:9px;margin-top:-4px;border-radius:50%;background:#0a1b24;border:1px solid var(--swim-border);box-shadow:0 0 0 3px rgba(3,9,11,1)}
 .swim-history-entry-chevron{position:absolute;right:14px;top:50%;margin-top:-8px;color:var(--swim-text-muted);transition:color var(--swim-motion-fast) var(--swim-ease-standard),transform var(--swim-motion-fast) var(--swim-ease-standard)}
 .swim-history-entry.interactive:hover .swim-history-entry-chevron{color:#21cfff;transform:translateX(2px)}
 .swim-history-entry.interactive{padding-right:38px}
@@ -877,9 +871,8 @@
 .swim-history-entry-distance small{color:var(--swim-text-muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
 
 /* Главный заплыв месяца — укрупнённая подача внутри той же системы. */
-.swim-history-entry.featured{padding:22px 24px;gap:24px;border-color:rgba(33,207,255,.34);box-shadow:0 16px 40px -26px rgba(33,207,255,.22)}
+.swim-history-entry.featured{grid-template-columns:54px minmax(0,1fr) minmax(86px,auto);padding:20px 24px;gap:24px;box-shadow:inset 0 1px 0 rgba(224,248,255,.1),inset 0 0 48px rgba(33,207,255,.04),0 18px 44px -26px rgba(0,0,0,.62)}
 .swim-history-entry.featured.interactive{padding-right:44px}
-.swim-history-entry.featured .swim-history-entry-node{background:#21cfff;border-color:#21cfff;box-shadow:0 0 0 3px rgba(3,9,11,1),0 0 14px rgba(33,207,255,.6)}
 .swim-history-entry.featured .swim-history-entry-day b{font-size:26px}
 .swim-history-entry.featured .swim-history-entry-head strong{font-size:18px}
 .swim-history-entry.featured .swim-history-entry-distance strong{font-size:clamp(26px,2.6vw,34px)}
@@ -894,6 +887,11 @@
   .swim-detail-side{position:static}
 }
 @media(max-width:760px){
+  .swim-shell:has(.swim-history) .swim-global-sidebar{display:none}
+  .swim-content:has(.swim-history){margin-left:0;width:100%;padding:20px 16px 96px}
+  .swim-history .swim-local-nav{width:100%;gap:2px}
+  .swim-history .swim-local-nav a{padding:8px 7px;font-size:11px}
+  .swim-history .swim-local-nav-soon{display:none}
   .swim-plan-header h1{font-size:26px}
   .swim-plan-toolbar{flex-direction:column;align-items:stretch}
   .swim-plan-table{overflow-x:auto}
@@ -910,24 +908,29 @@
   .swim-detail-stage-volume{grid-area:vol;text-align:left;margin-top:4px}
   .swim-history-search{min-width:0;width:100%}
   .swim-history-hero{padding:18px 20px}
-  .swim-history-hero-stats{grid-template-columns:1fr;gap:12px}
+  .swim-history-hero-stats{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+  .swim-history-hero-stats strong{font-size:clamp(20px,7vw,28px)}
+  .swim-history-hero-stats small{font-size:9px}
   .swim-history-chapter-head{flex-wrap:wrap;gap:2px 12px}
   .swim-history-chapter-head span{white-space:normal}
   .swim-history-chapter-head h3{font-size:18px}
-  .swim-history-lane{padding-left:20px}
-  .swim-history-lane:before{left:4px}
   /* Дистанция уходит под заголовок, но остаётся главной метрикой записи;
      день слева сохраняет роль «корешка» журнала. */
-  .swim-history-entry,.swim-history-entry.featured{grid-template-columns:40px minmax(0,1fr);gap:8px 14px;padding:14px 16px}
+  .swim-history-entry,.swim-history-entry.featured{grid-template-columns:40px minmax(0,1fr);gap:8px 14px;padding:16px}
   .swim-history-entry.interactive,.swim-history-entry.featured.interactive{padding-right:34px}
-  .swim-history-entry-node{left:-19px}
   .swim-history-entry-day{align-self:start}
-  .swim-history-entry-distance{grid-column:2;text-align:left}
+  .swim-history-entry-distance{grid-column:1/-1;display:flex;align-items:baseline;justify-content:flex-end;gap:7px;margin-top:4px;padding-top:12px;border-top:1px solid rgba(33,207,255,.14);text-align:right}
   .swim-history-entry-distance strong,.swim-history-entry.featured .swim-history-entry-distance strong{font-size:19px}
   .swim-history-entry-metrics{gap:10px 20px}
-  .swim-history-toolbar{flex-direction:column;align-items:stretch}
+  .swim-history-toolbar{align-items:center;gap:10px;padding:9px 12px}
   .swim-history-toolbar-divider{display:none}
+  .swim-history-toolbar .swim-plan-period-tabs{flex:0 0 auto}
   .swim-history-toolbar .swim-history-search{min-width:0}
+}
+@media(max-width:520px){
+  .swim-history-toolbar{flex-direction:column;align-items:stretch}
+  .swim-history-toolbar .swim-plan-period-tabs{width:100%}
+  .swim-history-toolbar .swim-plan-period-tabs button{flex:1;padding-inline:8px}
 }
 @media(prefers-reduced-motion:reduce){
   .swim-plan-row,.swim-plan-week-nav button,.swim-plan-phase-bar i{transition:none!important}
@@ -940,34 +943,48 @@
   .swim-history-hero-shine{animation:none!important;display:none}
 }
 
-/* Analytics развивает существующие GlassPanel/MetricCard и period-tabs.
-   График объёма — дорожки без декоративных или интерполированных данных. */
+/* Analytics continues History as a sequence of chapters, not a dashboard. */
 .swim-analytics{animation:swim-fade-in var(--swim-motion-base) var(--swim-ease-out)}
-.swim-analytics-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:9px 12px;margin-bottom:22px}
+.swim-analytics .swim-glass,.swim-analytics .swim-home-card{border:1px solid rgba(105,207,243,.46);border-radius:12px;background:linear-gradient(145deg,rgba(7,34,49,.34),rgba(2,15,25,.17));box-shadow:inset 0 1px 0 rgba(224,248,255,.08),inset 0 0 40px rgba(33,207,255,.03),0 18px 44px -26px rgba(0,0,0,.62)}
+@supports (backdrop-filter:blur(1px)){.swim-analytics .swim-glass,.swim-analytics .swim-home-card{backdrop-filter:blur(calc(var(--swim-blur) + 3px)) saturate(115%)}}
+.swim-analytics-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:12px;padding:7px 10px;margin-bottom:16px}
 .swim-analytics-toolbar>span{color:var(--swim-text-muted);font-size:12px}
 .swim-analytics-toolbar .swim-plan-period-tabs button.active{background:rgba(33,207,255,.16);color:#21cfff;box-shadow:inset 0 0 0 1px rgba(33,207,255,.4)}
-.swim-analytics-overview{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:16px}
-.swim-analytics-volume,.swim-analytics-total{padding:22px 24px;min-width:0}
-.swim-analytics-volume-head{display:flex;align-items:end;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.swim-analytics-volume-head>div{display:grid;gap:4px}
-.swim-analytics-volume-head strong{font-size:clamp(32px,4vw,48px);font-variant-numeric:tabular-nums}
-.swim-analytics-volume-head span,.swim-analytics-volume-head small{color:var(--swim-text-muted);font-size:11px}
-.swim-analytics-volume-head>b{display:grid;gap:3px;color:#3fe08a;font-size:17px;font-variant-numeric:tabular-nums;text-align:right}
-.swim-analytics-volume-head>b.negative{color:#ff8b8b}
-.swim-analytics-bars{height:190px;display:flex;align-items:end;gap:clamp(6px,1.4vw,16px);margin-top:20px;padding-top:14px;background:repeating-linear-gradient(to bottom,rgba(160,220,213,.09) 0 1px,transparent 1px 47px);overflow-x:auto}
-.swim-analytics-bars>div{height:100%;min-width:24px;flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:7px}
-.swim-analytics-bars span{width:min(34px,75%);min-height:4px;border-radius:5px 5px 1px 1px;background:linear-gradient(180deg,#35e6d0,#087bea)}
-.swim-analytics-bars small{font-size:9px;color:var(--swim-text-muted);white-space:nowrap}
-.swim-analytics-no-data{margin:46px 0;color:var(--swim-text-muted)}
-.swim-analytics-total h3{margin:0 0 12px;font-size:17px}
-.swim-analytics-total dl{margin:0;display:grid}
-.swim-analytics-total dl>div{display:flex;justify-content:space-between;gap:16px;padding:13px 0;border-top:1px solid var(--swim-border)}
-.swim-analytics-total dt{color:var(--swim-text-muted);font-size:12px}
-.swim-analytics-total dd{margin:0;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;text-align:right}
-.swim-analytics-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}
-.swim-analytics-period-empty{display:flex;align-items:center;gap:14px;padding:18px 20px;color:#21cfff}
-.swim-analytics-period-empty b{color:var(--swim-text)}
-.swim-analytics-period-empty p{margin:4px 0 0;color:var(--swim-text-muted);font-size:12px}
-@media(max-width:1024px){.swim-analytics-overview{grid-template-columns:1fr}.swim-analytics-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.swim-analytics-toolbar{align-items:stretch;flex-direction:column}.swim-analytics-overview{display:block}.swim-analytics-total{margin-top:12px}.swim-analytics-volume,.swim-analytics-total{padding:18px}.swim-analytics-metrics{grid-template-columns:1fr}.swim-analytics-bars{height:150px}}
+
+.swim-analytics-story-hero{position:relative;isolation:isolate;overflow:hidden;display:grid;grid-template-columns:minmax(0,1.7fr) minmax(240px,.8fr);gap:28px;align-items:end;padding:28px;margin-bottom:28px}
+.swim-analytics-story-copy,.swim-analytics-story-meta{position:relative;z-index:1}
+.swim-analytics-story-copy h2{margin:12px 0 10px;font-size:clamp(38px,5vw,64px);line-height:1;font-variant-numeric:tabular-nums;letter-spacing:-.035em}
+.swim-analytics-story-copy>p:last-child{max-width:590px;margin:0;color:#a8b8c0;font-size:14px;line-height:1.55}
+.swim-analytics-story-meta{display:grid;gap:11px;padding-left:22px;border-left:1px solid rgba(33,207,255,.22)}
+.swim-analytics-story-meta span{display:flex;align-items:baseline;gap:8px;color:var(--swim-text-muted);font-size:11px;text-transform:uppercase;letter-spacing:.05em}
+.swim-analytics-story-meta b{color:var(--swim-text);font-size:20px;font-variant-numeric:tabular-nums;text-transform:none;letter-spacing:0}
+
+.swim-analytics-chapter{margin-bottom:30px}
+.swim-analytics-chapter .swim-section-header{margin-bottom:12px}
+.swim-analytics-volume-story{position:relative;padding:6px 22px 6px 34px;overflow:hidden}
+.swim-analytics-story-line{position:absolute;left:19px;top:26px;bottom:26px;width:1px;background:repeating-linear-gradient(180deg,#21cfff 0 6px,rgba(33,207,255,.12) 6px 12px)}
+.swim-analytics-volume-moment{position:relative;display:grid;grid-template-columns:minmax(170px,.7fr) minmax(160px,1fr) auto;gap:22px;align-items:center;min-height:70px;padding:12px 0;border-top:1px solid rgba(160,220,213,.11)}
+.swim-analytics-volume-moment:first-of-type{border-top:0}
+.swim-analytics-volume-moment>i{position:absolute;left:-20px;width:9px;height:9px;border-radius:50%;background:#21cfff;border:2px solid #dff8ff;box-shadow:0 0 12px rgba(33,207,255,.65)}
+.swim-analytics-volume-moment>div{display:grid;grid-template-columns:auto 1fr;align-items:baseline;gap:3px 10px}
+.swim-analytics-volume-moment small{grid-column:1/-1;color:var(--swim-text-muted);font-size:9px;letter-spacing:.04em}
+.swim-analytics-volume-moment b{font-size:20px;font-variant-numeric:tabular-nums}
+.swim-analytics-volume-moment p{margin:0;color:var(--swim-text-muted);font-size:11px}
+.swim-analytics-volume-moment>span{height:3px;border-radius:999px;background:rgba(33,207,255,.09);overflow:hidden}
+.swim-analytics-volume-moment>span em{display:block;height:100%;border-radius:inherit;background:#21cfff;box-shadow:0 0 9px rgba(33,207,255,.55)}
+.swim-analytics-volume-moment>strong{color:#21cfff;font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.06em}
+.swim-analytics-volume-story.sparse{max-width:760px}
+.swim-analytics-chapter-empty{padding:24px;color:var(--swim-text-muted);font-size:13px}
+
+.swim-analytics-reading{padding:0 24px}
+.swim-analytics-reading article{position:relative;display:grid;grid-template-columns:minmax(190px,.75fr) minmax(0,1.4fr);gap:28px;align-items:center;padding:21px 0;border-top:1px solid rgba(160,220,213,.11)}
+.swim-analytics-reading article:first-child{border-top:0}
+.swim-analytics-reading article.primary:before{content:"";position:absolute;left:-24px;top:17px;bottom:17px;width:2px;background:#21cfff;box-shadow:0 0 12px rgba(33,207,255,.6)}
+.swim-analytics-reading span{color:#21cfff;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.swim-analytics-reading h3{margin:5px 0 0;font-size:21px;font-variant-numeric:tabular-nums}
+.swim-analytics-reading p{margin:0;color:var(--swim-text-muted);font-size:13px;line-height:1.5}
+.swim-analytics-loading{display:grid;gap:12px}
+.swim-analytics-loading .swim-loading-line:first-child{height:190px}.swim-analytics-loading .swim-loading-line:not(:first-child){height:92px}
+.swim-analytics-period-empty{display:flex;align-items:center;gap:14px;padding:18px 20px;color:#21cfff}.swim-analytics-period-empty b{color:var(--swim-text)}.swim-analytics-period-empty p{margin:4px 0 0;color:var(--swim-text-muted);font-size:12px}
+@media(max-width:760px){.swim-shell:has(.swim-analytics) .swim-global-sidebar{display:none}.swim-content:has(.swim-analytics){margin-left:0;width:100%;padding:20px 16px 96px}.swim-analytics .swim-local-nav{width:100%;gap:2px}.swim-analytics .swim-local-nav a{padding:8px 7px;font-size:11px}.swim-analytics .swim-local-nav-soon{display:none}.swim-analytics-toolbar{align-items:stretch;flex-direction:column}.swim-analytics-story-hero{grid-template-columns:1fr;gap:20px;padding:22px 20px}.swim-analytics-story-meta{grid-template-columns:repeat(3,1fr);gap:8px;padding:14px 0 0;border-left:0;border-top:1px solid rgba(33,207,255,.2)}.swim-analytics-story-meta span{display:grid;gap:2px}.swim-analytics-story-meta b{font-size:17px}.swim-analytics-volume-story{padding-right:16px}.swim-analytics-volume-moment{grid-template-columns:1fr;gap:10px;padding:15px 0}.swim-analytics-volume-moment>span{width:100%}.swim-analytics-volume-moment>strong{justify-self:start}.swim-analytics-reading{padding:0 18px}.swim-analytics-reading article{grid-template-columns:1fr;gap:8px;padding:18px 0}.swim-analytics-reading article.primary:before{left:-18px}}
 @media(prefers-reduced-motion:reduce){.swim-analytics{animation:none!important}}
