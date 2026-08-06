@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Activity, Apple, BarChart3, Bot, ChevronDown, ChevronRight, Dumbbell, HeartPulse, History, Home, Settings, Waves } from "lucide-react";
 
 export function SwimGlobalNav() {
+  const pathname = usePathname();
   const [name, setName] = useState("Профиль");
   useEffect(() => { fetch("/api/fitness").then((response) => response.ok ? response.json() : null).then((data) => { if (data?.profile?.name) setName(data.profile.name); }).catch(() => {}); }, []);
   return <>
@@ -26,6 +28,6 @@ export function SwimGlobalNav() {
         <span className="swim-sidebar-signature">V VOLT</span>
       </div>
     </aside>
-    <nav className="mobile-nav" aria-label="Мобильная навигация"><Link href="/"><Home />VOLT</Link><Link href="/swim" className="active"><Waves />Swim</Link><Link href="/swim/workouts"><Dumbbell />План</Link><Link href="/"><History />История</Link><Link href="/"><Settings />Ещё</Link></nav>
+    <nav className="mobile-nav" aria-label="Мобильная навигация"><Link href="/"><Home />VOLT</Link><Link href="/swim" className={pathname === "/swim" ? "active" : undefined}><Waves />Swim</Link><Link href="/swim/workouts" className={pathname.startsWith("/swim/workouts") ? "active" : undefined}><Dumbbell />План</Link><Link href="/swim/history" className={pathname === "/swim/history" ? "active" : undefined}><History />История</Link><Link href="/"><Settings />Ещё</Link></nav>
   </>;
 }
