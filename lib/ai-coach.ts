@@ -92,6 +92,39 @@ const MAX_REPLY_TOKENS=500;
 const MAX_HISTORY_MESSAGES=6;
 const MAX_HISTORY_MESSAGE_CHARS=400;
 
+type ProviderMessage={role:"user"|"assistant";content:string};
+
+export async function askAnthropicStructured(apiKey:string,system:string,messages:ProviderMessage[],fetchImpl:AnthropicFetch=fetch):Promise<string>{
+  let response:Response;
+  try{
+    response=await fetchImpl("https://api.anthropic.com/v1/messages",{
+      method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},signal:AbortSignal.timeout(30000),
+      body:JSON.stringify({model:MODEL,max_tokens:MAX_REPLY_TOKENS,system:[{type:"text",text:system,cache_control:{type:"ephemeral"}}],messages}),
+    });
+  }catch{throw new AiCoachError("Сервис ИИ-тренера не ответил, попробуйте ещё раз",504)}
+  if(!response.ok)throw new AiCoachError(`Сервис ИИ-тренера недоступен (${response.status})`,502);
+  const body=await response.json();
+  const text=String((body.content||[]).map((p:any)=>p.text||"").join("\n")).trim();
+  if(!text)throw new AiCoachError("Пустой ответ от сервиса ИИ-тренера",502);
+  return text;
+}
+
+export async function askMwsStructured(apiKey:string,project:string,model:string,system:string,messages:ProviderMessage[],fetchImpl:AnthropicFetch=fetch):Promise<string>{
+  if(!/^[a-zA-Z0-9][a-zA-Z0-9_-]{1,80}$/.test(project)||!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,100}$/.test(model))throw new AiCoachError("Настройки MWS GPT имеют неверный формат",400);
+  let response:Response;
+  try{
+    response=await fetchImpl(`https://gpt.mwsapis.ru/projects/${encodeURIComponent(project)}/openai/v1/chat/completions`,{
+      method:"POST",headers:{"content-type":"application/json","authorization":`Bearer ${apiKey}`},signal:AbortSignal.timeout(30000),
+      body:JSON.stringify({model,messages:[{role:"system",content:system},...messages],temperature:0.2,max_tokens:MAX_REPLY_TOKENS}),
+    });
+  }catch{throw new AiCoachError("Резервный сервис MWS GPT не ответил",504)}
+  if(!response.ok)throw new AiCoachError(`Резервный сервис MWS GPT недоступен (${response.status})`,502);
+  const body=await response.json();
+  const text=String(body?.choices?.[0]?.message?.content||"").trim();
+  if(!text)throw new AiCoachError("Пустой ответ от MWS GPT",502);
+  return text;
+}
+
 export async function askAiCoach(
   apiKey:string,
   context:AiCoachContext,
@@ -104,27 +137,7 @@ export async function askAiCoach(
     ...history.slice(-MAX_HISTORY_MESSAGES).map(m=>({role:m.role,content:m.text.slice(0,MAX_HISTORY_MESSAGE_CHARS)})),
     {role:"user" as const,content:`Контекст пользователя на сегодня (${context.date}):\n${contextText}\n\nВопрос пользователя: ${question}`},
   ];
-  let response:Response;
-  try{
-    response=await fetchImpl("https://api.anthropic.com/v1/messages",{
-      method:"POST",
-      headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},
-      signal:AbortSignal.timeout(30000),
-      body:JSON.stringify({
-        model:MODEL,
-        max_tokens:MAX_REPLY_TOKENS,
-        system:[{type:"text",text:SYSTEM_PROMPT,cache_control:{type:"ephemeral"}}],
-        messages,
-      }),
-    });
-  }catch{
-    throw new AiCoachError("Сервис ИИ-тренера не ответил, попробуйте ещё раз",504);
-  }
-  if(!response.ok)throw new AiCoachError(`Сервис ИИ-тренера недоступен (${response.status})`,502);
-  const body=await response.json();
-  const text=String((body.content||[]).map((p:any)=>p.text||"").join("\n")).trim();
-  if(!text)throw new AiCoachError("Пустой ответ от сервиса ИИ-тренера",502);
-  return parseStructuredReply(text);
+  return parseStructuredReply(await askAnthropicStructured(apiKey,SYSTEM_PROMPT,messages,fetchImpl));
 }
 
 export async function askMwsAiCoach(
@@ -139,25 +152,9 @@ export async function askMwsAiCoach(
   if(!/^[a-zA-Z0-9][a-zA-Z0-9_-]{1,80}$/.test(project)||!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,100}$/.test(model))
     throw new AiCoachError("Настройки MWS GPT имеют неверный формат",400);
   const contextText=renderAiCoachContextText(context);
-  const messages=[
-    {role:"system",content:SYSTEM_PROMPT},
+  const messages:ProviderMessage[]=[
     ...history.slice(-MAX_HISTORY_MESSAGES).map(m=>({role:m.role,content:m.text.slice(0,MAX_HISTORY_MESSAGE_CHARS)})),
     {role:"user" as const,content:`Контекст пользователя на сегодня (${context.date}):\n${contextText}\n\nВопрос пользователя: ${question}`},
   ];
-  let response:Response;
-  try{
-    response=await fetchImpl(`https://gpt.mwsapis.ru/projects/${encodeURIComponent(project)}/openai/v1/chat/completions`,{
-      method:"POST",
-      headers:{"content-type":"application/json","authorization":`Bearer ${apiKey}`},
-      signal:AbortSignal.timeout(30000),
-      body:JSON.stringify({model,messages,temperature:0.2,max_tokens:MAX_REPLY_TOKENS}),
-    });
-  }catch{
-    throw new AiCoachError("Резервный сервис MWS GPT не ответил",504);
-  }
-  if(!response.ok)throw new AiCoachError(`Резервный сервис MWS GPT недоступен (${response.status})`,502);
-  const body=await response.json();
-  const text=String(body?.choices?.[0]?.message?.content||"").trim();
-  if(!text)throw new AiCoachError("Пустой ответ от MWS GPT",502);
-  return parseStructuredReply(text);
+  return parseStructuredReply(await askMwsStructured(apiKey,project,model,SYSTEM_PROMPT,messages,fetchImpl));
 }

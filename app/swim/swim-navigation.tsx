@@ -5,16 +5,15 @@ import { usePathname } from "next/navigation";
 // Локальная навигация внутри VOLT Swim — единственная (не дублирует
 // глобальный VOLT-сайдбар). Показывает утверждённые контекстные разделы
 // (docs/volt-swim/VOLT_SWIM_DESIGN_CONTRACT.md §Navigation); реализованы
-// Главная, План тренировок, История, Аналитика и Рекорды; остальное помечено «Скоро»
-// без выдуманной функциональности за ними.
+// Главная, План тренировок, История, Аналитика, Рекорды и AI Coach.
 const LIVE_ITEMS = [
   { href: "/swim", label: "Главная", match: (pathname: string) => pathname === "/swim" },
   { href: "/swim/workouts", label: "План тренировок", match: (pathname: string) => pathname === "/swim/workouts" || pathname.startsWith("/swim/workouts/") },
   { href: "/swim/history", label: "История", match: (pathname: string) => pathname === "/swim/history" },
   { href: "/swim/analytics", label: "Аналитика", match: (pathname: string) => pathname === "/swim/analytics" },
   { href: "/swim/records", label: "Рекорды", match: (pathname: string) => pathname === "/swim/records" },
+  { href: "/swim/coach", label: "AI Coach", match: (pathname: string) => pathname === "/swim/coach" },
 ] as const;
-const FUTURE_ITEMS = ["AI Coach"] as const;
 
 export function SwimNavigation() {
   const pathname = usePathname();
@@ -28,12 +27,6 @@ export function SwimNavigation() {
           </Link>
         );
       })}
-      {FUTURE_ITEMS.map((label) => (
-        <span key={label} className="swim-local-nav-soon" aria-disabled="true">
-          {label}
-          <span className="swim-local-nav-soon-badge">Скоро</span>
-        </span>
-      ))}
     </nav>
   );
 }
