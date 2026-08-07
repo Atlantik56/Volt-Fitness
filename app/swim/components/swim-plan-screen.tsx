@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
@@ -23,6 +23,7 @@ import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
 import { intervalTotalMeters, totalDistanceMeters } from "@/lib/swim/workout-engine";
 import type { SwimCalendarDay, SwimInterval, SwimProgramProgress, SwimWorkoutProgress } from "@/lib/swim/types";
 import { SwimNavigation } from "../swim-navigation";
+import { SwimPlanStartAction } from "./swim-plan-start-action";
 
 const DAY_LABEL = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const LEVEL_LABEL: Record<string, string> = { beginner: "Начальный", intermediate: "Средний", advanced: "Продвинутый" };
@@ -64,7 +65,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
   });
   const [selectedWorkoutIdOverride, setSelectedWorkoutIdOverride] = useState<string | null>(() => searchParams.get("workout"));
 
-  useEffect(() => {
+  const load = useCallback(() => {
     fetch(`/api/swim/programs/${programId}`, { cache: "no-store" })
       .then((r) => {
         if (r.status === 404) return null;
@@ -77,20 +78,18 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
           return;
         }
         setProgress(json.progress);
+        setError(false);
       })
       .catch(() => setError(true));
   }, [programId]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const totalWeeks = progress?.program.weeks.length ?? 0;
-  // "Текущая" неделя — та, что содержит сегодняшнюю дату в уже разрешённом
-  // календаре программы (progress.calendarDays, источник — общее расписание
-  // VOLT). Не пересчитывается на клиенте отдельным алгоритмом.
-  const liveWeekIndex = useMemo(() => {
-    if (!progress) return 1;
-    const todayIndex = progress.calendarDays.findIndex((d) => d.isToday);
-    if (todayIndex < 0) return 1;
-    return Math.min(totalWeeks, Math.floor(todayIndex / 7) + 1);
-  }, [progress, totalWeeks]);
+  // "Текущая" неделя уже рассчитана сервером относительно startedAt; клиент
+  // не создаёт собственную календарную модель.
+  const liveWeekIndex = progress?.currentWeekIndex ?? 1;
   const weekIndex = weekIndexOverride !== null && weekIndexOverride >= 1 && weekIndexOverride <= totalWeeks ? weekIndexOverride : totalWeeks > 0 ? liveWeekIndex : null;
   const setWeekIndex = (updater: (current: number) => number) =>
     setWeekIndexOverride((prevOverride) => {
@@ -205,6 +204,23 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
             .
           </p>
         </div>
+      </div>
+    );
+  }
+  if (progress && !progress.startedAt) {
+    return (
+      <div className="swim-plan">
+        <header className="swim-plan-header">
+          <div>
+            <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
+            <h1>План тренировок</h1>
+            <p>Foundation · 6 недель</p>
+          </div>
+        </header>
+        <SwimNavigation />
+        <section className="swim-home-card swim-plan-start-panel">
+          <SwimPlanStartAction onStarted={() => load()} />
+        </section>
       </div>
     );
   }

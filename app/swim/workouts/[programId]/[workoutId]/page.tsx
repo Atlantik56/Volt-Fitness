@@ -6,13 +6,14 @@ import { SwimNavigation } from "../../../swim-navigation";
 import { GlassPanel } from "../../../components/glass-panel";
 import { WorkoutSummaryForm } from "../../../components/workout-summary-form";
 import { GarminMatchPanel } from "../../../components/garmin-match-panel";
+import { SwimPlanStartAction } from "../../../components/swim-plan-start-action";
 import { buildConfirmationExercises, buildSwimSnapshot, intervalTotalMeters, totalDistanceMeters } from "@/lib/swim/workout-engine";
 import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
 import { formatMeters } from "@/lib/swim-metrics";
 import type { SwimCalendarSlot, SwimInterval, SwimProgramProgress, SwimWorkoutDef, SwimWorkoutProgressStatus } from "@/lib/swim/types";
 
 type ApiDraft = { id: number; status: string; startedAt: string | null; finishedAt: string | null; planKey?: string };
-type Phase = "loading" | "not_found" | "preview" | "active" | "awaiting_confirmation" | "completed" | "error";
+type Phase = "loading" | "not_found" | "plan_not_started" | "preview" | "active" | "awaiting_confirmation" | "completed" | "error";
 type StageKey = "warmup" | "main" | "legs" | "cooldown";
 
 const DAY_LABEL = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -100,6 +101,11 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
       fetch("/api/fitness", { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
     ])
       .then(([programJson, fitnessJson]: [{ progress: SwimProgramProgress }, { workoutDrafts: ApiDraft[] }]) => {
+        if (!programJson.progress.startedAt) {
+          setProgram(programJson.progress.program);
+          setPhase("plan_not_started");
+          return;
+        }
         const wp = programJson.progress.workouts.find((w) => w.workout.id === workoutId);
         if (!wp) {
           setPhase("not_found");
@@ -272,6 +278,12 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
             </Link>
             .
           </p>
+        </GlassPanel>
+      )}
+
+      {phase === "plan_not_started" && (
+        <GlassPanel className="swim-plan-start-panel">
+          <SwimPlanStartAction onStarted={() => window.location.reload()} />
         </GlassPanel>
       )}
 

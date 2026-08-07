@@ -9,6 +9,8 @@ import { listManualMilestones, createManualMilestone, updateManualMilestone, del
 import { listOpenWorkoutDrafts,startWorkoutDraft,finishWorkoutDraft,cancelWorkoutDraft,confirmWorkoutDraft } from "@/lib/active-workout-service";
 import { listWeekScheduleChanges,applyReplace,applyRest,applySwap,cancelChange,resetWeek } from "@/lib/week-schedule-service";
 import { weekRangeContaining, localIso as weekLocalIso } from "@/app/week-schedule-model";
+import { getSwimPlanStartedAt } from "@/lib/swim/services";
+import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -62,6 +64,7 @@ export async function POST(req:Request){
  }else if(b.action==="workout"){
   const result=saveWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(["startWorkoutDraft","finishWorkoutDraft","cancelWorkoutDraft","confirmWorkoutDraft"].includes(b.action)){
+  if(b.action==="startWorkoutDraft"&&typeof b.snapshot?.type==="string"&&b.snapshot.type.startsWith(`${SWIM_WORKOUT_TYPE_PREFIX} `)&&!getSwimPlanStartedAt())return Response.json({error:"Сначала начните план VOLT Swim"},{status:409});
   const result:any=b.action==="startWorkoutDraft"?startWorkoutDraft(b):b.action==="finishWorkoutDraft"?finishWorkoutDraft(b):b.action==="cancelWorkoutDraft"?cancelWorkoutDraft(b):confirmWorkoutDraft(b);
   if(!result.ok)return Response.json({error:result.error},{status:result.status});
   return Response.json({ok:true,draft:result.draft,summary:result.summary});

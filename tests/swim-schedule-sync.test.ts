@@ -132,3 +132,22 @@ test("«Сегодня» не появляется на неправильном
   const todayIsSwim = assignSwimCalendar({ workouts: pending("w1"), homeWeek: POOL_WEEK, changesByDate: noChanges(), todayIso: "2026-07-21" });
   assert.equal(todayIsSwim.get("w1")?.isToday, true); // сегодня вторник — реально Swim-день
 });
+
+test("точка старта 7 августа стабильно начинает Week 1 и не сдвигает тренировки при смене дня", () => {
+  const onStartDay = assignSwimCalendar({
+    workouts: pending("w1", "w2", "w3"), homeWeek: POOL_WEEK, changesByDate: noChanges(),
+    scheduleStartIso: "2026-08-07", todayIso: "2026-08-07",
+  });
+  const nextDay = assignSwimCalendar({
+    workouts: pending("w1", "w2", "w3"), homeWeek: POOL_WEEK, changesByDate: noChanges(),
+    scheduleStartIso: "2026-08-07", todayIso: "2026-08-08",
+  });
+  assert.deepEqual(
+    [onStartDay.get("w1")?.date, onStartDay.get("w2")?.date, onStartDay.get("w3")?.date],
+    ["2026-08-11", "2026-08-13", "2026-08-18"],
+  );
+  assert.deepEqual(
+    [nextDay.get("w1")?.date, nextDay.get("w2")?.date, nextDay.get("w3")?.date],
+    ["2026-08-11", "2026-08-13", "2026-08-18"],
+  );
+});

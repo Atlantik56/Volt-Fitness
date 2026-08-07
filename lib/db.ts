@@ -248,6 +248,11 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
  // существующей таблице, а не отдельная swim-таблица: заметка — атрибут любой
  // тренировки, не только плавательной, и не имеет смысла без своего workout_log.
  {version:18,sql:`ALTER TABLE workout_logs ADD COLUMN notes TEXT NOT NULL DEFAULT '';`},
+ // VOLT Swim — отдельная одноразовая точка отсчёта Foundation. NULL означает,
+ // что пользователь ещё не начал программу. Поле находится в общем профиле,
+ // поэтому не создаёт отдельную систему планов и не меняет program_start,
+ // workout_logs или историю других видов тренировок.
+ {version:19,sql:`ALTER TABLE profile ADD COLUMN swim_plan_started_at TEXT;`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

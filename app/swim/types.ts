@@ -147,6 +147,7 @@ export type SwimMetricsView = {
 };
 
 export type SwimHomeData = {
+  planStartedAt: string | null;
   nextWorkout: SwimNextWorkoutView;
   lastSwim: SwimLastSwimView;
   weeklyActivity: SwimWeeklyActivityView;

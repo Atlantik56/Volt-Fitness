@@ -20,6 +20,7 @@ const { buildSwimSnapshot, buildConfirmationExercises, totalDistanceMeters } = a
 db.prepare("UPDATE profile SET program_start=? WHERE id=1").run("2020-01-06");
 
 const todayIso = localIso(new Date());
+db.prepare("UPDATE profile SET swim_plan_started_at=? WHERE id=1").run(todayIso);
 function addDays(iso: string, n: number): string {
   const d = new Date(`${iso}T00:00:00`);
   d.setDate(d.getDate() + n);

@@ -5,10 +5,12 @@ import Link from "next/link";
 import { Activity, Bell, Bot, CalendarDays, ChevronRight, Clock3, CloudUpload, Dumbbell, Flame, Gauge, Heart, Medal, Plus, RefreshCw, Route, Waves } from "lucide-react";
 import { formatDuration, formatMeters } from "@/lib/swim-metrics";
 import { SwimNavigation } from "./swim-navigation";
+import { SwimPlanStartAction } from "./components/swim-plan-start-action";
 import type { SwimHomeData, SwimNextWorkoutView, SwimRecentSessionView } from "./types";
 
 const DAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const EMPTY: SwimHomeData = {
+  planStartedAt: null,
   nextWorkout: null,
   lastSwim: null,
   weeklyActivity: { swimCount: 0, totalDistanceMeters: 0, goalMeters: null, totalDurationSeconds: 0, totalCalories: 0, avgHeartRate: null, dailyMeters: [0, 0, 0, 0, 0, 0, 0] },
@@ -79,7 +81,9 @@ export default function SwimHomePage() {
       <section className="swim-home-grid">
         <article className="swim-home-card swim-next-card">
           <div className="swim-next-top"><b>Следующая тренировка</b><span>{nextWorkoutBadge(next)}</span></div>
-          {next ? <>
+          {!data.planStartedAt ? (
+            <SwimPlanStartAction compact onStarted={() => load()} />
+          ) : next ? <>
             <p className="swim-next-time"><Clock3 size={14} /> По плану Foundation</p>
             <h2>{next.title}</h2>
             <span className="swim-goal-pill">Основная цель</span>

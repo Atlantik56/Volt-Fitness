@@ -146,14 +146,17 @@ export type SwimWorkoutProgress = {
 
 export type SwimProgramProgress = {
   program: SwimProgramDef;
+  // Отдельный якорь Swim внутри общего плана VOLT. null — Foundation ещё не
+  // запущена; структура программы и общая недельная модель при этом доступны.
+  startedAt: string | null;
   completedCount: number;
   totalCount: number;
   currentWeekIndex: number | null;
   nextWorkout: SwimWorkoutProgress | null;
   workouts: SwimWorkoutProgress[];
-  // Разрешённый календарь всей программы (6 недель × 7 дней, от понедельника
-  // недели старта профиля) — единственный источник дат/дней недели для UI,
-  // клиент по нему больше не считает расписание сам.
+  // Разрешённый календарь всей программы (6 недель × 7 дней, начиная с
+  // startedAt) — единственный источник дат/дней недели для UI, клиент по нему
+  // больше не считает расписание сам.
   calendarDays: SwimCalendarDay[];
 };
 

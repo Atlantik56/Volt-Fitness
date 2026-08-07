@@ -8,15 +8,18 @@ process.env.DATA_DIR = mkdtempSync(path.join(tmpdir(), "volt-swim-schedule-"));
 const { db } = await import("@/lib/db.ts");
 const { getProgramProgress, getNextSwimWorkout } = await import("@/lib/swim/services.ts");
 const { getSwimHomeData } = await import("@/lib/swim-data.ts");
+const { localIso } = await import("@/app/week-schedule-model.ts");
 
 // program_start достаточно в прошлом, чтобы фаза бассейна (currentProgramWeek
 // > 1, см. app/personal-data.ts) точно наступила независимо от того, когда
 // реально запускаются тесты.
 db.prepare("UPDATE profile SET program_start=? WHERE id=1").run("2020-01-06"); // понедельник
+db.prepare("UPDATE profile SET swim_plan_started_at=? WHERE id=1").run(localIso(new Date()));
 
 test("расписание Foundation в /api/swim/programs назначает плавание на реальные Вт/Чт основного плана, а не Пн/Ср", () => {
   const progress = getProgramProgress("foundation")!;
   assert.ok(progress);
+  assert.equal(progress.startedAt, localIso(new Date()));
   assert.ok(progress.calendarDays.length > 0, "calendarDays должен быть заполнен");
   const swimWorkouts = progress.workouts.filter((w) => w.calendar);
   assert.ok(swimWorkouts.length > 0);

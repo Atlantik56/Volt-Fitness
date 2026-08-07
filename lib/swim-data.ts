@@ -2,7 +2,7 @@ import { db } from "@/lib/db";
 import { localIso, weekRangeContaining } from "@/app/week-schedule-model";
 import { isSwimActivity } from "@/lib/swim-classify";
 import { computeSwimPeriodMetrics, computeSwimRecords, formatPace100m } from "@/lib/swim-metrics";
-import { getProgramProgress } from "@/lib/swim/services";
+import { getProgramProgress, getSwimPlanStartedAt } from "@/lib/swim/services";
 import { listPrograms } from "@/lib/swim/program-engine";
 import { swimWorkoutPlanKey } from "@/lib/swim/workout-plan-key";
 import { totalDistanceMeters } from "@/lib/swim/workout-engine";
@@ -94,7 +94,7 @@ export function getSwimHomeData(): SwimHomeData {
   const monthPrefix = now.toISOString().slice(0, 7);
   const monthBest = logs.filter((row) => row.date.startsWith(monthPrefix) && row.distanceMeters > 0).sort((a, b) => b.distanceMeters - a.distanceMeters)[0];
   const effortDistribution = logs.slice(0, 12).reduce<SwimEffortDistribution>((result, row) => { const effort = row.effort.toLowerCase(); if (effort.includes("лег")) result.easy += 1; else if (effort.includes("тяж") || effort.includes("боль")) result.hard += 1; else result.aerobic += 1; return result; }, { easy: 0, aerobic: 0, hard: 0 });
-  return { nextWorkout, lastSwim, weeklyActivity, metrics, hasAnySwimHistory: logs.length > 0, insights: getSwimInsights(), recentSwims, monthRecord: monthBest ? toRecent(monthBest) : null, effortDistribution };
+  return { planStartedAt: getSwimPlanStartedAt(), nextWorkout, lastSwim, weeklyActivity, metrics, hasAnySwimHistory: logs.length > 0, insights: getSwimInsights(), recentSwims, monthRecord: monthBest ? toRecent(monthBest) : null, effortDistribution };
 }
 
 type HistoryLogRow = WorkoutLogRow & { planKey: string | null };

@@ -36,9 +36,12 @@ export function assignSwimCalendar(params: {
   homeWeek: readonly HomeWeekDay[];
   changesByDate: ReadonlyMap<string, WeekScheduleChange>;
   todayIso: string;
+  // Точка старта проекции отделена от todayIso: расписание Foundation должно
+  // оставаться стабильным при смене календарного дня, а isToday — обновляться.
+  scheduleStartIso?: string;
   horizonDays?: number;
 }): Map<string, SwimCalendarSlot> {
-  const { workouts, homeWeek, changesByDate, todayIso, horizonDays = 220 } = params;
+  const { workouts, homeWeek, changesByDate, todayIso, scheduleStartIso = todayIso, horizonDays = 220 } = params;
   const result = new Map<string, SwimCalendarSlot>();
   const usedDates = new Set<string>();
 
@@ -61,7 +64,7 @@ export function assignSwimCalendar(params: {
 
   let pendingIndex = 0;
   for (let offset = 0; offset < horizonDays && pendingIndex < pending.length; offset++) {
-    const dateIso = addDaysIso(todayIso, offset);
+    const dateIso = addDaysIso(scheduleStartIso, offset);
     if (usedDates.has(dateIso)) continue;
     const resolved = resolvePlanForDate(dateIso, homeWeek as HomeWeekDay[], changesByDate as Map<string, WeekScheduleChange>);
     if (!isSwimSlot(resolved.scheduled)) continue;
