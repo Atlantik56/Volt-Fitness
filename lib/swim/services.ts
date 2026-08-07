@@ -67,9 +67,8 @@ export function swimWeekIndexForDate(startedAt: string, dateIso: string, totalWe
 
 // Единственная операция записи старта Swim. Условный UPDATE делает её
 // атомарной и одноразовой даже при двух одновременных запросах.
-export function startSwimPlan(startedAt: string, todayIso = localIso(new Date())): StartSwimPlanResult {
+export function startSwimPlan(startedAt: string): StartSwimPlanResult {
   if (!isValidIsoDate(startedAt)) return { ok: false, error: "Некорректная дата старта", status: 400 };
-  if (startedAt > todayIso) return { ok: false, error: "Дата старта не может быть в будущем", status: 400 };
   const changed = db.prepare("UPDATE profile SET swim_plan_started_at=? WHERE id=1 AND swim_plan_started_at IS NULL").run(startedAt).changes;
   if (changed === 1) return { ok: true, startedAt };
   const existing = getSwimPlanStartedAt();

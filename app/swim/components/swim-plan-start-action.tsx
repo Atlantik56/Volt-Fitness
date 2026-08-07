@@ -76,7 +76,7 @@ export function SwimPlanStartAction({ onStarted, compact = false }: { onStarted:
             <p id={descriptionId}>Программа начнётся с Week 1. Выбранная дата станет постоянной точкой отсчёта для всех следующих недель и тренировок Swim.</p>
             <label className="swim-plan-start-date">
               <span>Дата старта</span>
-              <input type="date" value={startedAt} max={today} onChange={(event) => setStartedAt(event.target.value)} disabled={busy} autoFocus />
+              <input type="date" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} disabled={busy} autoFocus />
               <small>{startedAt ? `${readableDate(startedAt)} · начало Week 1` : "Выберите дату"}</small>
             </label>
             {error && <p className="swim-plan-start-error" role="alert">{error}</p>}

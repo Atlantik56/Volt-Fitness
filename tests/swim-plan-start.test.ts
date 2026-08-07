@@ -22,6 +22,15 @@ test("новая миграция оставляет Swim-план ненача�
   assert.equal(progress.workouts.every((workout) => workout.calendar === null), true);
 });
 
+test("план можно заранее назначить на будущую дату", () => {
+  assert.deepEqual(startSwimPlan("2026-08-20"), { ok: true, startedAt: "2026-08-20" });
+  assert.equal(getSwimPlanStartedAt(), "2026-08-20");
+  const progress = getProgramProgress("foundation")!;
+  assert.equal(progress.calendarDays[0]?.date, "2026-08-20");
+  assert.equal(progress.currentWeekIndex, 1);
+  db.prepare("UPDATE profile SET swim_plan_started_at=NULL WHERE id=1").run();
+});
+
 test("7 августа становится началом Swim Week 1 без очистки истории", () => {
   db.prepare("INSERT INTO workout_logs(date,type,title,distance_meters,duration_seconds) VALUES (?,?,?,?,?)")
     .run("2026-08-01", "Плавание", "Существующий заплыв", 500, 900);
@@ -30,7 +39,7 @@ test("7 августа становится началом Swim Week 1 без о
   const recordsBefore = getSwimRecords("2026-08-07");
   const strengthCountBefore = (db.prepare("SELECT COUNT(*) count FROM workout_logs WHERE type='Силовая'").get() as any).count;
 
-  assert.deepEqual(startSwimPlan("2026-08-07", "2026-08-07"), { ok: true, startedAt: "2026-08-07" });
+  assert.deepEqual(startSwimPlan("2026-08-07"), { ok: true, startedAt: "2026-08-07" });
   const progress = getProgramProgress("foundation")!;
   assert.equal(progress.startedAt, "2026-08-07");
   assert.equal(progress.currentWeekIndex, 1);
@@ -46,9 +55,9 @@ test("7 августа становится началом Swim Week 1 без о
   assert.equal((db.prepare("SELECT program_start programStart FROM profile WHERE id=1").get() as any).programStart, "2026-07-21");
 });
 
-test("повторный старт и дата в будущем отклоняются без изменения точки отсчёта", () => {
-  assert.deepEqual(startSwimPlan("2026-08-08", "2026-08-07"), { ok: false, error: "Дата старта не может быть в будущем", status: 400 });
-  assert.deepEqual(startSwimPlan("2026-08-06", "2026-08-07"), { ok: false, error: "План плавания уже начат", status: 409, startedAt: "2026-08-07" });
+test("повторный старт и некорректная дата отклоняются без изменения точки отсчёта", () => {
+  assert.deepEqual(startSwimPlan("2026-02-30"), { ok: false, error: "Некорректная дата старта", status: 400 });
+  assert.deepEqual(startSwimPlan("2026-08-20"), { ok: false, error: "План плавания уже начат", status: 409, startedAt: "2026-08-07" });
   assert.equal(getSwimPlanStartedAt(), "2026-08-07");
 });
 
