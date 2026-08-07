@@ -8,7 +8,9 @@
 
 1. Прочитать эту страницу и только документы, относящиеся к задаче.
 2. Для общего UI выбрать нужную основу (`colors`, `typography`, `spacing`,
-   `glass-system`, `motion`), компонент и спецификацию экрана.
+   `glass-system`, `motion`),
+   [Reference Implementation](08-reference-implementation.md), компонент и
+   спецификацию экрана.
 3. Для VOLT Swim дополнительно обязательно прочитать
    [`../volt-swim/SPRINTS.md`](../volt-swim/SPRINTS.md) и канонический
    [`../design/VOLT_SWIM.md`](../design/VOLT_SWIM.md).
@@ -19,7 +21,8 @@
 - Основа: [философия](00-philosophy.md),
   [принципы](01-design-principles.md), [цвет](02-colors.md),
   [типографика](03-typography.md), [отступы](04-spacing.md),
-  [VOLT Glass](05-glass-system.md), [motion](06-motion.md).
+  [VOLT Glass](05-glass-system.md), [motion](06-motion.md),
+  [Reference Implementation](08-reference-implementation.md).
 - Компоненты: [buttons](components/buttons.md), [cards](components/cards.md),
   [hero](components/hero.md), [charts](components/charts.md),
   [navigation](components/navigation.md), [dialogs](components/dialogs.md),
@@ -33,6 +36,11 @@
   [реализация](rules/implementation.md).
 
 ## Источники истины
+
+Документ [Reference Implementation VOLT 2.0](08-reference-implementation.md)
+входит в официальный дизайн-контракт. Утверждённый Home задаёт обязательный
+визуальный язык новых экранов; отклонение требует функционального основания или
+прямого правила применимого дизайн-контракта.
 
 Текущая реализация остаётся источником фактических токенов до их отдельной
 миграции. Swim-контракт и утверждённые Swim-макеты имеют приоритет в Swim-задачах.
