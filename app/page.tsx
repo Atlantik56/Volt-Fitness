@@ -176,6 +176,13 @@ export default function Home() {
   // /swim/workouts/[programId]/[workoutId], что открывают /swim и План Swim.
   const isTodaySwim=isSwimSlot(todayPlan);
   const startTodayWorkout=()=>{
+   if(todayPlan.type==="Отдых"){
+    setSelectedPlanDate(today);
+    setNav("План");
+    setMobileMenu(false);
+    window.scrollTo({top:0,behavior:"smooth"});
+    return;
+   }
    if(!isTodaySwim)return void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId);
    if(!swimToday){notify("Не удалось определить тренировку Swim на сегодня","warn");return}
    if(swimToday.kind==="unresolved"){notify("Сегодня запланирован бассейн, но тренировка Foundation не определена","warn");return}
@@ -239,7 +246,7 @@ export default function Home() {
             <h2>{motivation}</h2>
             <p className="hero-sub">Не нужно быть идеальным. Нужно быть последовательным.</p>
             <div className="hero-actions">
-              <button type="button" className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>Начать тренировку</button>
+              <button type="button" className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>
             </div>
           </div>
         </section>
