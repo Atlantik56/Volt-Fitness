@@ -26,6 +26,9 @@
 
 ## Другие действующие документы
 
+- [`design/VOLT_BACKGROUND.md`](design/VOLT_BACKGROUND.md) — канонический
+  визуальный контракт и утверждённые ассеты фона для будущего редизайна
+  VOLT 2.0; ассеты пока не подключены к приложению.
 - [`design/VOLT_SWIM.md`](design/VOLT_SWIM.md) — обязательный визуальный и UX
   контракт VOLT Swim; рядом находятся
   [`COMPONENTS.md`](design/COMPONENTS.md),
