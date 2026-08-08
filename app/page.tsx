@@ -1,28 +1,35 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { buildHomeWeek, meals, phases, rules, safety, week } from "./personal-data";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { buildHomeWeek, currentProgramWeek, meals, safety, week } from "./personal-data";
 import { ExerciseVideo } from "./exercise-video";
 import { ActiveWorkout, type ActiveDraft } from "./active-workout";
 import { WeekPlanEditor } from "./week-plan-editor";
 import { buildWeekSchedule, weekRangeContaining, type ResolvedDayPlan } from "./week-schedule-model";
 import { isSwimSlot } from "@/lib/swim/schedule-sync";
-import type { ResolvedSwimSlot } from "@/lib/swim/types";
+import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
+import { intervalTotalMeters, intervalTypeLabel, totalDistanceMeters } from "@/lib/swim/workout-engine";
+import type { ResolvedSwimSlot, SwimInterval, SwimWorkoutDef } from "@/lib/swim/types";
 import { useRouter } from "next/navigation";
 import AuthGate from "./auth-gate";
-import { NutritionTools, Readiness, ScheduleEditor, StrengthAdvice, TrainingAnalytics, TrainingCalendar } from "./fitness-features";
-import { BodyMap, GarminImport, PersonalRecords } from "./advanced-features";
+import { NutritionTools, Readiness, StrengthAdvice } from "./fitness-features";
+import { BodyMap, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
-import { CoachChatPanel } from "./coach-chat-panel";
+import { AnalyticsCoachPage } from "./analytics-coach-page";
+import { ProfileSettingsPage } from "./profile-settings-page";
 import { ProgressionPanel, type ProgressionProposal } from "./progression-panel";
 import { buildCoachResult, COACH_ACTION_LABELS, type CoachAction } from "../lib/coach";
 import { WhatsNewGate } from "./whats-new-gate";
 import { EveningProgressCard, EveningProgressPage } from "./evening-progress";
 import { computeEveningWeeklyStats } from "../lib/evening";
 import { MoodSection, MoodSummaryCard } from "./mood-section";
-import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner } from "./milestones-section";
+import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner, useMilestones } from "./milestones-section";
 import { useToast } from "./toast";
-import { Apple, CalendarDays, ChartColumn, Home as HomeIcon, Moon, Route, Waves } from "lucide-react";
+import {
+  Apple, Bell, CalendarDays, Camera, ChartColumn, ChartNoAxesCombined, CheckCircle2, ChevronDown, Clock3, Droplets,
+  Dumbbell, Flame, Footprints, Home as HomeIcon, Moon, PenLine, Play, ReceiptText,
+  Menu, RefreshCw, Route, Sparkles, UserRound, Utensils, Waves, Zap,
+} from "lucide-react";
 import Link from "next/link";
 import {
   MEASUREMENT_KEYS, METRIC_LABELS, METRIC_UNITS, PERIODS, PERIOD_LABELS,
@@ -30,30 +37,37 @@ import {
   type HistoryEntry, type Measurement, type MetricCardData, type MetricKey, type MetricPoint, type MetricStats, type Period, type ProgressSummary,
 } from "./progress-model";
 
-const filters = ["Все", "Силовые", "Велосипед", "Плавание"];
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
 const NAV_ITEMS = [
-  ["Сегодня", "⌂"], ["План", "▦"], ["Дорожная карта", "⌁"], ["Питание", "◒"], ["Вечерний прогресс", "☾"], ["Моя история", "◎"]
+  {id:"Сегодня",label:"Сегодня",mobilePlacement:"primary"},
+  {id:"План",label:"План",mobilePlacement:"primary"},
+  {id:"Дорожная карта",label:"Дорожная карта",mobilePlacement:"secondary"},
+  {id:"Питание",label:"Nutrition Hub",mobilePlacement:"primary"},
+  {id:"Аналитика",label:"Аналитика",mobilePlacement:"primary"},
+  {id:"Вечерний прогресс",label:"Вечерний прогресс",mobilePlacement:"secondary"},
+  {id:"Моя история",label:"Мой путь",mobilePlacement:"secondary"},
+  {id:"Профиль и настройки",label:"Профиль и настройки",mobilePlacement:"primary"},
 ] as const;
+const MOBILE_PRIMARY_ITEMS=NAV_ITEMS.filter(item=>item.mobilePlacement==="primary");
 const MOBILE_ICONS={
   "Сегодня":HomeIcon,
   "План":CalendarDays,
   "Дорожная карта":Route,
   "Питание":Apple,
+  "Аналитика":ChartNoAxesCombined,
   "Вечерний прогресс":Moon,
   "Моя история":ChartColumn,
+  "Профиль и настройки":UserRound,
 } as const;
-const MOBILE_LABELS:Record<string,string>={"Дорожная карта":"Карта","Вечерний прогресс":"Вечер","Моя история":"История"};
 
 export default function Home() {
   const notify = useToast();
-  const [filter, setFilter] = useState("Все");
   const [nav, setNav] = useState("Сегодня");
   const [progressTab,setProgressTab]=useState<string|null>(null);
   const [mobileMenu,setMobileMenu]=useState(false);
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
   const [activeWorkout,setActiveWorkout]=useState<ActiveDraft|null>(null);
-  const [coachChatOpen,setCoachChatOpen]=useState(false);
+  const [analyticsMode,setAnalyticsMode]=useState<"insights"|"coach">("insights");
   const [loaded,setLoaded]=useState(false);
   const [progressionProposals,setProgressionProposals]=useState<ProgressionProposal[]>([]);
   const loadProgression=()=>fetch("/api/progression").then(r=>r.json()).then(d=>setProgressionProposals(d.proposals||[])).catch(()=>{});
@@ -80,7 +94,6 @@ export default function Home() {
   const days=useMemo(()=>makeWeek(data.workouts||[]),[data.workouts]);
   const weekDates=new Set(days.map(x=>x.iso));
   const weekWorkouts=(data.workouts||[]).filter((x:any)=>weekDates.has(x.date));
-  const weekCalories=(data.activity||[]).filter((x:any)=>weekDates.has(x.date)).reduce((n:number,x:any)=>n+(Number(x.calories)||0),0);
   const currentWeight=Number(data.measurements?.[0]?.weight??data.profile?.startWeight??86), startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67);
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
   const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
@@ -99,6 +112,40 @@ export default function Home() {
   const todayPlan=todayResolved.scheduled;
   const [editingDate,setEditingDate]=useState<string|null>(null);
   const editingDay=editingDate?weekPlan.find(d=>d.date===editingDate):null;
+  // Экран «План»: выбранный для просмотра день текущей недели (по умолчанию —
+  // сегодня). Отдельно от editingDate — выбор дня только показывает его план,
+  // редактирование по-прежнему открывает WeekPlanEditor.
+  const [selectedPlanDate,setSelectedPlanDate]=useState<string|null>(null);
+  const selectedResolved=weekPlan.find(d=>d.date===(selectedPlanDate??today))??todayResolved;
+  const selectedPlan=selectedResolved.scheduled;
+  const isSelectedToday=selectedResolved.date===today;
+  const isSelectedSwim=isSwimSlot(selectedPlan);
+  // Для любого выбранного Swim-дня запрашиваем тот же календарный resolver,
+  // что используют Главная и сам VOLT Swim. Plan больше не показывает
+  // generic-заглушки из personal-data как будто это состав тренировки.
+  const [selectedSwimResult,setSelectedSwimResult]=useState<{date:string;slot:ResolvedSwimSlot|null;workout:SwimWorkoutDef|null}|null>(null);
+  const selectedSwim=selectedSwimResult?.date===selectedResolved.date?selectedSwimResult.slot:null;
+  const selectedSwimWorkout=selectedSwimResult?.date===selectedResolved.date?selectedSwimResult.workout:null;
+  const selectedSwimLoading=isSelectedSwim&&selectedSwimResult?.date!==selectedResolved.date;
+  useEffect(()=>{
+   if(!isSelectedSwim)return;
+   const controller=new AbortController();
+   const requestedDate=selectedResolved.date;
+   fetch(`/api/swim/today?date=${encodeURIComponent(selectedResolved.date)}`,{cache:"no-store",signal:controller.signal})
+    .then(r=>r.ok?r.json():Promise.reject(new Error("swim resolver failed")))
+    .then(async d=>{
+     const slot=(d?.slot??null) as ResolvedSwimSlot|null;
+     if(slot?.kind!=="workout")return {slot,workout:null};
+     const response=await fetch(`/api/swim/programs/${encodeURIComponent(slot.programId)}`,{cache:"no-store",signal:controller.signal});
+     if(!response.ok)return {slot,workout:null};
+     const program=await response.json();
+     const workout=(program?.progress?.workouts||[]).find((item:any)=>item.workout?.id===slot.workoutId)?.workout??null;
+     return {slot,workout};
+    })
+    .then(result=>setSelectedSwimResult({date:requestedDate,...result}))
+    .catch(error=>{if(error?.name!=="AbortError")setSelectedSwimResult({date:requestedDate,slot:null,workout:null})});
+   return()=>controller.abort();
+  },[isSelectedSwim,selectedResolved.date]);
   // Незавершённая (но не отменённая и не подтверждённая) сессия на сегодня —
   // /api/fitness уже отдаёт только открытые черновики (planned/active/
   // awaiting_confirmation, см. listOpenWorkoutDrafts в lib/active-workout-service.ts),
@@ -108,8 +155,9 @@ export default function Home() {
   const openDraftToday=(data.workoutDrafts||[]).find((d:any)=>d.date===today&&d.snapshot?.title===todayPlan?.title);
   const coach=useMemo(()=>buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile}),[data,todayPlan,today,loaded]);
   const coachAction:CoachAction|null=coach.decision?.action??null;
-  const goCoach=()=>{setNav("Сегодня");setMobileMenu(false);setTimeout(()=>document.getElementById("volt-coach")?.scrollIntoView({behavior:"smooth",block:"start"}),80)};
-  const upcoming=orderedPlans(homeWeek,new Date().getDay()||7).filter(x=>x.type!=="Отдых").slice(0,3);
+  const goHome=()=>{setNav("Сегодня");setMobileMenu(false);window.scrollTo({top:0,behavior:"smooth"})};
+  const goCoach=()=>{setAnalyticsMode("coach");setNav("Аналитика");setMobileMenu(false)};
+  const goAnalytics=()=>{setAnalyticsMode("insights");setNav("Аналитика");setMobileMenu(false)};
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});notify(r.ok?"Активность за сегодня обновлена":"Не удалось сохранить активность",r.ok?"good":"warn");load()};
   const startWorkout=async(plan:any,origin:"original"|"scheduled"="original",scheduleChangeId:number|null=null)=>{
@@ -133,92 +181,160 @@ export default function Home() {
    if(swimToday.kind==="unresolved"){notify("Сегодня запланирован бассейн, но тренировка Foundation не определена","warn");return}
    router.push(swimToday.route);
   };
+  // Экран «План»: Swim всегда открывает назначенную календарём тренировку
+  // Foundation. Для остальных выбранных дней сохраняется прежний универсальный
+  // движок; его черновик по-прежнему создаётся датой «сегодня».
+  const startSelectedWorkout=()=>{
+   if(isSelectedSwim){
+    if(!selectedSwim){notify("Не удалось определить тренировку Swim на выбранный день","warn");return}
+    if(selectedSwim.kind==="unresolved"){notify("На этот день запланирован бассейн, но тренировка Foundation не определена","warn");return}
+    router.push(selectedSwim.route);
+    return;
+   }
+   if(isSelectedToday)return startTodayWorkout();
+   void startWorkout(selectedPlan,selectedResolved.changed?"scheduled":"original",selectedResolved.changeId);
+  };
 
   return (
     <AuthGate><main className="app-shell">
       <button className={`mobile-sidebar-backdrop${mobileMenu?" visible":""}`} aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}/>
       <aside className={`sidebar${mobileMenu?" mobile-open":""}`}>
-        <a className="brand" href="#top" aria-label="VOLT — на главную"><span className="brand-mark">V</span><b>VOLT</b></a>
+        <a className="brand" href="#top" aria-label="VOLT — на главную" onClick={event=>{event.preventDefault();goHome()}}><span className="brand-mark">V</span><b>VOLT</b></a>
+        <p className="brand-sub">ФИТНЕС-ТРЕКЕР</p>
         <button className="mobile-sidebar-close" aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}>×</button>
         <nav className="side-nav" aria-label="Основная навигация">
-          {NAV_ITEMS.map(([label, icon]) => (
-            <button key={label} data-tour-id={label==="Моя история"?"nav-progress":undefined} className={nav === label ? "active" : ""} onClick={() => {setNav(label);setMobileMenu(false)}}><span>{icon}</span>{label}</button>
-          ))}
-          <Link href="/swim"><span aria-hidden="true"><Waves size={18} strokeWidth={2} style={{verticalAlign:"middle"}}/></span>VOLT Swim</Link>
+          {NAV_ITEMS.map(({id,label}) => {const Icon=MOBILE_ICONS[id]; return (
+            <button key={id} data-tour-id={id==="Моя история"?"nav-progress":id==="Аналитика"?"nav-analytics":undefined} className={nav === id ? "active" : ""} onClick={() => {if(id==="Аналитика")setAnalyticsMode("insights");setNav(id);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={18} strokeWidth={2}/></span>{label}</button>
+          )})}
+          <span className="side-nav-divider">Мои модули</span>
+          <Link href="/swim"><span aria-hidden="true"><Waves size={18} strokeWidth={2}/></span>VOLT Swim</Link>
         </nav>
         <div className="side-bottom">
-          <div className="streak"><span>⚡</span><div><b>{streak} {streak===1?"день":"дня"}</b><small>серия активности</small></div></div>
-          <PushToggle/>
-          <button className="profile" onClick={()=>{setNav("Моя история");setMobileMenu(false)}}><span className="avatar">И</span><span><b>{data.profile?.name||"Илья"}</b><small>Неделя 1</small></span><i>•••</i></button>
-          <button className="logout" onClick={async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()}}>Выйти</button>
+          <div className="streak"><span aria-hidden="true"><Zap size={20}/></span><div><b>{streak} {daysLabel(streak)}</b><small>серия активности</small></div></div>
         </div>
       </aside>
 
       <section className="content" id="top">
-        <header className="topbar">
-          <div><p className="eyebrow">{dateLabel}</p><h1>{greeting}, {data.profile?.name||"Илья"}</h1></div>
-          <div className="header-actions">{loaded&&coachAction&&<button type="button" className={`coach-indicator ${COACH_ACTION_LABELS[coachAction].tone}`} aria-label={`VOLT Coach: ${COACH_ACTION_LABELS[coachAction].label}. Перейти к решению`} onClick={goCoach}><span className="coach-status-dot" aria-hidden="true"/><span className="coach-indicator-text">Coach: {COACH_ACTION_LABELS[coachAction].short}</span></button>}<button aria-label="Уведомления" className="icon-btn">◔<span></span></button><button className="mini-avatar" aria-label="Открыть профиль и серии" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Моя история")}>И</button></div>
-        </header>
+        {nav!=="Аналитика"&&nav!=="Профиль и настройки"&&<header className={`topbar${nav==="Дорожная карта"?" roadmap-topbar":""}${nav==="Моя история"?" journey-topbar":""}`}>
+          {nav==="Дорожная карта"?<div className="roadmap-topbar-brand" aria-label="VOLT">VOLT</div>:nav==="Моя история"?<div className="journey-topbar-copy"><h1>Мой путь</h1><p>Твоя история. Твои победы. <em>Твой прогресс.</em></p></div>:<div><p className="eyebrow">{dateLabel}</p><h1>{greeting}, {data.profile?.name||"Илья"}</h1></div>}
+          <div className="header-actions">
+            <span className="date-chip"><CalendarDays size={14}/>{dateLabel}</span>
+            <span className="sync-chip"><RefreshCw size={13}/>Синхронизировано<i/></span>
+            {loaded&&coachAction&&<button type="button" className={`coach-indicator ${COACH_ACTION_LABELS[coachAction].tone}`} aria-label={`VOLT Coach: ${COACH_ACTION_LABELS[coachAction].label}. Перейти к решению`} onClick={goCoach}><span className="coach-status-dot" aria-hidden="true"/><span className="coach-indicator-text">Coach: {COACH_ACTION_LABELS[coachAction].short}</span></button>}
+            <button aria-label="Уведомления" className="icon-btn"><Bell size={17}/><span></span></button>
+            <button className="mini-avatar" aria-label="Открыть профиль и настройки" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Профиль и настройки")}>И</button>
+          </div>
+        </header>}
 
-        <button className="mobile-status-bar" onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌙 <b>Вечер</b><small> прогресс</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>
+        {nav!=="Профиль и настройки"&&<button className={`mobile-status-bar${nav==="Дорожная карта"?" roadmap-status-bar":""}`} onClick={()=>setMobileMenu(true)} aria-label="Открыть профиль, серии и напоминания"><span>⚡ <b>{streak}</b><small> серия</small></span><span>🌙 <b>Вечер</b><small> прогресс</small></span><span className="mobile-status-profile">И <b>{data.profile?.name||"Илья"}</b> ›</span></button>}
 
-        {nav === "Сегодня" ? <>{loaded&&<NewMilestoneBanner data={data} refresh={load}/>}<section className="motivation-banner card"><span>⚡</span><div><p className="eyebrow">НАСТРОЙ НА СЕГОДНЯ</p><h3>{motivation}</h3><small>Не нужно быть идеальным. Нужно быть последовательным.</small></div></section><section className="hero">
-          <div className="hero-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
+        {/* Hero не содержит собственного изображения: утверждённое фото зала —
+            общий архитектурный фон страницы (владелец — .app-shell), см.
+            App Background Architecture в docs/design-system/01-design-principles.md.
+            .hero-shade — только локальное затемнение для читаемости текста. */}
+        {nav === "Сегодня" ? <>{loaded&&<NewMilestoneBanner data={data} refresh={load}/>}<section className="hero">
           <div className="hero-shade" />
           <div className="hero-content">
-            <span className="pill lime">{todayPlan.d.toUpperCase()} · НЕДЕЛЯ 1</span>{todayResolved.changed&&<span className="plan-changed-badge">План изменён</span>}
-            <h2>{todayPlan.title.toUpperCase()}</h2>
-            <div className="hero-meta"><span>◷ {todayPlan.time}</span><span>◫ {todayPlan.exercises.length} упражнений</span>{todayPlan.rounds>1&&<span>◉ {todayPlan.rounds} круга</span>}</div>
-            {coach.summary.workoutDone&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
+            <p className="eyebrow">ФОКУС ДНЯ</p>
+            <h2>{motivation}</h2>
+            <p className="hero-sub">Не нужно быть идеальным. Нужно быть последовательным.</p>
             <div className="hero-actions">
-             {isTodaySwim
-              ?<button className={swimToday?.kind==="workout"&&swimToday.status==="completed"?"repeat-btn":"start-btn"} onClick={startTodayWorkout}><span aria-hidden="true">{swimToday?.kind==="workout"&&swimToday.status==="completed"?"✓":"▶"}</span>{swimToday?.kind==="workout"?(swimToday.status==="completed"?"Тренировка выполнена":swimToday.status==="in_progress"?"Продолжить тренировку":swimToday.status==="awaiting_confirmation"?"Подтвердить результат":"Начать тренировку"):"Начать тренировку"}</button>
-              :coach.summary.workoutDone?<button className="repeat-btn" onClick={startTodayWorkout}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
-              :openDraftToday?<button className="start-btn" onClick={startTodayWorkout}><span>▶</span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
-              :<button className="start-btn" onClick={startTodayWorkout}><span>▶</span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
-             <button type="button" className="ghost-btn hero-edit-plan-btn" onClick={()=>setEditingDate(today)}>Изменить план</button>
+              <button type="button" className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>Начать тренировку</button>
             </div>
           </div>
-          <div className="coach-note"><span className="coach-avatar">M</span><div><small>СОВЕТ ТРЕНЕРА</small><b>{motivation}</b></div></div>
         </section>
 
-        <section className="metrics" aria-label="Дневной прогресс">
-          <Metric icon="◉" color="orange" label="Активные калории" value={fmt(todayActivity.calories||0)} unit="/ 900 ккал" pct={pct(todayActivity.calories,900)} />
-          <Metric icon="◷" color="blue" label="Время активности" value={fmt(todayActivity.activeMinutes||0)} unit="/ 75 мин" pct={pct(todayActivity.activeMinutes,75)} />
-          <Metric icon="↟" color="lime" label="Шаги" value={fmt(todayActivity.steps||0)} unit="/ 10 000" pct={pct(todayActivity.steps,10000)} />
-          <Metric icon="✓" color="violet" label="Тренировки" value={String(todayWorkouts)} unit="/ 1 сегодня" pct={pct(todayWorkouts,1)} />
+        <div className="today-focus">
+          <section className="next-workout-card card">
+            <div className="next-workout-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
+            <p className="eyebrow">СЛЕДУЮЩАЯ ТРЕНИРОВКА{todayResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
+            <h3>{todayPlan.title}</h3>
+            <p className="next-workout-type">{todayPlan.type}</p>
+            {coach.summary.workoutDone&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
+            <div className="next-workout-meta">
+              <span><Clock3 size={14}/>{todayPlan.time}</span>
+              <span><Dumbbell size={14}/>{todayPlan.exercises.length} упражнений</span>
+              {todayPlan.rounds>1&&<span><RefreshCw size={14}/>{todayPlan.rounds} круга</span>}
+            </div>
+            <div className="next-workout-actions">
+             {isTodaySwim
+              ?<button className={swimToday?.kind==="workout"&&swimToday.status==="completed"?"repeat-btn":"start-btn"} onClick={startTodayWorkout}><span aria-hidden="true">{swimToday?.kind==="workout"&&swimToday.status==="completed"?<CheckCircle2 size={13}/>:<Play size={12} fill="currentColor"/>}</span>{swimToday?.kind==="workout"?(swimToday.status==="completed"?"Тренировка выполнена":swimToday.status==="in_progress"?"Продолжить тренировку":swimToday.status==="awaiting_confirmation"?"Подтвердить результат":"Начать тренировку"):"Начать тренировку"}</button>
+              :coach.summary.workoutDone?<button className="repeat-btn" onClick={startTodayWorkout}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
+              :openDraftToday?<button className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
+              :<button className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
+             <button type="button" className="ghost-btn hero-edit-plan-btn" onClick={()=>setEditingDate(today)}>Изменить план</button>
+            </div>
+          </section>
+
+          <section className="streak-highlight-card card">
+            <p className="eyebrow">СЕРИЯ АКТИВНОСТИ</p>
+            <h3>{streak} {daysLabel(streak)}</h3>
+            <p>{streak>0?"Ты в отличной форме!":"Начни серию сегодня."}</p>
+            <div className="streak-bars" aria-label="Тренировки по дням недели">
+              {days.map(day=>(
+                <div key={day.iso} className="streak-bar-col">
+                  <i className={day.state==="done"?"done":""} style={{height:`${day.state==="done"?100:day.state==="active"?38:14}%`}}/>
+                  <small>{day.short.slice(0,2)}</small>
+                </div>
+              ))}
+            </div>
+            <button type="button" className="ghost-btn" onClick={()=>setNav("Моя история")}>Мой путь →</button>
+          </section>
+        </div>
+
+        <section className="stat-strip" aria-label="Дневной прогресс">
+          <Metric icon={<Flame size={15}/>} color="orange" label="Калории" value={fmt(todayActivity.calories||0)} unit="/ 900 ккал" pct={pct(todayActivity.calories,900)} />
+          <Metric icon={<Clock3 size={15}/>} color="blue" label="Активность" value={fmt(todayActivity.activeMinutes||0)} unit="/ 75 мин" pct={pct(todayActivity.activeMinutes,75)} />
+          <Metric icon={<Footprints size={15}/>} color="lime" label="Шаги" value={fmt(todayActivity.steps||0)} unit="/ 10 000" pct={pct(todayActivity.steps,10000)} />
+          <Metric icon={<CheckCircle2 size={15}/>} color="violet" label="Тренировки" value={String(todayWorkouts)} unit="/ 1 сегодня" pct={pct(todayWorkouts,1)} />
         </section>
 
-        <EveningProgressCard data={data} onOpen={()=>setNav("Вечерний прогресс")}/>
+        {/* Асимметричная мозаика: блоки намеренно имеют разный вес
+            (Coach шире всех, кольцо активности компактное, CTA-карточки
+            лёгкие) — вместо ряда одинаковых карточек. */}
+        <div className="today-mosaic">
+         <div className="today-mosaic-main">
+          <CoachCard result={coach} plan={todayPlan} date={today} ready={loaded} onAskCoach={goCoach}/>
+          <Readiness data={data} refresh={load}/>
+          <LastWorkoutCard workout={data.workouts?.[0]} onOpen={()=>{setNav("Моя история");setProgressTab("Тренировки")}}/>
+         </div>
+
+         <div className="today-mosaic-side">
+          <section className="ring-card card" aria-label="Активность сегодня">
+            <div className="section-head"><p className="eyebrow">АКТИВНОСТЬ СЕГОДНЯ</p></div>
+            <div className="ring-vis" style={{"--ring-pct":Math.round((pct(todayActivity.calories,900)+pct(todayActivity.activeMinutes,75)+pct(todayActivity.steps,10000))/3)} as any}>
+              <b>{Math.round((pct(todayActivity.calories,900)+pct(todayActivity.activeMinutes,75)+pct(todayActivity.steps,10000))/3)}%</b>
+              <span>цели</span>
+            </div>
+            <ul className="ring-legend">
+              <li><i style={{background:"var(--orange)"}}/>Калории<b>{fmt(todayActivity.calories||0)} / 900 ккал</b></li>
+              <li><i style={{background:"var(--blue)"}}/>Активность<b>{fmt(todayActivity.activeMinutes||0)} / 75 мин</b></li>
+              <li><i style={{background:"var(--lime)"}}/>Шаги<b>{fmt(todayActivity.steps||0)} / 10 000</b></li>
+            </ul>
+            <button type="button" className="link-more" onClick={goAnalytics}>Подробнее →</button>
+          </section>
+
+          <EveningProgressCard data={data} onOpen={()=>setNav("Вечерний прогресс")}/>
+          <LatestMilestoneCard data={data} onOpen={()=>{setNav("Моя история");setProgressTab("Вехи")}}/>
+          <MoodSummaryCard data={data} onOpen={()=>{setNav("Моя история");setProgressTab("Состояние")}}/>
+         </div>
+        </div>
 
         <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><label>Сон, ч<input name="sleepHours" type="number" min="0" max="24" step="0.5" defaultValue={todayActivity.sleepHours||0}/></label><button>Сохранить</button></form>
 
-        <MoodSummaryCard data={data} onOpen={()=>{setNav("Моя история");setProgressTab("Состояние")}}/>
-        <LatestMilestoneCard data={data} onOpen={()=>{setNav("Моя история");setProgressTab("Вехи")}}/>
-        <Readiness data={data} refresh={load}/>
-        <CoachCard result={coach} plan={todayPlan} date={today} ready={loaded} onAskCoach={()=>setCoachChatOpen(true)}/>
         <ProgressionPanel proposals={progressionProposals} refresh={loadProgression}/>
 
         <WeeklyDigest data={data} weekWorkouts={weekWorkouts} weekDates={weekDates} currentWeight={currentWeight}/>
 
         <div className="grid-main">
-          <section className="week-card card">
-            <div className="section-head"><div><p className="eyebrow">ЭТА НЕДЕЛЯ</p><h3>Ритм тренировок</h3></div><button>Подробнее ↗</button></div>
+          {/* Краткий недельный контекст — статусы дней без графика нагрузки и
+              без построчного редактора; полная версия переехала на «План»
+              (docs: IA сценария «План тренировок», п.3). */}
+          <section className="week-card card week-context">
+            <div className="section-head"><div><p className="eyebrow">ЭТА НЕДЕЛЯ</p><h3>Ритм тренировок</h3></div><button type="button" onClick={()=>setNav("План")}>Открыть план →</button></div>
             <div className="week-days">
               {days.map((day) => <div key={day.iso} className={`day ${day.state}`}><small>{day.short}</small><b>{day.date}</b><span>{day.state === "done" ? "✓" : day.state === "missed" ? "×" : day.state === "active" ? "•" : ""}</span></div>)}
             </div>
-            <div className="chart-wrap">
-              <div className="chart-labels"><span>100</span><span>75</span><span>50</span><span>25</span><span>0</span></div>
-              <div className="bars" aria-label="График нагрузки за неделю">
-                {days.map((day) => <div className="bar-slot" key={day.iso}><i style={{height:`${day.count?100:0}%`}} className={day.state === "active" ? "today" : ""} /></div>)}
-              </div>
-            </div>
-            <div className="week-footer"><div><small>Нагрузка</small><b>{weekWorkouts.length} силовая тренировка</b></div><div><small>Активных дней</small><b>{new Set(weekWorkouts.map((x:any)=>x.date)).size} <span>/ 7</span></b></div><div><small>Калории</small><b>{fmt(weekCalories)} <span>ккал</span></b></div></div>
-            <div className="week-plan-list">{weekPlan.map(d=><div key={d.date} className={`week-plan-row${d.date===today?" is-today":""}`}>
-             <div className="week-plan-row-date"><small>{d.original.d.slice(0,2).toUpperCase()}</small><b>{Number(d.date.slice(8,10))}</b></div>
-             <div className="week-plan-row-title"><b>{d.scheduled.type==="Отдых"?"Отдых":d.scheduled.title}{d.changed&&<span className="plan-changed-badge">Изменён</span>}</b>{d.changed&&<small>Исходно: {d.original.type==="Отдых"?"Отдых":d.original.title}</small>}</div>
-             <button type="button" onClick={()=>setEditingDate(d.date)}>Изменить план</button>
-            </div>)}</div>
           </section>
 
           <section className="goal-card card">
@@ -231,50 +347,269 @@ export default function Home() {
           </section>
         </div>
 
-        <section className="plan-section">
-          <div className="section-head plan-title"><div><p className="eyebrow">ПЛАН ТРЕНИРОВОК</p><h3>Следующие занятия</h3></div><button>Весь план →</button></div>
-          <div className="filters" role="group" aria-label="Фильтр тренировок">{filters.map((f) => <button key={f} className={filter === f ? "active" : ""} onClick={() => setFilter(f)}>{f}</button>)}</div>
-          <div className="workouts">
-            {upcoming.filter(w => filter === "Все" || (filter === "Силовые"&&w.type==="Силовая") || (filter === "Велосипед"&&w.title.includes("велосипед")) || (filter === "Плавание"&&w.title==="Бассейн")).map((w) => (
-              <article className="workout" key={`${w.day}-${w.title}`} onClick={()=>startWorkout(w)}>
-                <div className="workout-img" style={{backgroundImage:`url(${w.image})`}}><span>{w.type}</span><button aria-label={`Открыть ${w.title}`}>↗</button></div>
-                <div className="workout-copy"><small>{w.d} · {w.time}</small><h4>{w.title}</h4><p>{w.exercises.length} упражнений{w.rounds>1?` · ${w.rounds} круга`:""}</p></div>
-              </article>
-            ))}
-          </div>
-        </section></> : <>{nav==="План"&&<ScheduleEditor data={data} refresh={load}/>} {nav==="Питание"&&<NutritionTools data={data}/>}<Personal section={nav} data={data} refresh={load} coachAction={coachAction} loaded={loaded} initialProgressTab={progressTab}/></>}
+        <p className="volt-quote">«Маленькие шаги каждый день приводят к большим результатам.»</p>
+        </> : nav==="План" ? <PlanScreen
+          today={today} weekPlan={weekPlan} selectedResolved={selectedResolved} selectedPlan={selectedPlan}
+          isSelectedToday={isSelectedToday} onSelectDate={setSelectedPlanDate} onEditDate={setEditingDate}
+          onStartSelected={startSelectedWorkout} planMeta={planActionMeta(selectedResolved,isSelectedToday,coach.summary.workoutDone,!!openDraftToday)}
+          selectedSwim={selectedSwim} selectedSwimWorkout={selectedSwimWorkout} selectedSwimLoading={selectedSwimLoading}
+          homeWeek={homeWeek}
+        /> : nav==="Аналитика" ? <AnalyticsCoachPage
+          data={data} coach={coach} today={today} mode={analyticsMode} onModeChange={setAnalyticsMode}
+          plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null}
+          originalPlan={todayResolved.changed?{title:todayResolved.original.title,type:todayResolved.original.type}:null}
+          planChanged={todayResolved.changed} changeReasonCode={todayResolved.reasonCode}
+          onFoodSaved={load} onStartWorkout={startTodayWorkout} onOpenNutrition={()=>setNav("Питание")}
+        /> : nav==="Профиль и настройки" ? <ProfileSettingsPage
+          data={data} refresh={load} onOpenRoadmap={()=>setNav("Дорожная карта")}
+          onLogout={async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()}}
+        /> : <Personal
+          section={nav} data={data} refresh={load} coachAction={coachAction} loaded={loaded}
+          initialProgressTab={progressTab} onAskCoach={goCoach}
+        />}
       </section>
 
       {activeWorkout&&<ActiveWorkout draft={activeWorkout} data={data} onClose={()=>setActiveWorkout(null)} onChanged={draft=>{setActiveWorkout(draft.status==="cancelled"?null:draft);load();if(draft.status==="completed")loadProgression()}} onEditWorkout={()=>{setActiveWorkout(null);setNav("Моя история");setProgressTab("Тренировки")}}/>}
       {editingDay&&<WeekPlanEditor day={editingDay} weekDays={weekPlan} homeWeek={homeWeek} onClose={()=>setEditingDate(null)} refresh={load}/>}
-      {loaded&&!coachChatOpen&&<button type="button" className="coach-chat-fab" aria-label="Спросить тренера" onClick={()=>setCoachChatOpen(true)}><span aria-hidden="true">💬</span></button>}
-      <CoachChatPanel open={coachChatOpen} onClose={()=>setCoachChatOpen(false)} plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null} originalPlan={todayResolved.changed?{title:todayResolved.original.title,type:todayResolved.original.type}:null} planChanged={todayResolved.changed} changeReasonCode={todayResolved.reasonCode} today={today} onFoodSaved={load} quickActions={[
-        {label:"Начать тренировку",icon:"▶",onClick:()=>{setCoachChatOpen(false);setNav("Сегодня");startTodayWorkout()}},
-        {label:"Записать питание",icon:"🍽",onClick:()=>{setCoachChatOpen(false);setNav("Питание");setMobileMenu(false)}},
-        {label:"Отметить самочувствие",icon:"❤",onClick:()=>{setCoachChatOpen(false);goCoach()}},
-      ]}/>
       {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">{NAV_ITEMS.map(([label])=>{const Icon=MOBILE_ICONS[label];return <button key={label} data-tour-id={label==="Моя история"?"nav-progress-mobile":undefined} className={nav===label?"active":""} onClick={()=>{setNav(label);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={20} strokeWidth={2}/></span>{MOBILE_LABELS[label]||label}</button>})}<Link href="/swim"><span aria-hidden="true"><Waves size={20} strokeWidth={2}/></span>Swim</Link></nav>
+      <nav className="mobile-nav" aria-label="Мобильная навигация">
+        {MOBILE_PRIMARY_ITEMS.map(({id,label})=>{const Icon=MOBILE_ICONS[id];return <button key={id} data-tour-id={id==="Аналитика"?"nav-analytics-mobile":undefined} className={nav===id?"active":""} onClick={()=>{if(id==="Аналитика")setAnalyticsMode("insights");setNav(id);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={20} strokeWidth={2}/></span>{label}</button>})}
+        <button type="button" data-tour-id="mobile-nav-more" className={NAV_ITEMS.some(item=>item.mobilePlacement==="secondary"&&item.id===nav)?"active":""} aria-label="Открыть остальные разделы" aria-expanded={mobileMenu} onClick={()=>setMobileMenu(true)}><span aria-hidden="true"><Menu size={20} strokeWidth={2}/></span>Ещё</button>
+        <Link className="mobile-nav-module" href="/swim"><span aria-hidden="true"><Waves size={20} strokeWidth={2}/></span>Swim</Link>
+      </nav>
     </main></AuthGate>
   );
 }
 
-function Metric({ icon, color, label, value, unit, pct }: {icon:string;color:string;label:string;value:string;unit:string;pct:number}) {
-  return <article className="metric card"><div className={`metric-icon ${color}`}>{icon}</div><div className="metric-copy"><small>{label}</small><p><b>{value}</b> <span>{unit}</span></p><div className="progress"><i className={color} style={{width:`${pct}%`}} /></div></div><strong>{pct}%</strong></article>;
+// Экран «План» — один композиционный поток: неделя как главный объект,
+// выбранная/следующая тренировка, её состав и спокойная справочная программа.
+// Данные и действия остаются прежними: WeekPlanEditor по-прежнему единственная
+// точка replace/swap/rest, а запуск использует существующие обработчики.
+function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,isSelectedToday,onSelectDate,onEditDate,onStartSelected,planMeta,selectedSwim,selectedSwimWorkout,selectedSwimLoading,homeWeek}:{
+  today:string;weekPlan:ResolvedDayPlan[];selectedResolved:ResolvedDayPlan;selectedPlan:any;isSelectedToday:boolean;
+  onSelectDate:(date:string)=>void;onEditDate:(date:string)=>void;onStartSelected:()=>void;
+  planMeta:{label:string;cls:string;repeat:boolean};
+  selectedSwim:ResolvedSwimSlot|null;selectedSwimWorkout:SwimWorkoutDef|null;selectedSwimLoading:boolean;
+  homeWeek:any[];
+}){
+ const strengthDays=weekPlan.filter(d=>d.scheduled.type==="Силовая").length;
+ const swimDays=weekPlan.filter(d=>isSwimSlot(d.scheduled)).length;
+ const plannedDays=weekPlan.filter(d=>d.scheduled.type!=="Отдых").length;
+ const completedDays=weekPlan.filter(d=>d.locked?.completed&&d.scheduled.type!=="Отдых").length;
+ const weekProgress=plannedDays?Math.round((completedDays/plannedDays)*100):0;
+ const todayIndex=Math.max(0,weekPlan.findIndex(d=>d.date===today));
+ const nextResolved=weekPlan.slice(todayIndex+1).find(d=>d.scheduled.type!=="Отдых")
+  ?? weekPlan.find(d=>d.date>today&&d.scheduled.type!=="Отдых")
+  ?? weekPlan.find(d=>d.scheduled.type!=="Отдых")
+  ?? selectedResolved;
+ const isSwim=isSwimSlot(selectedPlan);
+ const isRest=selectedPlan.type==="Отдых";
+ const resolvedSwim=selectedSwim?.kind==="workout"?selectedSwim:null;
+ const swimWorkout=selectedSwimWorkout;
+ const focusTitle=isSwim?(swimWorkout?.title??(selectedSwimLoading?"Загрузка тренировки…":"Тренировка не определена")):(selectedPlan.type==="Отдых"?"Отдых":selectedPlan.title);
+ const focusType=isSwim?"VOLT Swim · Foundation":isRest?"День восстановления":selectedPlan.type;
+ const actionMeta=isSwim?{
+  label:selectedSwimLoading?"Загрузка…":resolvedSwim?.status==="completed"?"Тренировка выполнена":resolvedSwim?.status==="in_progress"?"Продолжить тренировку":resolvedSwim?.status==="awaiting_confirmation"?"Подтвердить результат":resolvedSwim?"Открыть тренировку":"Тренировка недоступна",
+  cls:resolvedSwim?.status==="completed"?"repeat-btn":"start-btn",
+  repeat:resolvedSwim?.status==="completed",
+ }:planMeta;
+
+ return <div className="plan-screen">
+  <section className="plan-hero">
+   <div className="plan-hero-shade"/>
+   <div className="plan-hero-head">
+    <div className="plan-hero-copy">
+     <p className="eyebrow">CURRENT WEEK · ДОМАШНЯЯ БАЗА</p>
+     <h2>Неделя 1</h2>
+     <p className="plan-hero-summary"><b>{completedDays} из {plannedDays} выполнено</b><span>{strengthDays} силовых</span><span>{swimDays} бассейна</span></p>
+     <p className="plan-hero-note">Техника, устойчивый ритм и восстановление без перегруза.</p>
+    </div>
+    <div className="plan-hero-status">
+     <div><span>Ритм недели</span><b>{weekProgress}%</b></div>
+     <div className="plan-hero-progress" aria-label={`Выполнено ${weekProgress}% плана недели`}><i style={{width:`${weekProgress}%`}}/></div>
+     <button type="button" className="ghost-btn plan-edit-action" onClick={()=>onEditDate(selectedResolved.date)}><CalendarDays size={14}/>Изменить неделю</button>
+    </div>
+   </div>
+
+   <div className="plan-week-rail" role="group" aria-label="План на семь дней">
+    {weekPlan.map(d=>{
+     const state=d.locked?.completed?"done":d.date===today?"today":d.date<today?"past":"future";
+     const kind=d.scheduled.type==="Отдых"?"rest":isSwimSlot(d.scheduled)?"swim":d.scheduled.type==="Силовая"?"strength":"cardio";
+     const DayIcon=kind==="swim"?Waves:kind==="strength"?Dumbbell:kind==="rest"?Moon:Footprints;
+     return <button key={d.date} type="button" aria-pressed={d.date===selectedResolved.date} className={`plan-day ${state} ${kind}${d.date===selectedResolved.date?" selected":""}`} onClick={()=>onSelectDate(d.date)}>
+      <span className="plan-day-date"><small>{d.original.d.slice(0,2).toUpperCase()}</small><b>{Number(d.date.slice(8,10))}</b></span>
+      <span className="plan-day-symbol" aria-hidden="true"><DayIcon size={15}/></span>
+      <span className="plan-day-kind">{d.scheduled.type==="Отдых"?"Отдых":isSwimSlot(d.scheduled)?"Swim":d.scheduled.type}</span>
+      <span className="plan-day-state">{d.locked?.completed?<><CheckCircle2 size={10}/>Готово</>:d.date===today?"Сегодня":d.changed?"Изменён":""}</span>
+     </button>;
+    })}
+   </div>
+  </section>
+
+  <section className="plan-now" aria-label="Текущая и следующая тренировки">
+   <article className={`plan-focus-card${isRest?" rest":""}`}>
+    <div className={`plan-focus-photo${isRest?" plan-rest-photo":""}`} style={{backgroundImage:`url(${isRest?"/workouts/rest-day-home-v2.png":selectedPlan.image})`}} role="img" aria-label={focusTitle}/>
+    <div className="plan-focus-shade"/>
+    <div className="plan-focus-content">
+     <p className="eyebrow">{isSelectedToday?"TODAY · СЕГОДНЯ":dayLabel(selectedResolved.date,today).toUpperCase()}{selectedResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
+     <h3>{focusTitle}</h3>
+     <p className="next-workout-type">{focusType}</p>
+     {swimWorkout&&<p className="plan-focus-goal">{swimWorkout.goal}</p>}
+     {isRest&&<div className="plan-rest-guide" aria-label="Фокус восстановления"><span><Footprints size={14}/>Спокойная прогулка</span><span><RefreshCw size={14}/>Лёгкая мобилизация</span><span><Moon size={14}/>Полноценный сон</span></div>}
+     <div className="next-workout-meta">
+      <span><Clock3 size={14}/>{swimWorkout?`~${swimWorkout.estimatedMinutes} мин`:isRest?"Без нагрузки":selectedPlan.time}</span>
+      {swimWorkout?<><span><Waves size={14}/>{totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м</span><span><RefreshCw size={14}/>{swimWorkout.intervals.length} интервалов</span></>:isRest?<span><Moon size={14}/>Восстановление</span>:<>
+       <span><Dumbbell size={14}/>{selectedPlan.exercises.length} упражнений</span>
+       {selectedPlan.rounds>1&&<span><RefreshCw size={14}/>{selectedPlan.rounds} круга</span>}
+      </>}
+     </div>
+     <button type="button" className={actionMeta.cls} onClick={onStartSelected} disabled={isSwim&&!resolvedSwim}><span aria-hidden="true">{actionMeta.repeat?"↻":<Play size={12} fill="currentColor"/>}</span>{isRest?"Открыть план дня":actionMeta.label}</button>
+    </div>
+   </article>
+
+   <aside className="plan-next-card">
+    <span className="plan-next-icon" aria-hidden="true"><Clock3 size={17}/></span>
+    <div>
+     <p className="eyebrow">NEXT · ДАЛЬШЕ</p>
+     <span className="plan-next-date">{dayLabel(nextResolved.date,today)}</span>
+     <h3>{nextResolved.scheduled.title}</h3>
+     <p>{isSwimSlot(nextResolved.scheduled)?"VOLT Swim":nextResolved.scheduled.type} · {nextResolved.scheduled.time}</p>
+    </div>
+    <button type="button" className="ghost-btn" onClick={()=>onSelectDate(nextResolved.date)}>Посмотреть день <span aria-hidden="true">→</span></button>
+   </aside>
+  </section>
+
+  <section className="plan-day-exercises" id="plan-workout-composition">
+   <div className="section-head plan-section-heading"><div><p className="eyebrow">WORKOUT DETAILS</p><h3>{isSwim?(swimWorkout?.title??"VOLT Swim"):isRest?"Восстановление":selectedPlan.title}</h3></div><span>{swimWorkout?`${totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м · ${swimWorkout.intervals.length} интервалов`:isRest?"Спокойный день":`${selectedPlan.exercises.length} упражнений`}</span></div>
+   {isSwim?(
+    selectedSwimLoading?<div className="plan-swim-empty" aria-busy="true">Загружаем назначенную тренировку VOLT Swim…</div>:
+    swimWorkout?<PlanSwimIntervals workout={swimWorkout}/>:<div className="plan-swim-empty">VOLT Swim не смог назначить тренировку Foundation на этот день. Измените день плана или откройте модуль Swim.</div>
+   ):isRest?<div className="plan-rest-note"><span aria-hidden="true"><Moon size={22}/></span><div><b>Сегодня без тренировки</b><p>Восстановись и сохрани ритм недели. Следующее занятие уже отмечено выше.</p></div></div>:<>
+    {selectedPlan.warmup&&<section className="plan-exercise-block"><header><div><span>01</span><div><p className="eyebrow">ПОДГОТОВКА</p><h4>Разминка</h4></div></div><small>{selectedPlan.warmup.length} упражнения</small></header><PlanExercises items={selectedPlan.warmup}/></section>}
+    <section className="plan-exercise-block"><header><div><span>{selectedPlan.warmup?"02":"01"}</span><div><p className="eyebrow">РАБОЧИЙ БЛОК</p><h4>Основная часть</h4></div></div><small>{selectedPlan.exercises.length} упражнений{selectedPlan.rounds>1?` · ${selectedPlan.rounds} круга`:""}</small></header><PlanExercises items={selectedPlan.exercises}/></section>
+   </>}
+  </section>
+
+  <section className="plan-program">
+   <div className="section-head plan-program-head"><div><p className="eyebrow">PROGRAM · PROGRESSION</p><h3>Путь программы</h3></div><p>От уверенной техники дома — к залу и устойчивому кардио.</p></div>
+   <Notice/>
+   <div className="plan-program-phases">
+    <PlanProgramPhase number="01" period="НЕДЕЛИ 1–3" title="Домашняя база" note="2 круга → 3 круга → прибавка веса или повторов" days={homeWeek.map((d:any)=>({day:d.d,type:d.type,title:d.title,time:d.time,warmup:d.warmup,exercises:d.exercises}))}/>
+    <PlanProgramPhase number="02" period="С НЕДЕЛИ 4" title="Зал + кардио" note="Силовая прогрессия, бассейн и велосипед" days={week.map((d:any)=>({day:d.d,type:d.t,title:d.n,time:d.time,exercises:d.x}))}/>
+   </div>
+  </section>
+ </div>;
 }
 
-function Intro({k,t,p}:{k:string;t:string;p:string}){return <header className="detail-intro"><p className="eyebrow">{k}</p><h2>{t}</h2><p>{p}</p></header>}
-function Personal({section,data,refresh,coachAction,loaded,initialProgressTab}:{section:string;data:any;refresh:()=>void;coachAction:CoachAction|null;loaded?:boolean;initialProgressTab?:string|null}){
- const homeWeek=buildHomeWeek(data.profile?.programStart);
- if(section==="План") return <div className="detail-page"><Intro k="ПЕРСОНАЛЬНАЯ ПРОГРАММА" t="Тренировки без ударной нагрузки" p="Недели 1–3 — дома. С 4-й недели основным становится расписание зала, бассейна и велосипеда."/><Notice/><h3 className="detail-title">Недели 1–3 · домашний план по дням</h3><p className="detail-lead">Неделя 1 — 2 круга; неделя 2 — 3; неделя 3 — прибавка веса или повторов.</p><div className="day-plan">{homeWeek.map((d:any)=><details key={d.d} open={d.day===(new Date().getDay()||7)}><summary><span>{d.d}</span><div><i>{d.type}</i><h4>{d.title}</h4></div><b>{d.time}</b></summary>{d.warmup&&<><h5 className="plan-block-title">Разминка · выполнить перед кругами</h5><PlanExercises items={d.warmup}/><h5 className="plan-block-title">Основная часть</h5></>}<PlanExercises items={d.exercises}/></details>)}</div><h3 className="detail-title">С недели 4 · зал + кардио</h3><p className="detail-lead">Открой нужный день: внутри — полный список, техника и фотопримеры.</p><div className="day-plan">{week.map(d=><details key={d.d}><summary><span>{d.d}</span><div><i>{d.t}</i><h4>{d.n}</h4></div><b>{d.time}</b></summary><PlanExercises items={d.x}/></details>)}</div></div>;
- if(section==="Дорожная карта") return <div className="detail-page"><Intro k="ЛИЧНАЯ ДОРОЖНАЯ КАРТА · 5–7 МЕСЯЦЕВ" t="86 → 67 кг" p="Рост 167 см. Быстро, но без потери мышц: до 1 кг в неделю на старте, после 75 кг — 0,5–0,7 кг."/><div className="road-stats">{[["0,8–1,0","кг в неделю"],["3","силовых"],["3–4","кардио"],["5–7","месяцев"]].map(x=><article key={x[1]}><b>{x[0]}</b><span>{x[1]}</span></article>)}</div><Notice/><div className="phases">{phases.map((p,i)=><article key={p.p}><span>{String(i+1).padStart(2,"0")}</span><div><small>{p.p}</small><h3>{p.n}</h3><p>{p.g}</p><ul>{p.x.map(x=><li key={x}>{x}</li>)}</ul></div></article>)}</div><h3 className="detail-title">Правила тяжёлых дней</h3><div className="motivation-grid">{rules.map((r,i)=><article key={r}><span>{String(i+1).padStart(2,"0")}</span><p>{r}</p></article>)}</div></div>;
+function PlanProgramPhase({number,period,title,note,days}:{number:string;period:string;title:string;note:string;days:any[]}){
+ return <section className="plan-program-phase">
+  <header><span>{number}</span><div><p className="eyebrow">{period}</p><h4>{title}</h4><p>{note}</p></div></header>
+  <div className="plan-phase-rhythm">{days.map((day:any)=>{
+   const kind=day.type==="Отдых"?"rest":day.title==="Бассейн"||day.title?.includes("Плавание")?"swim":day.type==="Силовая"?"strength":"cardio";
+   const DayIcon=kind==="swim"?Waves:kind==="strength"?Dumbbell:kind==="rest"?Moon:Footprints;
+   return <details key={`${day.day}-${day.title}`} className={`plan-phase-day ${kind}`}>
+    <summary><span className="plan-phase-marker" aria-hidden="true"><DayIcon size={14}/></span><div><small>{day.day}</small><h5>{day.title}</h5><p>{day.type} · {day.time}</p></div><span className="plan-phase-open" aria-hidden="true">＋</span></summary>
+    <div className="plan-phase-details">{day.warmup&&<><p className="plan-block-title">Разминка</p><PlanExercises items={day.warmup}/></>}<p className="plan-block-title">{day.type==="Отдых"?"План дня":"Основная часть"}</p><PlanExercises items={day.exercises}/></div>
+   </details>;
+  })}</div>
+ </section>;
+}
+
+function PlanSwimIntervals({workout}:{workout:SwimWorkoutDef}){
+ return <div className="plan-exercises plan-swim-intervals">{workout.intervals.map((interval:SwimInterval,index:number)=>{
+  const target=interval.repeats>1?`${interval.repeats} × ${interval.distanceMeters} м`:`${interval.distanceMeters} м`;
+  const rest=interval.restSeconds?` · отдых ${interval.restSeconds}${interval.restSecondsMax?`–${interval.restSecondsMax}`:""} сек`:"";
+  return <article key={interval.id}>
+   <span className="plan-exercise-fallback" aria-hidden="true"><Waves size={20}/><small>{intervalTotalMeters(interval).toLocaleString("ru-RU")} м</small></span>
+   <div><p className="plan-swim-stage">{intervalTypeLabel(interval.type)}</p><h4><span>{index+1}</span>{exerciseLabelRu(interval.exerciseId)}</h4><p>{interval.description}</p><b>{target}{rest}</b></div>
+  </article>;
+ })}</div>;
+}
+
+// Ячейка спокойной панели показателей дня — не самостоятельная KPI-плитка:
+// все четыре живут внутри одной стеклянной поверхности (.stat-strip).
+function Metric({ icon, color, label, value, unit, pct }: {icon:React.ReactNode;color:string;label:string;value:string;unit:string;pct:number}) {
+  return <article className="stat-cell">
+    <div className="stat-cell-head"><span className={`metric-icon ${color}`}>{icon}</span><small>{label}</small></div>
+    <p className="stat-cell-value"><b>{value}</b><span>{unit}</span></p>
+    <div className="progress"><i className={color} style={{width:`${pct}%`}} /></div>
+  </article>;
+}
+
+// Последняя тренировка — презентационная карточка поверх уже загруженных
+// data.workouts (первая запись, т.к. GET /api/fitness отдаёт их по date DESC).
+// Новых запросов/полей не добавляет; "Объём" не показывается — в текущей
+// модели тренировки нет посчитанного суммарного объёма (в отличие от Swim).
+function LastWorkoutCard({workout,onOpen}:{workout:any;onOpen:()=>void}){
+  if(!workout)return <article className="last-workout-card card"><p className="eyebrow">ПОСЛЕДНЯЯ ТРЕНИРОВКА</p><p className="detail-lead" style={{margin:0}}>Завершённых тренировок пока нет.</p></article>;
+  const mins=Math.round((Number(workout.durationSeconds)||0)/60);
+  return (
+    <button type="button" className="last-workout-card card" onClick={onOpen} style={{textAlign:"left",cursor:"pointer"}}>
+      <p className="eyebrow">ПОСЛЕДНЯЯ ТРЕНИРОВКА</p>
+      <div className="last-workout-body">
+        <h4>{workout.title}</h4>
+        <small>{workout.date} · {workout.type}</small>
+        <div className="last-workout-stats">
+          <span>Время<b>{mins} мин</b></span>
+          <span>Калории<b>{fmt(workout.calories||0)}</b></span>
+          {workout.avgHeartRate>0&&<span>Пульс<b>{workout.avgHeartRate}</b></span>}
+        </div>
+      </div>
+    </button>
+  );
+}
+
+const ROADMAP_WEEKS=36;
+const roadmapPhases=[
+ {title:"Адаптация",period:"Недели 1–12",description:"Формируем привычку, возвращаем базовую выносливость и укрепляем тело.",tags:["База и техника","Фундамент"]},
+ {title:"Развитие",period:"Недели 13–24",description:"Постепенно увеличиваем нагрузку, развиваем силу и выносливость.",tags:["Прогрессия","Рост показателей"]},
+ {title:"Мастерство",period:"Недели 25–36",description:"Переходим к более высокой интенсивности и закрепляем достигнутую форму.",tags:["Интенсивность","Максимум результата"]},
+];
+function RoadmapPage({profile}:{profile:any}){
+ const rawWeek=currentProgramWeek(profile?.programStart);
+ const week=Math.min(ROADMAP_WEEKS,Math.max(1,rawWeek));
+ const start=profile?.programStart?new Date(`${profile.programStart}T00:00:00`):null;
+ const startValid=Boolean(start&&!Number.isNaN(start.getTime()));
+ const progress=startValid?Math.min(100,Math.max(0,Math.round((rawWeek-1)/ROADMAP_WEEKS*100))):0;
+ const activePhase=week<=12?0:week<=24?1:2;
+ const startLabel=startValid?(start as Date).toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"}):"Не указана";
+ return <div className="detail-page roadmap-screen">
+  <header className="roadmap-heading"><div><p className="eyebrow">ПРОГРАММА · 36 НЕДЕЛЬ</p><h2>Дорожная карта</h2><p>Твой путь к лучшей форме. Три фазы. Один результат.</p></div></header>
+  <section className="roadmap-summary" aria-label="Положение в программе">
+   <div><small>Старт программы</small><b>{startLabel}</b></div>
+   <div><small>Текущая неделя</small><p><b>{week}</b><span>из {ROADMAP_WEEKS}</span></p></div>
+   <div className="roadmap-progress"><small>Пройдено</small><p><b>{progress}%</b></p><span aria-hidden="true"><i style={{width:`${progress}%`}}/></span></div>
+  </section>
+  <div className="roadmap-path" aria-label="Фазы программы">
+   {roadmapPhases.map((phase,index)=>{
+    const current=index===activePhase;
+    const completed=index<activePhase;
+    return <article className={`roadmap-phase${current?" current":""}${completed?" completed":""}`} key={phase.title} aria-current={current?"step":undefined}>
+     <div className="roadmap-node" aria-hidden="true"><span>{index+1}</span></div>
+     <div className="roadmap-phase-card">
+      <header><div><small>ФАЗА {index+1}</small><h3>{phase.title}</h3></div>{current&&<b>ТЕКУЩАЯ</b>}</header>
+      <p>{phase.description}</p>
+      <div className="roadmap-phase-meta">
+       <span><CalendarDays size={14}/>{phase.period}</span>
+       <span><Dumbbell size={14}/>{phase.tags[0]}</span>
+       <span><ChartColumn size={14}/>{phase.tags[1]}</span>
+      </div>
+     </div>
+    </article>;
+   })}
+  </div>
+  <footer className="roadmap-footer"><span aria-hidden="true"><Zap size={24}/></span><div><h3>Последовательность создаёт результат</h3><p>Доверься процессу, выполняй план и наслаждайся прогрессом каждый день. Лучшая версия тебя — впереди.</p></div></footer>
+ </div>;
+}
+function Personal({section,data,refresh,coachAction,loaded,initialProgressTab,onAskCoach}:{section:string;data:any;refresh:()=>void;coachAction:CoachAction|null;loaded?:boolean;initialProgressTab?:string|null;onAskCoach:()=>void}){
+ if(section==="Дорожная карта") return <RoadmapPage profile={data.profile}/>;
  if(section==="Вечерний прогресс") return <EveningProgressPage data={data} refresh={refresh} loaded={loaded}/>;
- if(section==="Питание") return <div className="detail-page"><Intro k="ПИТАНИЕ · БЕЗ ЗАПРЕТОВ" t="≈ 1700 ккал · 150 г белка" p="Белок в каждом приёме пищи, овощи в обед и ужин, вода перед едой. Готовь курицу и крупу на 2–3 дня."/><NutritionDiary data={data} refresh={refresh}/><div className="meal-list">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-grid"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div>;
+ if(section==="Питание") return <div className="detail-page nutrition-hub"><NutritionDiary data={data} refresh={refresh} onAskCoach={onAskCoach}/><NutritionTools data={data}/><NutritionProgramGuide/></div>;
  return <ProgressPage data={data} refresh={refresh} coachAction={coachAction} initialTab={initialProgressTab}/>
 }
 function Notice(){return <div className="safety">✦ <span><b>Суставы под защитой</b>{safety}</span></div>}
-function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any)=><article key={x[0]}>{x[3]&&<img src={x[3]} alt={`Пример: ${x[0]}`}/>}<div><h4>{x[0]}</h4><p>{x[1]}</p><b>{x[2]}</b></div><ExerciseVideo name={x[0]}/></article>)}</div>}
+function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any,index:number)=><article key={x[0]}>{x[3]?<img src={x[3]} alt={`Пример: ${x[0]}`}/>:<span className="plan-exercise-fallback" aria-hidden="true"><Dumbbell size={18}/></span>}<div className="plan-exercise-copy"><div className="plan-exercise-title"><span>{index+1}</span><h4>{x[0]}</h4></div><p>{x[1]}</p><b>{x[2]}</b></div><ExerciseVideo name={x[0]} compact/></article>)}</div>}
 
 function AiKeySetup({onReady}:{onReady:()=>void}){
  const notify=useToast();
@@ -290,37 +625,108 @@ function dayLabel(iso:string,today:string){
  return new Intl.DateTimeFormat("ru-RU",{weekday:"short",day:"numeric",month:"long"}).format(new Date(`${iso}T00:00:00`));
 }
 
-function NutritionDiary({data,refresh}:{data:any;refresh:()=>void}){
+// Экран «План» · карточка выбранного дня. Для будущих дней действие всегда
+// однозначно формулируется как «Выполнить сейчас» (см. AI-11 IA, п.5) — сама
+// бизнес-логика запуска (startWorkout всегда создаёт черновик датой «сегодня»)
+// не меняется, меняется только текст кнопки.
+function planActionMeta(resolved:ResolvedDayPlan,isToday:boolean,todayDone:boolean,openDraftToday:boolean){
+ const isRest=resolved.scheduled.type==="Отдых";
+ if(isToday){
+  if(todayDone)return {label:isRest?"Открыть план дня ещё раз":"Повторить тренировку",cls:"repeat-btn",repeat:true};
+  if(openDraftToday)return {label:isRest?"Продолжить план дня":"Продолжить тренировку",cls:"start-btn",repeat:false};
+  return {label:isRest?"Открыть план дня":"Начать тренировку",cls:"start-btn",repeat:false};
+ }
+ if(resolved.locked?.completed)return {label:"Тренировка выполнена",cls:"repeat-btn",repeat:true};
+ if(resolved.locked?.openDraft)return {label:"Продолжить тренировку",cls:"start-btn",repeat:false};
+ return {label:"Выполнить сейчас",cls:"start-btn",repeat:false};
+}
+
+type NutritionInputMode="photo"|"receipt"|"manual";
+function nutritionCount(value:number,forms:[string,string,string]){const n=Math.abs(value)%100,m=n%10,word=n>10&&n<20?forms[2]:m===1?forms[0]:m>=2&&m<=4?forms[1]:forms[2];return `${value} ${word}`}
+function nutritionPhotoError(status:number,message?:string){
+ if(status===400||status===422)return message||"Не удалось распознать изображение. Проверь фото и попробуй ещё раз.";
+ if(status===503)return "Распознавание фото сейчас не настроено. Добавь блюдо вручную — приложение не будет придумывать результат.";
+ return "Распознавание фото сейчас недоступно. Попробуй позже или добавь блюдо вручную.";
+}
+
+function NutritionDiary({data,refresh,onAskCoach}:{data:any;refresh:()=>void;onAskCoach:()=>void}){
  const notify=useToast();
  const today=localIso(new Date());
+ const photoInputRef=useRef<HTMLInputElement>(null),receiptInputRef=useRef<HTMLInputElement>(null);
  const [viewDate,setViewDate]=useState(today);
+ const [inputMode,setInputMode]=useState<NutritionInputMode|null>(null);
+ const [draftText,setDraftText]=useState("");
  const [error,setError]=useState(""),[saving,setSaving]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiNote,setAiNote]=useState(""),[aiKeySet,setAiKeySet]=useState<boolean|null>(null);
  const logs=data.foodLogs||[],dayLogs=logs.filter((x:any)=>x.date===viewDate),sum=dayLogs.reduce((t:any,x:any)=>({calories:t.calories+x.calories,protein:t.protein+x.protein,fat:t.fat+x.fat,carbs:t.carbs+x.carbs}),{calories:0,protein:0,fat:0,carbs:0});
+ const remaining=Math.round(1700-sum.calories),caloriePct=Math.min(100,Math.round(sum.calories/1700*100));
+ const activity=(data.activity||[]).find((x:any)=>x.date===viewDate),waterLiters=Number(activity?.waterLiters)||0,waterKnown=Boolean(activity?.waterLogged)||waterLiters>0;
+ const coachNote=!dayLogs.length?"Добавь первый приём пищи — рекомендация появится только на реальных данных.":sum.protein<120?`Белка ${Math.round(sum.protein)} г из 150 г. Следующий приём пищи стоит собрать вокруг полноценного источника белка.`:sum.calories>1700?`Ориентир превышен на ${Math.abs(remaining)} ккал. Это факт дня, а не оценка — следующий выбор можно оставить обычным.`:"По записанным данным дневной баланс близок к ориентиру. Сохрани спокойный ритм без компенсаций.";
  const history=useMemo(()=>{
   const byDate=new Map<string,number>();
   for(const x of (data.foodLogs||[]))byDate.set(x.date,(byDate.get(x.date)||0)+(Number(x.calories)||0));
-  const days=[...Array(14)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));const iso=localIso(d);return {iso,short:new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"numeric"}).format(d),calories:byDate.get(iso)||0}});
-  return days;
+  return [...Array(14)].map((_,i)=>{const d=new Date();d.setDate(d.getDate()-(13-i));const iso=localIso(d),hasData=byDate.has(iso);return {iso,short:new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"numeric"}).format(d),calories:byDate.get(iso)||0,hasData}});
  },[data.foodLogs]);
- useEffect(()=>{fetch("/api/settings").then(r=>r.json()).then(j=>setAiKeySet(!!j.anthropicKeySet)).catch(()=>setAiKeySet(true))},[]);
- const photoAI=async(e:any)=>{const input=e.currentTarget,files=[...(input.files||[])].slice(0,3),form=input.closest("form");if(!files.length)return;setError("");setAiBusy(true);try{const fd=new FormData();for(const f of files)fd.append("photo",f);const r=await fetch("/api/food-photo",{method:"POST",body:fd}),j=await r.json();if(!r.ok)setError(j.error||"Не удалось распознать фото");else{const ta=form?.elements.namedItem("rawText") as HTMLTextAreaElement;if(ta)ta.value=(ta.value.trim()?ta.value.trim()+"\n":"")+j.text;if(j.note)setAiNote(j.note)}}catch{setError("Не удалось распознать фото")}finally{setAiBusy(false);input.value=""}};
- const submit=async(e:any)=>{e.preventDefault();setError("");setSaving(true);const form=e.currentTarget,body=Object.fromEntries(new FormData(form));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"food",...body})}),j=await r.json();setSaving(false);if(!r.ok)return setError(j.error||"Не удалось сохранить");form.reset();setAiNote("");notify("Приём пищи сохранён");refresh()};
+ useEffect(()=>{fetch("/api/settings").then(r=>r.ok?r.json():Promise.reject()).then(j=>setAiKeySet(!!j.anthropicKeySet)).catch(()=>setAiKeySet(false))},[]);
+ const photoAI=async(e:any)=>{const input=e.currentTarget,files=[...(input.files||[])].slice(0,3),mode=(input.dataset.mode||"photo") as NutritionInputMode;if(!files.length)return;setInputMode(mode);setError("");setAiBusy(true);try{const fd=new FormData();for(const f of files)fd.append("photo",f);const r=await fetch("/api/food-photo",{method:"POST",body:fd}),j=await r.json().catch(()=>({}));if(!r.ok)setError(nutritionPhotoError(r.status,j.error));else{setDraftText((current)=>(current.trim()?`${current.trim()}\n`:"")+j.text);if(j.note)setAiNote(j.note)}}catch{setError(nutritionPhotoError(0))}finally{setAiBusy(false);input.value=""}};
+ const submit=async(e:any)=>{e.preventDefault();setError("");setSaving(true);const form=e.currentTarget,body=Object.fromEntries(new FormData(form));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"food",...body})}),j=await r.json();setSaving(false);if(!r.ok)return setError(j.error||"Не удалось сохранить");form.reset();setDraftText("");setAiNote("");setInputMode(null);notify("Приём пищи сохранён");refresh()};
  const remove=async(id:number)=>{if(!confirm("Удалить этот приём пищи? Дневные показатели будут пересчитаны."))return;const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteFood",id})});if(r.ok){notify("Запись удалена");refresh()}else setError("Не удалось удалить запись")};
  const shiftDay=(delta:number)=>{const d=new Date(`${viewDate}T00:00:00`);d.setDate(d.getDate()+delta);const iso=localIso(d);if(iso<=today)setViewDate(iso)};
- return <section className="food-diary"><div className="section-head"><div><p className="eyebrow">ДНЕВНИК ПИТАНИЯ</p><h3>{dayLabel(viewDate,today)}</h3></div><b>{Math.round(sum.calories)} / 1700 ккал</b></div>
-  <div className="food-day-nav"><button type="button" onClick={()=>shiftDay(-1)} aria-label="Предыдущий день">←</button><input type="date" value={viewDate} max={today} onChange={e=>e.target.value&&setViewDate(e.target.value)}/><button type="button" onClick={()=>shiftDay(1)} disabled={viewDate>=today} aria-label="Следующий день">→</button></div>
-  <div className="macro-scales"><Macro label="Калории" value={sum.calories} goal={1700} unit="ккал"/><Macro label="Белки" value={sum.protein} goal={150} unit="г"/><Macro label="Жиры" value={sum.fat} goal={60} unit="г"/><Macro label="Углеводы" value={sum.carbs} goal={170} unit="г"/></div>
-  <div className="chart-wrap food-history-chart">
-   <div className="chart-labels"><span>1700</span><span>1275</span><span>850</span><span>425</span><span>0</span></div>
-   <div className="bars" aria-label="Калории за последние 14 дней">{history.map(d=><div className="bar-slot" key={d.iso} title={`${d.short}: ${Math.round(d.calories)} ккал`}><i style={{height:`${Math.min(100,d.calories/1700*100)}%`}} className={d.iso===viewDate?"today":""}/></div>)}</div>
+ const chooseMode=(mode:NutritionInputMode)=>{setError("");setInputMode(mode)};
+ return <>
+  <header className="nutrition-hero">
+   <div><p className="eyebrow">NUTRITION HUB</p><h2>Nutrition Hub</h2><p>Топливо для твоих целей. Каждый выбор имеет значение.</p></div>
+   <div className="nutrition-date-control"><button type="button" onClick={()=>shiftDay(-1)} aria-label="Предыдущий день">←</button><label><CalendarDays size={14}/><input type="date" value={viewDate} max={today} onChange={e=>e.target.value&&setViewDate(e.target.value)}/></label><button type="button" onClick={()=>shiftDay(1)} disabled={viewDate>=today} aria-label="Следующий день">→</button></div>
+  </header>
+
+  <div className="nutrition-primary-grid">
+   <section className="nutrition-add-panel">
+    <div className="nutrition-panel-head"><div><p className="eyebrow">ДОБАВИТЬ ПРИЁМ ПИЩИ</p><h3>Как запишем еду?</h3></div><span><Sparkles size={13}/>AI внутри одного flow</span></div>
+    <div className="nutrition-methods" role="group" aria-label="Способ добавления приёма пищи">
+     <button type="button" className={`nutrition-method photo${inputMode==="photo"?" selected":""}${aiKeySet===false?" unavailable":""}`} aria-describedby={aiKeySet===false?"nutrition-ai-unavailable":undefined} disabled={aiBusy||aiKeySet===false} onClick={()=>{chooseMode("photo");photoInputRef.current?.click()}}><span><Camera size={22}/></span><b>{aiBusy&&inputMode==="photo"?"Распознаю…":"Фото"}</b><small>Сфотографируй блюдо — AI оценит состав и КБЖУ</small></button>
+     <button type="button" className={`nutrition-method${inputMode==="receipt"?" selected":""}${aiKeySet===false?" unavailable":""}`} aria-describedby={aiKeySet===false?"nutrition-ai-unavailable":undefined} disabled={aiBusy||aiKeySet===false} onClick={()=>{chooseMode("receipt");receiptInputRef.current?.click()}}><span><ReceiptText size={22}/></span><b>{aiBusy&&inputMode==="receipt"?"Распознаю…":"Фото + чек"}</b><small>До трёх изображений: блюдо, чек или меню</small></button>
+     <input ref={photoInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" data-mode="photo" onChange={photoAI} disabled={aiBusy} hidden/>
+     <input ref={receiptInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple data-mode="receipt" onChange={photoAI} disabled={aiBusy} hidden/>
+     <button type="button" className={`nutrition-method manual${inputMode==="manual"?" selected":""}`} onClick={()=>chooseMode("manual")}><span><PenLine size={22}/></span><b>Вручную</b><small>Опиши словами или вставь точные КБЖУ</small></button>
+    </div>
+    {aiKeySet===false&&<div id="nutrition-ai-unavailable" className="nutrition-ai-unavailable" role="status"><div><b>Распознавание фото сейчас недоступно</b><p>Добавь блюдо вручную — приложение не будет придумывать состав или КБЖУ.</p></div><button type="button" onClick={()=>chooseMode("manual")}>Добавить вручную</button><details><summary>Настроить распознавание</summary><AiKeySetup onReady={()=>setAiKeySet(true)}/></details></div>}
+    {inputMode&&<form className="nutrition-entry-workspace" onSubmit={submit}>
+     <div className="nutrition-entry-meta"><label>Дата<input name="date" type="date" defaultValue={viewDate} key={viewDate} required/></label><label>Приём пищи<select name="mealType" defaultValue="Завтрак"><option>Завтрак</option><option>Обед</option><option>Ужин</option><option>Перекус</option></select></label></div>
+     <label className="nutrition-entry-text"><span>{inputMode==="manual"?"Описание приёма пищи":"Результат распознавания"}<small>{inputMode==="manual"?"Можно словами или в точном формате КБЖУ":"Проверь и при необходимости исправь перед сохранением"}</small></span><textarea name="rawText" rows={6} required value={draftText} onChange={e=>setDraftText(e.target.value)} placeholder={inputMode==="manual"?'Например: Омлет из 3 яиц и овощи\n\nили: Омлет — 320 ккал (Б 24 / Ж 21 / У 8)':"После загрузки здесь появятся распознанные блюда"}/></label>
+     {aiNote&&<p className="food-ai-note"><b>Оценка AI:</b> {aiNote}<input type="hidden" name="note" value={aiNote}/></p>}
+     {error&&<div className="food-error">{error}</div>}
+     <div className="nutrition-entry-actions"><button type="button" className="ghost-btn" onClick={()=>{setInputMode(null);setError("")}}>Закрыть</button><button type="submit" disabled={saving||!draftText.trim()}><span>＋</span>{saving?"Обрабатываю…":"Добавить приём пищи"}</button></div>
+    </form>}
+    {error&&!inputMode&&<div className="food-error">{error}</div>}
+   </section>
+
+   <aside className="nutrition-day-column">
+    <section className="nutrition-balance">
+     <div className="nutrition-balance-head"><div><p className="eyebrow">СЕГОДНЯШНИЙ БАЛАНС</p><h3>{dayLabel(viewDate,today)}</h3></div><span>{nutritionCount(dayLogs.length,["приём","приёма","приёмов"])}</span></div>
+     <div className="nutrition-calorie-ring" style={{"--nutrition-progress":`${caloriePct}%`} as any}><div><b>{Math.round(sum.calories)}</b><span>ккал из 1700</span></div></div>
+     <div className="nutrition-macros"><Macro label="Белки" value={sum.protein} goal={150} unit="г"/><Macro label="Жиры" value={sum.fat} goal={60} unit="г"/><Macro label="Углеводы" value={sum.carbs} goal={170} unit="г"/></div>
+     <div className={`nutrition-remaining${remaining<0?" over":""}`}><span>{remaining>=0?"Осталось":"Сверх ориентира"}</span><b>{Math.abs(remaining)} ккал</b></div>
+    </section>
+    <section className="nutrition-water"><span><Droplets size={21}/></span><div><p className="eyebrow">ВОДА</p><h3>{waterKnown?`${waterLiters.toLocaleString("ru-RU")} л`:"Нет записи"}</h3><small>Заполняется в «Вечернем прогрессе»</small></div></section>
+    <section className="nutrition-coach-note"><span><Sparkles size={18}/></span><div><p className="eyebrow">VOLT COACH · ПО ДАННЫМ ДНЯ</p><p>{coachNote}</p><button type="button" className="nutrition-coach-action" onClick={onAskCoach}>Открыть Coach</button></div></section>
+   </aside>
   </div>
-  {aiKeySet===false&&<AiKeySetup onReady={()=>setAiKeySet(true)}/>}<form onSubmit={submit}><label className="food-date">Дата<input name="date" type="date" defaultValue={viewDate} key={viewDate} required/></label><label className="food-kind">Приём пищи<select name="mealType" defaultValue="Завтрак"><option>Завтрак</option><option>Обед</option><option>Ужин</option><option>Перекус</option></select></label><div className="food-photo-row"><label className="food-photo">{aiBusy?"⏳ Распознаю…":"📷 Снять фото"}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={photoAI} disabled={aiBusy||!aiKeySet} hidden/></label><label className="food-photo">{aiBusy?"⏳ Распознаю…":"🖼 Из галереи"}<input type="file" accept="image/jpeg,image/png,image/webp" multiple onChange={photoAI} disabled={aiBusy||!aiKeySet} hidden/></label></div>{aiNote&&<p className="food-ai-note"><b>Оценка:</b> {aiNote}<input type="hidden" name="note" value={aiNote}/></p>}<label className="food-text">Вставьте описание приёма пищи (можно просто словами — ИИ оценит КБЖУ)<textarea name="rawText" rows={8} required placeholder={'Например: Омлет из 5 яиц + чашка рамен\n\nили точный формат:\n🍲 Бульон говяжий с яйцом — 130 ккал (Б 10 / Ж 8 / У 2)\n🦃 Индейка запечённая — 350 ккал (Б 58 / Ж 11 / У 3)'}/></label>{error&&<div className="food-error">{error}</div>}<button type="submit" disabled={saving}><span>＋</span>{saving?"Обрабатываю…":"Отправить и рассчитать"}</button></form>{dayLogs.length>0&&<div className="food-log-list">{dayLogs.map((log:any)=><article key={log.id} className={`meal-${String(log.mealType).toLowerCase()}`}><header><div><em>{log.mealType}</em><b>{log.items.length} блюда</b></div><span>{Math.round(log.calories)} ккал · Б {log.protein} / Ж {log.fat} / У {log.carbs}</span><button onClick={()=>remove(log.id)} aria-label={`Удалить ${log.mealType}`} title="Удалить запись">×</button></header>{log.items.map((x:any)=><p key={x.name}><span>{x.name}</span><b>{x.calories} ккал</b></p>)}{log.note&&<footer className="food-note">💬 {log.note}</footer>}</article>)}</div>}</section>
+
+  <section className="nutrition-meals-section">
+   <div className="nutrition-section-head"><div><p className="eyebrow">ПРИЁМЫ ПИЩИ</p><h3>{dayLogs.length?nutritionCount(dayLogs.length,["запись","записи","записей"]):"День пока пуст"}</h3></div>{!dayLogs.length&&<button type="button" className="ghost-btn" onClick={()=>{chooseMode("manual");requestAnimationFrame(()=>document.querySelector(".nutrition-add-panel")?.scrollIntoView({behavior:"smooth",block:"start"}))}}>Добавить вручную</button>}</div>
+   {dayLogs.length?<div className="food-log-list">{dayLogs.map((log:any,index:number)=><article key={log.id} className={`meal-${String(log.mealType).toLowerCase()}`}><span className="nutrition-meal-index">{String(index+1).padStart(2,"0")}</span><div className="nutrition-meal-copy"><header><div><em>{log.mealType}</em><b>{nutritionCount(log.items.length,["блюдо","блюда","блюд"])}</b></div><button onClick={()=>remove(log.id)} aria-label={`Удалить ${log.mealType}`} title="Удалить запись">×</button></header>{log.items.map((x:any)=><p key={x.name}><span>{x.name}</span><b>{x.calories} ккал</b></p>)}{log.note&&<footer className="food-note">{log.note}</footer>}</div><div className="nutrition-meal-total"><b>{Math.round(log.calories)}<small>ккал</small></b><span>Б {Math.round(log.protein)} · Ж {Math.round(log.fat)} · У {Math.round(log.carbs)}</span></div></article>)}</div>:<div className="nutrition-empty"><Utensils size={25}/><div><b>Добавь первый приём пищи</b><p>Баланс и рекомендации появятся только после реальной записи.</p></div></div>}
+  </section>
+
+  <details className="nutrition-history"><summary><span><p className="eyebrow">ИСТОРИЯ</p><b>Калории за последние 14 дней</b></span><ChevronDown size={17}/></summary><div className="chart-wrap food-history-chart"><div className="chart-labels"><span>1700</span><span>1275</span><span>850</span><span>425</span><span>0</span></div><div className="bars" aria-label="Калории за последние 14 дней">{history.map(d=><div className="bar-slot" key={d.iso} title={`${d.short}: ${d.hasData?`${Math.round(d.calories)} ккал`:"нет записи"}`}><i style={{height:`${Math.min(100,d.calories/1700*100)}%`}} className={d.iso===viewDate?"today":""}/></div>)}</div></div><div className="nutrition-history-list" aria-label="Последние 7 дней">{history.slice(-7).reverse().map((d,index)=><div className={d.iso===viewDate?"today":""} key={d.iso}><span>{index===0?"Сегодня":d.short}</span><i aria-hidden="true"><b style={{width:`${Math.min(100,d.calories/1700*100)}%`}}/></i><strong>{d.hasData?`${Math.round(d.calories)} ккал`:"нет записи"}</strong></div>)}</div></details>
+ </>;
 }
-function Macro({label,value,goal,unit}:{label:string;value:number;goal:number;unit:string}){const p=Math.min(100,Math.round(value/goal*100));return <article><div><span>{label}</span><b>{Math.round(value)} / {goal} {unit}</b></div><div className="macro-bar"><i style={{width:`${p}%`}}/></div><small>{p}%</small></article>}
+
+function Macro({label,value,goal,unit}:{label:string;value:number;goal:number;unit:string}){const p=Math.min(100,Math.round(value/goal*100));return <div className={`nutrition-macro macro-${label.toLowerCase()}`}><div><span>{label}</span><b>{Math.round(value)} <small>/ {goal} {unit}</small></b></div><div className="macro-bar"><i style={{width:`${p}%`}}/></div></div>}
+
+function NutritionProgramGuide(){return <details className="nutrition-program-guide"><summary><span><p className="eyebrow">ОРИЕНТИРЫ ПРОГРАММЫ</p><b>Шаблон питания и правила</b></span><ChevronDown size={17}/></summary><div className="nutrition-program-content"><div className="nutrition-program-meals">{meals.map((m,i)=><article key={m[0]}><span>{String(i+1).padStart(2,"0")}</span><div><small>{m[0]}</small><h3>{m[1]}</h3></div><b>{m[2]}</b></article>)}</div><div className="nutrition-program-rules"><article><small>БЕЛОК</small><h3>Чередуй источники</h3><p>Курица, индейка, постная говядина, рыба, яйца, творог 5%, греческий йогурт и протеин.</p></article><article><small>ПИВО</small><h3>До 2 × 0,5 л в неделю</h3><p>≈ 450–500 ккал. Убрать хлеб на завтрак и гарнир на ужин. Не пить в день силовой и сразу после.</p></article><article><small>ПЕРЕДЫШКА</small><h3>Каждые 6–8 недель</h3><p>Неделя поддержки около 2300 ккал. Не опускаться ниже 1600 и не голодать после «плохого» дня.</p></article></div></div></details>}
 
 function ProgressPage({data,refresh,coachAction,initialTab}:{data:any;refresh:()=>void;coachAction:CoachAction|null;initialTab?:string|null}){
  const notify=useToast();
- const [tab,setTab]=useState(initialTab||"Тело");
+ const [tab,setTab]=useState(initialTab||"Путь");
  const [formOpen,setFormOpen]=useState(false);
  const [chartPeriod,setChartPeriod]=useState<Period>("3M");
  const [historyPeriod,setHistoryPeriod]=useState<Period>("ALL");
@@ -343,10 +749,10 @@ function ProgressPage({data,refresh,coachAction,initialTab}:{data:any;refresh:()
  const deletePhoto=async(id:number)=>{if(!confirm("Удалить это фото? Действие необратимо."))return;await fetch(`/api/photos?id=${id}`,{method:"DELETE"});notify("Фото удалено");refresh()};
  const deleteMeasurementRow=async(id:number)=>{if(!confirm("Удалить этот замер?"))return;await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteMeasurement",id})});notify("Замер удалён");refresh()};
  const submitEdit=async(e:any,id:number)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"updateMeasurement",id,...b})});setEditingId(null);refresh();notify("Замер обновлён")};
- const submitProfile=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"profile",...b})});notify("Профиль обновлён");refresh()};
 
- return <div className="detail-page"><Intro k="МОЯ ИСТОРИЯ" t={profile.name} p="Как ты изменился за недели и месяцы: вес, замеры, тренировки и фото — в одном месте."/>
- <div className="metric-tabs" role="group" aria-label="Раздел прогресса">{["Тело","Тренировки","Аналитика","Состояние","Вехи"].map(x=><button key={x} type="button" data-tour-id={x==="Аналитика"?"tab-analytics":undefined} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
+ return <div className="detail-page journey-page">
+ <div className="metric-tabs journey-tabs" role="group" aria-label="Раздел прогресса">{["Путь","Тело","Тренировки","Состояние","Вехи"].map(x=><button key={x} type="button" data-tour-id={x==="Тело"?"progress-body-tab":undefined} className={tab===x?"active":""} onClick={()=>setTab(x)}>{x}</button>)}</div>
+ {tab==="Путь"&&<JourneyOverview data={data} profile={profile} summary={summary} onOpenTab={setTab}/>}
  {tab==="Тело"&&<>
  <ProgressSummaryHero summary={summary} profile={profile}/>
 
@@ -371,22 +777,212 @@ function ProgressPage({data,refresh,coachAction,initialTab}:{data:any;refresh:()
  <Notice/>
 
  <ProgramStages stages={data.programStages||[]} refresh={refresh}/>
- <ProfileSection profile={profile} onSubmit={submitProfile}/>
  </>}
  {tab==="Тренировки"&&<>
  <WorkoutHistory workouts={data.workouts||[]} refresh={refresh}/>
  <StrengthLog data={data} refresh={refresh}/>
  <StrengthAdvice data={data} coachAction={coachAction}/>
  <PersonalRecords data={data}/>
- <GarminImport refresh={refresh}/>
- </>}
- {tab==="Аналитика"&&<>
- <TrainingAnalytics data={data}/>
- <TrainingCalendar data={data}/>
  </>}
  {tab==="Состояние"&&<MoodSection data={data} refresh={refresh}/>}
  {tab==="Вехи"&&<MilestonesSection data={data} refresh={refresh}/>}
  </div>
+}
+
+type JourneyOverviewEvent={id:string;date:string;kind:string;title:string;summary:string};
+
+function journeyNumber(value:number){return new Intl.NumberFormat("ru-RU",{maximumFractionDigits:1}).format(value)}
+function journeyDuration(seconds:number){
+ const totalMinutes=Math.round(Math.max(0,seconds)/60),hours=Math.floor(totalMinutes/60),minutes=totalMinutes%60;
+ if(seconds>0&&totalMinutes===0)return "<1 мин";
+ return hours?`${hours} ч${minutes?` ${minutes} мин`:""}`:`${minutes} мин`;
+}
+function journeyDate(iso:string){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(iso))return iso;
+ return new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short"}).format(new Date(`${iso}T12:00:00`)).replace(".","");
+}
+function journeyEventLabel(kind:string){
+ if(kind==="photo-checkpoint")return "Фото прогресса";
+ if(kind==="personal-record")return "Личный рекорд";
+ if(kind==="new-min-weight")return "Вес";
+ if(kind==="program-stage-completed")return "Этап программы";
+ if(kind==="best-month-regularity")return "Регулярность";
+ if(kind==="swim-workout")return "Плавание";
+ if(kind==="workout")return "Тренировка";
+ if(kind==="manual")return "Личная веха";
+ return "Достижение";
+}
+function JourneyEventIcon({kind}:{kind:string}){
+ if(kind==="photo-checkpoint")return <Camera size={18}/>;
+ if(kind==="swim-workout")return <Waves size={18}/>;
+ if(kind==="new-min-weight")return <ChartColumn size={18}/>;
+ if(kind==="program-stage-completed")return <Route size={18}/>;
+ if(kind==="personal-record")return <Dumbbell size={18}/>;
+ return <Sparkles size={18}/>;
+}
+
+// Journey — presentation-only обзор уже накопленной истории. Все цифры и
+// события выводятся из загруженных measurements/workouts/strengthLogs/photos,
+// а достижения — через тот же детерминированный useMilestones, что использует
+// существующая вкладка «Вехи». Новых метрик, запросов и хранилищ здесь нет.
+function JourneyOverview({data,profile,summary,onOpenTab}:{data:any;profile:{name:string;height:number;startWeight:number;targetWeight:number};summary:ProgressSummary;onOpenTab:(tab:string)=>void}){
+ const milestones=useMilestones(data);
+ const [photosRevealed,setPhotosRevealed]=useState(false);
+ const anchor=useMemo(()=>new Date(),[]);
+ const workouts=useMemo(()=>[...(data.workouts||[])].sort((a:any,b:any)=>b.date.localeCompare(a.date)||Number(b.id)-Number(a.id)),[data.workouts]);
+ const measurements=useMemo(()=>[...(data.measurements||[])].filter((item:any)=>item.weight!=null&&Number.isFinite(Number(item.weight))).sort((a:any,b:any)=>a.date.localeCompare(b.date)||Number(a.id)-Number(b.id)),[data.measurements]);
+ const photos=useMemo(()=>[...(data.photos||[])].sort((a:any,b:any)=>a.date.localeCompare(b.date)||Number(a.id)-Number(b.id)),[data.photos]);
+ const currentWeight=measurements.length?Number(measurements[measurements.length-1].weight):null;
+ const startWeight=Number(profile.startWeight);
+ const weightChange=currentWeight==null?null:Math.round((currentWeight-startWeight)*10)/10;
+ const heroValue=weightChange==null?(workouts.length?String(workouts.length):"Старт"):`${weightChange<0?"−":weightChange>0?"+":""}${journeyNumber(Math.abs(weightChange))}`;
+ const heroUnit=weightChange==null?(workouts.length?"тренировок":""):"кг";
+ const heroContext=weightChange==null?(workouts.length?"сохранено в истории":"путь только начинается"):"от стартовой точки";
+ const totalDuration=workouts.reduce((sum:number,item:any)=>sum+(Number(item.durationSeconds)||0),0);
+ const personalRecords=milestones.filter(item=>item.kind==="personal-record").length;
+ const streak=calcStreak(workouts);
+ const programWeek=currentProgramWeek(data.profile?.programStart);
+
+ const events=useMemo<JourneyOverviewEvent[]>(()=>{
+  const picked:JourneyOverviewEvent[]=[];
+  const seenKinds=new Set<string>();
+  for(const item of milestones){
+   if(seenKinds.has(item.kind))continue;
+   seenKinds.add(item.kind);
+   picked.push({id:item.id,date:item.occurredAt,kind:item.kind,title:item.title,summary:item.summary});
+   if(picked.length===5)break;
+  }
+  const addWorkout=(item:any,kind:string)=>{
+   if(!item||picked.some(event=>event.id===`${kind}-${item.id}`))return;
+   const duration=Number(item.durationSeconds)>0?` · ${journeyDuration(Number(item.durationSeconds))}`:"";
+   picked.push({id:`${kind}-${item.id}`,date:item.date,kind,title:item.title,summary:`${item.type||"Тренировка"}${duration}`});
+  };
+  addWorkout(workouts[0],"workout");
+  const swim=workouts.find((item:any)=>/плав|swim|бассейн/i.test(`${item.type||""} ${item.title||""}`));
+  if(swim?.id!==workouts[0]?.id)addWorkout(swim,"swim-workout");
+  return picked.sort((a,b)=>b.date.localeCompare(a.date)||a.id.localeCompare(b.id)).slice(0,7);
+ },[milestones,workouts]);
+
+ const strengthBest=useMemo(()=>{
+  const byExercise=new Map<string,{weight:number;date:string}>();
+  for(const item of data.strengthLogs||[]){
+   const weight=Number(item.weight)||0;
+   if(weight<=0)continue;
+   const current=byExercise.get(item.exercise);
+   if(!current||weight>current.weight||(weight===current.weight&&item.date>current.date))byExercise.set(item.exercise,{weight,date:item.date});
+  }
+  return [...byExercise.entries()].map(([exercise,value])=>({exercise,...value})).sort((a,b)=>b.weight-a.weight||a.exercise.localeCompare(b.exercise)).slice(0,4);
+ },[data.strengthLogs]);
+
+ const weightTrend=useMemo(()=>{
+  const points=measurements.slice(-8).map((item:any)=>Number(item.weight));
+  if(!points.length)return [];
+  const min=Math.min(...points),max=Math.max(...points),range=max-min;
+  return points.map((value,index)=>({id:measurements.slice(-8)[index].id,height:range?24+((value-min)/range)*66:52,value}));
+ },[measurements]);
+
+ const monthlyVolume=useMemo(()=>{
+  const counts=new Map<string,number>();
+  for(const item of workouts)counts.set(item.date.slice(0,7),(counts.get(item.date.slice(0,7))||0)+1);
+  return [...Array(6)].map((_,index)=>{
+   const date=new Date(anchor.getFullYear(),anchor.getMonth()-(5-index),1),key=`${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}`;
+   return {key,label:new Intl.DateTimeFormat("ru-RU",{month:"short"}).format(date).replace(".",""),value:counts.get(key)||0};
+  });
+ },[workouts,anchor]);
+ const maxMonth=Math.max(1,...monthlyVolume.map(item=>item.value));
+
+ const activityMap=useMemo(()=>{
+  const map=new Map<string,number>();
+  for(const item of workouts)map.set(item.date,(map.get(item.date)||0)+1);
+  for(const item of data.activity||[]){
+   const active=Number(item.activeMinutes)>0||Number(item.steps)>0||Boolean(item.walk);
+   if(active)map.set(item.date,Math.max(1,map.get(item.date)||0));
+  }
+  return map;
+ },[workouts,data.activity]);
+ const heatmapCells=useMemo(()=>[...Array(112)].map((_,index)=>{
+  const date=new Date(anchor);date.setDate(anchor.getDate()-(111-index));
+  const iso=localIso(date),value=activityMap.get(iso)||0;
+  return {iso,value};
+ }),[anchor,activityMap]);
+ const activeDays=heatmapCells.filter(item=>item.value>0).length;
+ const firstPhoto=photos[0]||null,lastPhoto=photos.length>1?photos[photos.length-1]:null;
+
+ return <div className="journey-overview">
+  <section className="journey-hero" aria-labelledby="journey-achievement-title">
+   <div className="journey-hero-copy">
+    <span>ГЛАВНОЕ ИЗМЕНЕНИЕ</span>
+    <p className="journey-achievement"><b>{heroValue}</b>{heroUnit&&<small>{heroUnit}</small>}</p>
+    <p className="journey-achievement-context"><Flame size={15}/>{heroContext}</p>
+    <h2 id="journey-achievement-title">Твой путь уже складывается из реальных действий</h2>
+    <p>Неделя {programWeek}. Продолжай в том же ритме — здесь остаются только подтверждённые изменения и события.</p>
+    <button type="button" onClick={()=>onOpenTab("Тело")}>Смотреть прогресс <span aria-hidden="true">→</span></button>
+   </div>
+   <div className="journey-hero-mark" aria-hidden="true"><span>V</span></div>
+   <div className="journey-hero-stats" aria-label="Ключевые факты пути">
+    <article><span><Dumbbell size={17}/></span><div><b>{workouts.length}</b><small>тренировок</small></div></article>
+    <article><span><Sparkles size={17}/></span><div><b>{personalRecords}</b><small>личных рекордов</small></div></article>
+    <article><span><Clock3 size={17}/></span><div><b>{journeyDuration(totalDuration)}</b><small>времени тренировок</small></div></article>
+    <article><span><Flame size={17}/></span><div><b>{streak} {daysLabel(streak)}</b><small>текущая серия</small></div></article>
+   </div>
+  </section>
+
+  <section className="journey-events" aria-labelledby="journey-events-title">
+   <header><div><p className="eyebrow">ЛЕНТА СОБЫТИЙ</p><h2 id="journey-events-title">Ключевые изменения</h2></div><button type="button" onClick={()=>onOpenTab("Вехи")}>Все события →</button></header>
+   {events.length?<ol>{events.map(event=><li key={event.id}>
+    <time dateTime={event.date}>{journeyDate(event.date)}</time>
+    <span className="journey-event-icon"><JourneyEventIcon kind={event.kind}/></span>
+    <div><small>{journeyEventLabel(event.kind)}</small><b>{event.title}</b><p>{event.summary}</p></div>
+   </li>)}</ol>:<div className="journey-empty"><Sparkles size={22}/><p>Первое событие появится после сохранённой тренировки, замера или личной вехи.</p></div>}
+  </section>
+
+  <header className="journey-section-heading"><p className="eyebrow">ТОГДА → СЕЙЧАС</p><h2>Изменения, которые уже случились</h2></header>
+  <div className="journey-story-grid">
+   <section className="journey-story-card journey-weight-card">
+    <header><div><p className="eyebrow">ВЕС</p><h3>{currentWeight!=null?`${journeyNumber(currentWeight)} кг`:"Нет замеров"}</h3></div>{weightChange!=null&&<span className={weightChange<=0?"positive":"neutral"}>{weightChange>0?"+":weightChange<0?"−":""}{journeyNumber(Math.abs(weightChange))} кг</span>}</header>
+    <div className="journey-weight-trend" aria-label="История веса">{weightTrend.length?weightTrend.map(item=><i key={item.id} style={{height:`${item.height}%`}} title={`${journeyNumber(item.value)} кг`}/>):<span>Добавь первый замер, чтобы появилась история.</span>}</div>
+    <div className="journey-then-now"><span><small>Тогда</small><b>{journeyNumber(startWeight)} кг</b></span><i aria-hidden="true">→</i><span><small>Сейчас</small><b>{currentWeight!=null?`${journeyNumber(currentWeight)} кг`:"—"}</b></span></div>
+    <button type="button" onClick={()=>onOpenTab("Тело")}>Подробнее</button>
+   </section>
+
+   <section className="journey-story-card journey-photo-card">
+    <header><div><p className="eyebrow">ФОТО ПРОГРЕСС</p><h3>{photos.length?`${photos.length} ${photos.length===1?"точка":"точки"}`:"Пока без фото"}</h3></div><Camera size={19}/></header>
+    {firstPhoto?<div className={`journey-photo-pair${photosRevealed?" revealed":""}`}>
+     <figure><img src={firstPhoto.url} alt="Первое фото прогресса"/><figcaption>{firstPhoto.date}</figcaption></figure>
+     {lastPhoto?<figure><img src={lastPhoto.url} alt="Последнее фото прогресса"/><figcaption>{lastPhoto.date}</figcaption></figure>:<div className="journey-photo-placeholder"><Camera size={22}/><span>Нужна вторая точка</span></div>}
+     <button type="button" className="journey-photo-reveal" onClick={()=>setPhotosRevealed(value=>!value)}>{photosRevealed?"Скрыть фото":"Показать фото"}</button>
+    </div>:<div className="journey-story-empty"><Camera size={26}/><p>Добавь первое контрольное фото. Оно останется скрытым по умолчанию.</p></div>}
+    <button type="button" onClick={()=>onOpenTab("Тело")}>{photos.length?"Открыть все фото":"Добавить фото"}</button>
+   </section>
+
+   <section className="journey-story-card journey-strength-card">
+    <header><div><p className="eyebrow">СИЛА</p><h3>Лучшие результаты</h3></div><Dumbbell size={19}/></header>
+    {strengthBest.length?<div className="journey-strength-list">{strengthBest.map(item=><article key={item.exercise}><span><b>{item.exercise}</b><small>{item.date}</small></span><strong>{journeyNumber(item.weight)} кг</strong></article>)}</div>:<div className="journey-story-empty"><Dumbbell size={26}/><p>Рабочие веса появятся после подтверждённых силовых записей.</p></div>}
+    <button type="button" onClick={()=>onOpenTab("Тренировки")}>Все упражнения</button>
+   </section>
+
+   <section className="journey-story-card journey-volume-card">
+    <header><div><p className="eyebrow">ОБЪЁМ ТРЕНИРОВОК</p><h3>{journeyDuration(totalDuration)}</h3><small>общее подтверждённое время</small></div><Clock3 size={19}/></header>
+    <div className="journey-volume-bars" aria-label="Тренировки по месяцам">{monthlyVolume.map(item=><span key={item.key}><i className={item.value?undefined:"empty"} style={{height:item.value?`${item.value/maxMonth*100}%`:"2px"}} title={`${item.value} тренировок`}/><small>{item.label}</small></span>)}</div>
+    <button type="button" onClick={()=>onOpenTab("Тренировки")}>Журнал тренировок</button>
+   </section>
+  </div>
+
+  <div className="journey-bottom-grid">
+   <section className="journey-activity-panel">
+    <header><div><p className="eyebrow">КАЛЕНДАРЬ АКТИВНОСТИ</p><h3>Последние 16 недель</h3></div><span><b>{activeDays}</b><small>активных дней</small></span></header>
+    <div className="journey-heatmap" aria-label="Календарь активности за последние 16 недель">{heatmapCells.map(item=><i key={item.iso} className={`level-${Math.min(3,item.value)}`} title={`${item.iso}: ${item.value?"есть активность":"нет активности"}`}/>)}</div>
+    <footer><span><small>Тренировок</small><b>{workouts.length}</b></span><span><small>Текущая серия</small><b>{streak} {daysLabel(streak)}</b></span><span><small>Последний замер</small><b>{summary.lastDate||"—"}</b></span></footer>
+   </section>
+
+   <section className="journey-milestones-panel">
+    <header><div><p className="eyebrow">МОИ ВЕХИ</p><h3>То, что уже достигнуто</h3></div><button type="button" onClick={()=>onOpenTab("Вехи")}>Все вехи →</button></header>
+    {milestones.length?<div>{milestones.slice(0,6).map(item=><article key={item.id}><span><JourneyEventIcon kind={item.kind}/></span><div><b>{item.title}</b><small>{journeyDate(item.occurredAt)}</small></div></article>)}</div>:<div className="journey-empty"><Sparkles size={22}/><p>Вехи появятся только из реальных тренировок, замеров, фото и этапов.</p></div>}
+   </section>
+  </div>
+
+  <blockquote className="journey-quote"><span aria-hidden="true">“</span><p><b>Дисциплина сегодня</b> — свобода завтра.<small>Ты не соревнуешься с другими. Ты становишься лучшей версией себя.</small></p></blockquote>
+ </div>;
 }
 
 function ProgressSummaryHero({summary,profile}:{summary:ProgressSummary;profile:{startWeight:number;targetWeight:number}}){
@@ -569,12 +1165,6 @@ function HistoryEditForm({entry,onCancel,onSave}:{entry:HistoryEntry;onCancel:()
  </form>
 }
 
-function ProfileSection({profile,onSubmit}:{profile:{name:string;height:number;startWeight:number;targetWeight:number};onSubmit:(e:any)=>void}){
- return <details className="profile-collapse"><summary><p className="eyebrow">ПРОФИЛЬ И ЦЕЛЬ</p><h3>{profile.name}</h3></summary>
-  <form className="data-form" onSubmit={onSubmit}><label>Имя<input name="name" defaultValue={profile.name}/></label><label>Рост<input name="height" type="number" defaultValue={profile.height}/></label><label>Стартовый вес<input name="startWeight" type="number" step="0.1" defaultValue={profile.startWeight}/></label><label>Цель<input name="targetWeight" type="number" step="0.1" defaultValue={profile.targetWeight}/></label><button>Сохранить профиль</button></form>
- </details>
-}
-
 type Stage={id:number;kind:string;title:string;startDate:string;endDate:string|null;note:string;goal:string};
 const STAGE_KIND_LABELS:Record<string,string>={start:"Старт",home:"Дома",pool:"Бассейн",gym:"Зал",custom:"Свой этап"};
 
@@ -692,35 +1282,6 @@ function WeeklyDigest({data,weekWorkouts,weekDates,currentWeight}:{data:any;week
 }
 
 
-function urlBase64ToUint8Array(base64:string){const padding="=".repeat((4-base64.length%4)%4);const b64=(base64+padding).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(b64);const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;++i)out[i]=raw.charCodeAt(i);return out}
-function PushToggle(){
- const notify=useToast();
- const [enabled,setEnabled]=useState(false), [busy,setBusy]=useState(false), supported=typeof window!=="undefined"&&"serviceWorker" in navigator&&"PushManager" in window;
- useEffect(()=>{if(!supported)return;navigator.serviceWorker.ready.then(reg=>reg.pushManager.getSubscription()).then(sub=>setEnabled(!!sub)).catch(()=>{})},[supported]);
- if(!supported)return null;
- const toggle=async()=>{
-  setBusy(true);
-  try{
-   const reg=await navigator.serviceWorker.ready;
-   if(enabled){
-    const sub=await reg.pushManager.getSubscription();
-    if(sub){await fetch("/api/push",{method:"DELETE",headers:{"content-type":"application/json"},body:JSON.stringify({endpoint:sub.endpoint})});await sub.unsubscribe()}
-    setEnabled(false);
-    notify("Напоминания выключены");
-   }else{
-    const perm=await Notification.requestPermission();
-    if(perm!=="granted")return;
-    const key=process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY||"";
-    const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(key)});
-    await fetch("/api/push",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(sub.toJSON())});
-    setEnabled(true);
-    notify("Напоминания включены");
-   }
-  }finally{setBusy(false)}
- };
- return <button type="button" className="push-toggle" onClick={toggle} disabled={busy}>{enabled?"🔔 Напоминание включено":"🔕 Включить напоминание"}</button>
-}
-
 function calcStreak(logs:any[]){const set=new Set(logs.map(x=>x.date));const d=new Date();if(!set.has(localIso(d)))d.setDate(d.getDate()-1);let n=0,misses=0;while(true){if(set.has(localIso(d))){n++;misses=0}else{misses++;if(misses>1)break}d.setDate(d.getDate()-1)}return n}
 function projectGoalDate(measurements:any[],target:number):string|null{
  const all=[...measurements].filter((m:any)=>m.weight!=null).sort((a:any,b:any)=>a.date.localeCompare(b.date));
@@ -743,7 +1304,14 @@ function projectGoalDate(measurements:any[],target:number):string|null{
 }
 function localIso(d:Date){const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)}
 function formatDateLabel(d:Date){const days=["ВОСКРЕСЕНЬЕ","ПОНЕДЕЛЬНИК","ВТОРНИК","СРЕДА","ЧЕТВЕРГ","ПЯТНИЦА","СУББОТА"],months=["ЯНВАРЯ","ФЕВРАЛЯ","МАРТА","АПРЕЛЯ","МАЯ","ИЮНЯ","ИЮЛЯ","АВГУСТА","СЕНТЯБРЯ","ОКТЯБРЯ","НОЯБРЯ","ДЕКАБРЯ"];return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]}`}
+// Русская плюрализация «день/дня/дней». Прежние варианты давали «0 дня»
+// и «11 дня» — теперь 0 → дней, 1 → день, 2–4 → дня, 5–20 → дней, 21 → день.
+function daysLabel(n:number){
+ const mod10=n%10, mod100=n%100;
+ if(mod10===1&&mod100!==11)return "день";
+ if(mod10>=2&&mod10<=4&&(mod100<12||mod100>14))return "дня";
+ return "дней";
+}
 function pct(value:any,goal:number){return Math.max(0,Math.min(100,Math.round((Number(value)||0)/goal*100)))}
 function fmt(value:any){return Number(value||0).toLocaleString("ru-RU")}
 function makeWeek(logs:any[]){const now=new Date(),today=localIso(now), monday=new Date(now);monday.setDate(now.getDate()-((now.getDay()+6)%7));const labels=["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"];return labels.map((short,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);const iso=localIso(d),count=logs.filter(x=>x.date===iso).length;return{short,date:String(d.getDate()),iso,count,state:count?"done":iso===today?"active":iso<today?"missed":"future"}})}
-function orderedPlans(plans:any[],today:number){return [...plans].sort((a,b)=>((a.day-today+7)%7)-((b.day-today+7)%7))}

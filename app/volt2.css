@@ -1,0 +1,2013 @@
+/* =========================================================================
+   VOLT 2.0 — общий application shell и экраны основного приложения.
+   Presentation layer поверх существующей разметки:
+   бизнес-логика, API, маршруты и состояние не затрагиваются.
+   Источники: docs/design-system/{01-design-principles,02-colors,03-typography,
+   04-spacing,05-glass-system,06-motion}.md, components/{hero,cards,navigation}.md,
+   screens/home.md, эталон assets/approved-screens/home-approved.png,
+   фон docs/design/VOLT_BACKGROUND.md → /backgrounds/volt-2-gym-neon.webp.
+
+   Дисциплина цвета (02-colors.md + бриф): лайм — ТОЛЬКО основной CTA,
+   активный пункт навигации и мелкие индикаторы. Границы поверхностей —
+   нейтральные светлые, не лаймовые. Основная масса интерфейса графитовая.
+   ========================================================================= */
+:root{
+  /* Стекло: одна система на все панели (05-glass-system.md).
+     Каждая поверхность = sheen (едва заметное отражение у освещённого
+     края) + тонированная база. Плотность различается по роли поверхности
+     (иерархия прозрачности), не по случайному разнообразию. */
+  /* Sheen = мягкий световой блик у верхнего/левого края (light-catch) +
+     диагональное микро-отражение. Это собственная характеристика МАТЕРИАЛА
+     стекла — она не зависит от того, что именно видно сквозь blur в этой
+     точке фона, поэтому поверхность читается как стекло даже над тёмным
+     (нижним/напольным) участком фиксированного фона, не только над Hero. */
+  --v2-sheen:radial-gradient(120% 60% at 20% -6%,rgba(255,255,255,.14),transparent 58%),linear-gradient(135deg,rgba(255,255,255,.07) 0%,rgba(255,255,255,0) 32%);
+  /* Контентные поверхности: карточки, metric strip — самые лёгкие, чуть
+     прозрачнее, чтобы blur давал живую текстуру, а не плоскую заливку. */
+  --v2-glass:var(--v2-sheen),linear-gradient(160deg,rgba(28,33,37,.42),rgba(14,17,20,.34));
+  --v2-glass-raised:var(--v2-sheen),linear-gradient(160deg,rgba(33,39,44,.52),rgba(17,21,24,.42));
+  /* Архитектурная поверхность: Sidebar — устойчивая, но не глухая. */
+  --v2-glass-arch:var(--v2-sheen),linear-gradient(180deg,rgba(21,25,28,.42),rgba(11,14,16,.52));
+  /* Фокусная поверхность: Hero — плотнее контентных, но остаётся стеклом. */
+  --v2-glass-hero:linear-gradient(100deg,rgba(20,24,28,.6) 0%,rgba(16,19,22,.4) 46%,rgba(15,18,21,.2) 100%),var(--v2-sheen);
+  --v2-border:rgba(255,255,255,.09);
+  --v2-border-hover:rgba(255,255,255,.18);
+  --v2-inset:inset 0 1px 0 rgba(255,255,255,.1);
+  --v2-shadow:0 20px 48px -30px rgba(0,0,0,.75);
+  --v2-shadow-lift:0 30px 64px -30px rgba(0,0,0,.85);
+  --v2-radius-xl:30px;
+  --v2-radius-lg:22px;
+  --v2-radius-md:16px;
+  /* Воздух: единый ритм секций (04-spacing.md) */
+  --v2-section-gap:clamp(34px,4.6vw,60px);
+  --v2-gap:clamp(12px,1.4vw,18px);
+  --v2-pad:clamp(20px,2.1vw,28px);
+  /* Motion (06-motion.md): 80/160/240/400ms, transform+opacity */
+  --v2-fast:160ms;
+  --v2-base:240ms;
+  --v2-ease:cubic-bezier(.2,.8,.2,1);
+}
+
+/* ========== App Background Architecture (01-design-principles.md) ==========
+   Утверждённое изображение зала — АРХИТЕКТУРНЫЙ СЛОЙ приложения, а не
+   содержимое какого-либо компонента:
+   • ровно один экземпляр изображения на всю страницу — им владеет контейнер
+     страницы .app-shell (псевдоэлемент ::before), больше нигде оно не
+     объявляется и не повторяется;
+   • Hero, Sidebar, панель метрик и все карточки лежат ПОВЕРХ этого общего
+     фона и не содержат собственного media-слоя;
+   • без split-layout: изображение занимает всё пространство страницы, а не
+     отдельную колонку/зону;
+   • атмосфера непрерывна — слой position:fixed, поэтому зал не заканчивается
+     после Hero и сопровождает всю прокрутку;
+   • читаемость обеспечивают затемнение + виньетка (::after) и стеклянные
+     поверхности, а не обрезка изображения.
+   Слой не применяется к .swim-shell — у модуля Swim собственный
+   утверждённый фон (docs/design/VOLT_SWIM.md). */
+body{background-image:none;background-color:var(--bg)}
+
+/* Auth и компактный Widget не рендерят .app-shell, поэтому получают тот же
+   единственный архитектурный фон на уровне body. */
+body:has(.auth-screen),body:has(.volt-widget-page){
+  background-color:#050807;
+  background-image:url('/backgrounds/volt-2-gym-neon.webp');
+  background-repeat:no-repeat;
+  background-position:center center;
+  background-size:cover;
+  background-attachment:fixed;
+}
+.auth-screen{background:linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.66))}
+
+.app-shell:not(.swim-shell){position:relative;isolation:isolate}
+.app-shell:not(.swim-shell)::before{
+  content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
+  background-image:url('/backgrounds/volt-2-gym-neon.webp');
+  background-size:cover;background-position:center center;background-repeat:no-repeat;
+}
+/* Локальное затемнение + виньетка: держат контраст текста поверх фона на
+   всей высоте страницы (WCAG 2.2 AA), не пряча атмосферу зала. */
+.app-shell:not(.swim-shell)::after{
+  content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
+  background:
+    radial-gradient(125% 88% at 58% 4%,rgba(6,8,10,.2) 0%,rgba(6,8,10,.54) 44%,rgba(6,8,10,.84) 100%),
+    linear-gradient(180deg,rgba(6,8,10,.24) 0%,rgba(6,8,10,.5) 52%,rgba(6,8,10,.7) 100%);
+}
+@media(max-width:760px){
+  .app-shell:not(.swim-shell)::before{background-position:68% center}
+  body:has(.auth-screen),body:has(.volt-widget-page){background-position:68% center}
+  .app-shell:not(.swim-shell)::after{
+    background:
+      radial-gradient(150% 78% at 58% 2%,rgba(6,8,10,.3) 0%,rgba(6,8,10,.66) 46%,rgba(6,8,10,.9) 100%),
+      linear-gradient(180deg,rgba(6,8,10,.38) 0%,rgba(6,8,10,.64) 52%,rgba(6,8,10,.8) 100%);
+  }
+}
+
+.content{padding:clamp(24px,2.6vw,44px) clamp(16px,3vw,56px) 110px;max-width:1440px;background:transparent}
+
+/* ---------- Навигация: единый глобальный shell (navigation.md) ----------
+   Sidebar — лёгкая стеклянная поверхность того же языка, что и карточки:
+   полупрозрачная, без тяжёлой заливки и без сплошной лаймовой полосы. */
+.sidebar{width:236px;padding:28px 14px 20px;border-right:1px solid var(--v2-border);background:var(--v2-glass-arch);backdrop-filter:blur(28px) saturate(1.12)}
+.content{margin-left:236px}
+.brand{padding:0 12px;letter-spacing:.15em;font-size:18px}
+.brand-mark{width:32px;height:32px;border-radius:9px;clip-path:none;font-size:17px;box-shadow:none}
+.brand-sub{margin:9px 0 0;padding:0 12px;color:#525b62;font-size:8px;letter-spacing:.26em;font-weight:700}
+.side-nav{margin-top:30px;gap:1px}
+.side-nav button,.side-nav a{position:relative;padding:11px 13px;border-radius:10px;color:#7b848b;font-size:12.5px;font-weight:550;letter-spacing:-.005em;transition:background var(--v2-fast) var(--v2-ease),color var(--v2-fast) var(--v2-ease)}
+.side-nav button span,.side-nav a span{width:19px;font-size:0;display:inline-flex;align-items:center;justify-content:center;opacity:.85}
+.side-nav button:hover,.side-nav a:hover{background:rgba(255,255,255,.035);color:#ced4d9}
+/* Активный пункт: сдержанная подложка + тонкий лаймовый маркер-точка,
+   без сплошной цветной полосы и заливки. */
+.side-nav button.active,.side-nav a.active{background:rgba(255,255,255,.055);color:#fff;box-shadow:none;font-weight:650}
+.side-nav button.active span,.side-nav a.active span{color:var(--lime);opacity:1}
+.side-nav button.active:after,.side-nav a.active:after{content:"";position:absolute;right:12px;top:50%;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;background:var(--lime)}
+.side-nav-divider{display:block;margin:16px 13px 7px;padding-top:13px;border-top:1px solid var(--v2-border);color:#4d565c;font-size:8px;font-weight:800;letter-spacing:.16em;text-transform:uppercase}
+.side-bottom{display:grid;gap:8px}
+.streak{margin:0;padding:12px;border-radius:var(--v2-radius-md);border:1px solid var(--v2-border);background:rgba(255,255,255,.03);box-shadow:none}
+.streak>span{color:var(--lime);display:inline-flex}
+.streak b{font-size:13px;font-weight:650}
+.profile{padding:11px;border-radius:var(--v2-radius-md);border:1px solid transparent;background:rgba(255,255,255,.03);transition:border-color var(--v2-fast) var(--v2-ease)}
+.profile:hover{border-color:var(--v2-border-hover)}
+.push-toggle{margin:0;padding:10px;border-radius:var(--v2-radius-md);border-color:var(--v2-border);background:rgba(255,255,255,.02);font-size:9.5px}
+
+/* ---------- Шапка ---------- */
+.topbar{align-items:flex-start;gap:16px;margin-bottom:clamp(20px,2.4vw,32px)}
+.topbar .eyebrow{color:#69727a;letter-spacing:.16em}
+.topbar h1{font-size:clamp(26px,2.9vw,38px);font-weight:600;letter-spacing:-.032em;line-height:1.08}
+.header-actions{gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.date-chip,.sync-chip{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border-radius:12px;border:1px solid var(--v2-border);background:var(--v2-glass);backdrop-filter:blur(18px);color:#aeb6bc;font-size:11.5px;white-space:nowrap}
+.sync-chip i{width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 9px color-mix(in srgb,var(--lime) 70%,transparent)}
+.icon-btn,.mini-avatar{height:40px;width:40px;border-radius:12px;border:1px solid var(--v2-border);background:var(--v2-glass);backdrop-filter:blur(18px);display:grid;place-items:center;color:#d3d9dd;transition:border-color var(--v2-fast) var(--v2-ease)}
+.icon-btn:hover,.mini-avatar:hover{border-color:var(--v2-border-hover)}
+/* Дата уже показана в eyebrow над заголовком («ПЯТНИЦА, 7 АВГУСТА») —
+   date-chip дублирует тот же текст в шапке и создаёт визуальный шум
+   (01-design-principles.md: не единственный носитель смысла, но и не
+   повторять один факт дважды на одном экране). Sync-chip несёт уникальный
+   статус синхронизации и остаётся. */
+.date-chip{display:none}
+@media(max-width:900px){.sync-chip{display:none}}
+
+/* ---------- HERO: первая стеклянная поверхность приложения ----------
+   Hero НЕ владеет фотографией и не содержит media-слоя (App Background
+   Architecture). Это самая прозрачная поверхность страницы: сквозь неё
+   сильнее всего просматривается общий фон зала, за счёт чего Hero остаётся
+   главным визуальным элементом, не присваивая себе изображение. */
+.hero{
+  position:relative;height:auto;min-height:clamp(300px,36vh,382px);
+  display:flex;align-items:center;
+  margin-bottom:var(--v2-section-gap);
+  padding:clamp(26px,3vw,44px);
+  border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);overflow:hidden;
+  background:var(--v2-glass-hero);
+  backdrop-filter:blur(22px) saturate(1.15);
+  box-shadow:var(--v2-inset),var(--v2-shadow);
+}
+/* Локальное затемнение под текстом — единственный дополнительный слой, и
+   только под левой третью, где живёт заголовок. Фон должен мягко пройти
+   сквозь стекло, а не исчезнуть под второй непрозрачной панелью. */
+.hero-shade{position:absolute;inset:0;pointer-events:none;background:
+  linear-gradient(100deg,rgba(6,8,10,.48) 0%,rgba(6,8,10,.2) 42%,rgba(6,8,10,0) 74%)}
+/* inset:auto обязателен: в globals.css у .hero-content заданы абсолютные
+   смещения (в т.ч. bottom:78px на мобильной ширине). На position:relative
+   они сдвигали бы блок и обрезали верх заголовка. */
+.hero-content{position:relative;z-index:1;inset:auto;margin:0;padding:0;width:100%;max-width:none;background:none;border:0;box-shadow:none;backdrop-filter:none}
+.hero-content .eyebrow{color:#8d959c;letter-spacing:.18em;margin:0 0 16px}
+/* Заголовок ограничен по ширине в символах — переносы получаются
+   естественными на любой длине мотивационной строки. */
+.hero h2{max-width:19ch;margin:0 0 16px;font-size:clamp(23px,2.3vw,31px);font-weight:600;font-style:normal;line-height:1.24;letter-spacing:-.024em;color:#fff}
+.hero h2 em{font-style:normal;-webkit-text-stroke:0;color:var(--lime)}
+.hero-sub{margin:0 0 clamp(22px,2.4vw,30px);color:#a8b0b6;font-size:13.5px;line-height:1.65;max-width:34ch}
+.hero-actions{gap:12px}
+/* Единственный Primary CTA первого экрана. */
+.hero .start-btn{padding:14px 22px 14px 14px;border-radius:12px;background:var(--lime);color:#0b0e07;font-size:13px;font-weight:800;box-shadow:0 10px 28px -10px color-mix(in srgb,var(--lime) 42%,transparent);transition:transform var(--v2-fast) var(--v2-ease),box-shadow var(--v2-fast) var(--v2-ease)}
+.hero .start-btn:hover{transform:translateY(-2px);box-shadow:0 16px 36px -10px color-mix(in srgb,var(--lime) 52%,transparent)}
+.hero .start-btn span{width:25px;height:25px;background:rgba(9,12,6,.2);color:#0b0e07}
+.hero-content .pill,.hero .coach-note{display:none}
+@media(max-width:760px){
+  /* Высота по содержимому + скромный минимум: иначе под CTA остаётся
+     крупная пустая зона из одной фотографии. */
+  .hero{min-height:0;padding:22px;border-radius:var(--v2-radius-md)}
+  /* Mobile допускает более плотное локальное затемнение (05-glass-system.md),
+     здесь текст занимает всю ширину поверх кадрированного фона. */
+  .hero-shade{background:linear-gradient(0deg,rgba(6,8,10,.66) 0%,rgba(6,8,10,.36) 58%,rgba(6,8,10,.16) 100%)}
+  .hero h2{max-width:none;font-size:clamp(21px,5.6vw,26px)}
+  .hero-sub{max-width:none;font-size:13px;margin-bottom:20px}
+  .hero .start-btn{width:100%;justify-content:center}
+  /* Заголовок получает всю ширину, действия уходят на свою строку —
+     иначе «Добрый вечер, Илья» зажимается чипом Coach. */
+  .topbar{flex-direction:column;align-items:stretch;gap:12px}
+  .topbar h1{font-size:clamp(22px,6.4vw,28px)}
+  .header-actions{justify-content:flex-start}
+}
+
+/* ---------- Единая система стеклянных поверхностей (cards.md) ---------- */
+.card,.next-workout-card,.streak-highlight-card,.ring-card,.readiness.card,.last-workout-card,
+.evening-cta,.mood-cta,.milestone-cta,.milestone-celebration,.coach-card,.progression-panel,
+.digest-card,.week-card,.goal-card,.activity-entry,.analytics,.calendar,.schedule-editor,
+.advice,.food-tools,.body-map,.garmin-import,.records{
+  border:1px solid var(--v2-border);
+  border-radius:var(--v2-radius-lg);
+  background:var(--v2-glass);
+  backdrop-filter:blur(24px) saturate(1.1);
+  box-shadow:var(--v2-inset),var(--v2-shadow);
+  transition:border-color var(--v2-base) var(--v2-ease),transform var(--v2-base) var(--v2-ease),box-shadow var(--v2-base) var(--v2-ease),background var(--v2-base) var(--v2-ease);
+}
+.card:hover,.next-workout-card:hover,.streak-highlight-card:hover,.ring-card:hover,
+.readiness.card:hover,.last-workout-card:hover,.coach-card:hover{
+  border-color:var(--v2-border-hover);transform:translateY(-2px);box-shadow:var(--v2-inset),var(--v2-shadow-lift);background:var(--v2-glass-raised);
+}
+.hero:hover,.activity-entry:hover,.week-card:hover,.goal-card:hover{transform:none}
+.section-head h3{font-size:17px;font-weight:600;letter-spacing:-.015em}
+.eyebrow{color:#69727a;letter-spacing:.14em}
+
+/* ---------- Сегодняшняя тренировка: поддерживает Hero, не спорит с ним ---------- */
+.today-focus{display:grid;grid-template-columns:1.75fr 1fr;gap:var(--v2-gap);margin-bottom:var(--v2-section-gap)}
+/* Второй по значимости элемент после Hero — компактнее прежнего: меньше
+   внутренних отступов и вертикальных зазоров между заголовком/мета/CTA. */
+/* justify-content:center — .today-focus стретчит обе колонки под высоту
+   более длинного соседа (streak-card с графиком); без центрирования
+   контент next-workout-card повисает наверху с пустым блоком снизу. */
+.next-workout-card,.streak-highlight-card{position:relative;overflow:hidden;padding:clamp(18px,1.8vw,24px);display:flex;flex-direction:column;justify-content:center}
+.next-workout-photo{position:absolute;inset:0;background-size:cover;background-position:center right;opacity:.75}
+/* Затемнение для читаемости + тот же sheen, что и у остальных стеклянных
+   поверхностей — иначе фотослой карточки перекрывает материал стекла и
+   карточка перестаёт читаться как VOLT Glass (05-glass-system.md). */
+.next-workout-photo:after{content:"";position:absolute;inset:0;background:
+  var(--v2-sheen),
+  linear-gradient(96deg,rgba(10,13,15,.86) 0%,rgba(10,13,15,.7) 42%,rgba(10,13,15,.22) 100%)}
+.next-workout-card>*{position:relative;z-index:1}
+.next-workout-card h3{margin:8px 0 4px;font-size:clamp(19px,1.9vw,24px);font-weight:600;letter-spacing:-.026em}
+.next-workout-type{margin:0 0 12px;color:#aeb6bc;font-size:13px}
+.next-workout-meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.next-workout-meta span{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid var(--v2-border);border-radius:999px;background:rgba(255,255,255,.03);color:#b3bbc1;font-size:11.5px}
+.next-workout-meta svg{color:#8e969d;flex:none}
+/* Один Primary CTA на первом экране: основное действие живёт в Hero,
+   поэтому кнопка запуска здесь — вторичная по весу. Обработчик, состояния
+   и текст не меняются, меняется только визуальный вес. */
+.next-workout-actions{display:flex;gap:10px;flex-wrap:wrap}
+.next-workout-actions .start-btn,.next-workout-actions .repeat-btn{
+  border:1px solid var(--v2-border-hover);border-radius:12px;
+  background:rgba(255,255,255,.05);color:#e6ebee;
+  font-size:12.5px;font-weight:700;padding:12px 18px 12px 12px;box-shadow:none;
+  transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease)}
+.next-workout-actions .start-btn:hover,.next-workout-actions .repeat-btn:hover{
+  border-color:color-mix(in srgb,var(--lime) 42%,transparent);background:rgba(255,255,255,.08)}
+.next-workout-actions .start-btn span{width:22px;height:22px;background:rgba(255,255,255,.1);color:var(--lime)}
+
+.streak-highlight-card{display:flex;flex-direction:column}
+.streak-highlight-card h3{margin:10px 0 4px;font-size:clamp(24px,2.4vw,30px);font-weight:600;letter-spacing:-.028em}
+.streak-highlight-card>p{margin:0 0 auto;color:#aeb6bc;font-size:12.5px}
+.streak-bars{display:grid;grid-template-columns:repeat(7,1fr);gap:7px;height:76px;margin:20px 0 14px}
+.streak-bar-col{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:8px;height:100%}
+.streak-bar-col i{display:block;width:min(100%,18px);border-radius:999px;background:rgba(255,255,255,.07)}
+.streak-bar-col i.done{background:linear-gradient(180deg,#e2ff9a,var(--lime));box-shadow:0 0 14px -2px color-mix(in srgb,var(--lime) 55%,transparent)}
+.streak-bar-col small{color:#727b82;font-size:9px}
+.streak-highlight-card .ghost-btn{display:flex;justify-content:center;width:100%;padding:11px;border-radius:12px;border-color:var(--v2-border);background:rgba(255,255,255,.03)}
+.streak-highlight-card .ghost-btn:hover{border-color:var(--v2-border-hover)}
+@media(max-width:1100px){.today-focus{grid-template-columns:1fr}}
+
+/* ---------- Показатели дня ----------
+   Четыре утверждённые метрики из home-approved.png сохранены полностью,
+   но подаются как ОДНА стеклянная панель с внутренними разделителями,
+   а не как четыре самостоятельные KPI-карточки. Вес намеренно снижен:
+   мелкий заголовок, тонкая шкала, приглушённые иконки. */
+.stat-strip{display:grid;grid-template-columns:repeat(4,1fr);margin-bottom:var(--v2-section-gap);border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset);overflow:hidden}
+.stat-cell{display:grid;gap:9px;padding:clamp(16px,1.7vw,22px);border-right:1px solid var(--v2-border)}
+.stat-cell:last-child{border-right:0}
+.stat-cell-head{display:flex;align-items:center;gap:9px}
+.stat-cell-head span{width:26px;height:26px;flex:none;border-radius:8px;display:grid;place-items:center;opacity:.85}
+.stat-cell-head small{color:#8e969d;font-size:10.5px;letter-spacing:.02em}
+.stat-cell-value{display:flex;align-items:baseline;gap:5px;margin:0}
+.stat-cell-value b{font-size:clamp(18px,1.6vw,21px);font-weight:600;letter-spacing:-.018em}
+.stat-cell-value span{color:#6f777d;font-size:10.5px}
+.stat-cell .progress{height:2px;background:rgba(255,255,255,.06)}
+@media(max-width:900px){.stat-strip{grid-template-columns:1fr 1fr}.stat-cell:nth-child(2){border-right:0}.stat-cell:nth-child(-n+2){border-bottom:1px solid var(--v2-border)}}
+@media(max-width:430px){.stat-strip{grid-template-columns:1fr}.stat-cell{border-right:0;border-bottom:1px solid var(--v2-border)}.stat-cell:last-child{border-bottom:0}}
+
+/* ---------- Второстепенные блоки: асимметричная мозаика ----------
+   Не ряд одинаковых вертикальных карточек: 6-колоночная сетка задаёт
+   блокам РАЗНЫЙ вес (4/2/3/3/2/2/2), поэтому композиция читается как
+   единое пространство, а не аналитический dashboard.
+   Карточки изначально проектировались под всю ширину контента, поэтому
+   в узких колонках их внутренняя раскладка принудительно вертикальная. */
+/* Две колонки разного веса, каждая пакуется вертикально — поэтому у
+   блоков разная высота и НЕ появляется пустых растянутых зон, которые
+   возникают при выравнивании разновысоких карточек в общий ряд. */
+.today-mosaic{display:grid;grid-template-columns:1.55fr 1fr;gap:var(--v2-gap);margin-bottom:var(--v2-section-gap);align-items:start}
+.today-mosaic-main,.today-mosaic-side{display:grid;gap:var(--v2-gap);align-content:start;min-width:0}
+.today-mosaic-main>*,.today-mosaic-side>*{margin:0;min-width:0}
+@media(max-width:1000px){.today-mosaic{grid-template-columns:minmax(0,1fr)}}
+
+/* Компактная вертикальная подача кольца активности в узкой колонке */
+/* Правая колонка — ОДНА стеклянная поверхность (единая граница, фон, тень),
+   а не набор отдельных виджетов. Кольцо/вечер/вехи/настроение — внутренние
+   секции этой поверхности, разделённые тонкой линией, с единым вертикальным
+   ритмом отступов. Функциональность каждой секции не меняется. */
+.today-mosaic-side{
+  gap:0;border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);
+  background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);
+  box-shadow:var(--v2-inset),var(--v2-shadow);overflow:hidden;
+}
+.today-mosaic-side>*{
+  border:0!important;background:none!important;box-shadow:none!important;
+  border-radius:0!important;backdrop-filter:none!important;
+  padding:22px 24px!important;
+  border-bottom:1px solid var(--v2-border)!important;
+}
+.today-mosaic-side>*:last-child{border-bottom:0!important}
+.today-mosaic-side>*:hover{transform:none!important}
+
+.today-mosaic-side>.ring-card{grid-template-columns:minmax(0,1fr);justify-items:start;gap:14px}
+.today-mosaic-side>.ring-card .ring-vis{margin:0 auto}
+.today-mosaic-side>.ring-card .ring-legend{width:100%}
+.today-mosaic-side>.ring-card .ring-legend li{font-size:11px;gap:8px}
+.today-mosaic-side>.ring-card .ring-legend b{font-size:11px}
+
+.today-mosaic-side .evening-cta,.today-mosaic-side .mood-cta,.today-mosaic-side .milestone-cta{
+  display:flex;flex-direction:column;align-items:flex-start;gap:12px}
+.today-mosaic-side .evening-cta-icon,.today-mosaic-side .mood-cta-icon,.today-mosaic-side .milestone-cta-icon{
+  width:30px;height:30px;font-size:15px;background:rgba(255,255,255,.04)!important;border:1px solid var(--v2-border)!important}
+.today-mosaic-side .evening-cta-copy,.today-mosaic-side .mood-cta-copy,.today-mosaic-side .milestone-cta-copy{width:100%}
+.today-mosaic-side .evening-cta-copy h3,.today-mosaic-side .mood-cta-copy h3,.today-mosaic-side .milestone-cta-copy h3{font-size:15px;font-weight:600;letter-spacing:-.015em;line-height:1.3}
+.today-mosaic-side .evening-cta button,.today-mosaic-side .mood-cta button,.today-mosaic-side .milestone-cta button{
+  width:100%;margin-top:auto;padding:10px!important;border:1px solid var(--v2-border)!important;background:rgba(255,255,255,.03)!important}
+
+/* Coach — самый широкий блок мозаики (span 4): сохраняет горизонтальную
+   шапку и компактную кнопку, за счёт этого читается как главный из
+   второстепенных, а не как ещё одна одинаковая карточка. */
+.today-mosaic-main .coach-card .coach-head>small{white-space:normal;line-height:1.5}
+.today-mosaic-main .coach-card .ask-coach-btn{margin-top:14px}
+@media(max-width:1100px){
+  .today-mosaic-main .coach-card .coach-head{flex-direction:column;align-items:flex-start;gap:6px}
+}
+
+/* Readiness (span 3) — кольцо слева, содержимое справа. */
+.today-mosaic-main .readiness.card{grid-template-columns:auto minmax(0,1fr);align-items:start;gap:18px}
+.today-mosaic-main .readiness .readiness-score{margin:0}
+.today-mosaic-main .readiness form{grid-template-columns:1fr 1fr;width:100%}
+.today-mosaic-main .readiness .readiness-text{font-size:12px;line-height:1.55}
+.today-mosaic-main .readiness .readiness-summary{font-size:10.5px}
+@media(max-width:640px){
+  .today-mosaic-main .readiness.card{grid-template-columns:minmax(0,1fr);justify-items:start}
+  .today-mosaic-main .readiness .readiness-score{margin:0 auto}
+}
+
+.ring-card{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:center;padding:var(--v2-pad)}
+.ring-card .section-head{grid-column:1/-1;margin-bottom:2px}
+.ring-vis{width:104px;height:104px;border-radius:50%;display:grid;place-items:center;position:relative}
+.ring-vis:before{content:"";position:absolute;inset:0;border-radius:50%;background:conic-gradient(var(--lime) calc(var(--ring-pct,0) * 1%),rgba(255,255,255,.07) 0)}
+.ring-vis:after{content:"";position:absolute;inset:9px;border-radius:50%;background:#0d1012}
+.ring-vis b{position:relative;z-index:1;display:block;font-size:24px;font-weight:650;text-align:center}
+.ring-vis span{position:relative;z-index:1;display:block;font-size:9px;color:#8e969d;text-align:center}
+.ring-legend{display:grid;gap:9px;margin:0;padding:0}
+.ring-legend li{display:flex;align-items:center;gap:9px;font-size:11.5px;color:#b3bbc1;list-style:none}
+.ring-legend i{width:7px;height:7px;border-radius:50%;flex:none}
+.ring-legend b{margin-left:auto;font-weight:600;color:#e2e7ea}
+.ring-card>.link-more{grid-column:1/-1;justify-self:start;border:0;background:transparent;color:#8e969d;font-size:11.5px;cursor:pointer;padding:0;transition:color var(--v2-fast) var(--v2-ease)}
+.ring-card>.link-more:hover{color:var(--lime)}
+
+.readiness.card{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:start;padding:var(--v2-pad);border-left:1px solid var(--v2-border)}
+.readiness.low,.readiness.stop{border-left:1px solid var(--v2-border)}
+.readiness .readiness-score{width:104px;height:104px;border-radius:50%;display:grid;place-content:center;text-align:center;background:conic-gradient(var(--lime) calc(var(--score-pct,0) * 1%),rgba(255,255,255,.07) 0);position:relative}
+.readiness.low .readiness-score{background:conic-gradient(#ffae42 calc(var(--score-pct,0) * 1%),rgba(255,255,255,.07) 0)}
+.readiness.stop .readiness-score{background:conic-gradient(#ff665e calc(var(--score-pct,0) * 1%),rgba(255,255,255,.07) 0)}
+.readiness .readiness-score:before{content:"";position:absolute;inset:9px;border-radius:50%;background:#0d1012}
+.readiness .readiness-score b{position:relative;z-index:1;font-size:24px;font-weight:650}
+.readiness .readiness-score span{position:relative;z-index:1;font-size:9px;color:#8e969d}
+.readiness h3{font-size:16px;font-weight:600}
+.readiness-coach-link{display:inline-block;margin:6px 0 12px;color:#8e969d;font-size:11px;text-decoration:none;border:0;transition:color var(--v2-fast) var(--v2-ease)}
+.readiness-coach-link:hover{color:var(--lime);border:0}
+.readiness form{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.readiness input,.readiness select{border-radius:10px;border-color:var(--v2-border);background:rgba(255,255,255,.03)}
+/* Secondary action: единственный Primary CTA страницы — в Hero. "Оценить"
+   не должен конкурировать с ним лаймовой заливкой. */
+.readiness button{grid-column:1/-1;padding:11px;border-radius:11px;border:1px solid var(--v2-border-hover);background:rgba(255,255,255,.05);color:#e6ebee;font-weight:700;transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease)}
+.readiness button:hover{border-color:color-mix(in srgb,var(--lime) 42%,transparent);background:rgba(255,255,255,.08)}
+@media(max-width:900px){.ring-card,.readiness.card{grid-template-columns:1fr}.ring-vis,.readiness .readiness-score{margin:0 auto}}
+
+.last-workout-card{display:block;width:100%;padding:var(--v2-pad);text-align:left;font:inherit;color:inherit;cursor:pointer}
+.last-workout-body{display:grid;gap:7px;margin-top:12px}
+.last-workout-body h4{margin:0;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.last-workout-body small{color:#8e969d;font-size:11px}
+.last-workout-stats{display:flex;gap:22px;margin-top:8px}
+.last-workout-stats span{display:grid;gap:3px;font-size:10px;color:#8e969d}
+.last-workout-stats b{color:#e2e7ea;font-size:15px;font-weight:650}
+
+.evening-cta,.mood-cta,.milestone-cta{align-items:center;padding:var(--v2-pad)}
+.evening-cta-icon,.mood-cta-icon,.milestone-cta-icon{border-radius:13px;background:rgba(255,255,255,.04);border:1px solid var(--v2-border)}
+.evening-cta button,.mood-cta button,.milestone-cta button{border-radius:11px;border-color:var(--v2-border);background:rgba(255,255,255,.03);color:#c8ced3}
+.evening-cta button:hover,.mood-cta button:hover,.milestone-cta button:hover{border-color:var(--v2-border-hover)}
+
+/* Coach — плоский типографический блок, не стопка карточек-в-карточке.
+   Раньше status/decision/каждый item advice и insights были отдельными
+   рамками с фоном — теперь это один текстовый поток с воздухом между
+   секциями и тонкими линиями-разделителями внутри списков, без вложенных
+   поверхностей. Тон (good/warn/stop) передаётся цветом текста/точки, а не
+   рамкой карточки — иерархия делается размером и отступом, не яркостью.
+   Coach остаётся третьим по значимости после Hero и карточки тренировки:
+   он тише их обеих, у него нет своего фото и крупного заголовка. */
+/* Облегчение Coach (полировка #2): плотнее вертикальный ритм между
+   секциями — тот же контент, меньше визуального веса и площади. */
+.coach-card{padding:clamp(22px,2.2vw,29px)}
+.coach-card .coach-head{align-items:center;margin-bottom:14px}
+.coach-card .coach-head .eyebrow{display:inline-flex;align-items:center;gap:9px;color:#9aa3aa;font-size:10px}
+.coach-beta{border:1px solid var(--v2-border);background:rgba(255,255,255,.05);color:#9aa3aa;border-radius:999px;padding:3px 8px;font-size:8px;font-weight:800;letter-spacing:.08em}
+
+/* Статус — строка типографики, не пилюля в рамке. */
+.coach-card .coach-status{border:0;background:none;padding:0;margin:0 0 13px;gap:9px}
+.coach-card .coach-status b{font-size:15px;font-weight:600;letter-spacing:-.01em}
+.coach-card .coach-status-dot{width:7px;height:7px}
+
+/* План → рекомендация: чистая типографика, разделённая стрелкой, без
+   фоновой плашки — читается как одно предложение из двух половин. */
+.coach-card .coach-decision{border:0;background:none;padding:0;margin:0 0 14px;gap:18px}
+.coach-card .coach-decision small{font-size:8.5px}
+.coach-card .coach-decision b{font-size:13px}
+.coach-card .coach-decision i{color:#6f777d;font-size:15px}
+
+.coach-card .coach-explanation{font-size:12.5px;line-height:1.55;margin:0 0 6px}
+.coach-card .coach-note-line{font-size:10px;margin:0 0 12px}
+.coach-card .coach-signals{margin:0 0 4px}
+.coach-card .coach-limited{border:0;background:none;padding:0;color:#9a8a6a;margin:0 0 12px}
+
+/* Advice/insights — единый список с волосяными линиями между пунктами
+   вместо отдельных рамок; акцент тона — тонкая цветная точка у иконки, а
+   не подсвеченная плашка. */
+.coach-card .coach-list{gap:0}
+.coach-card .coach-item{border:0;background:none;border-radius:0;padding:11px 0;gap:12px;border-top:1px solid var(--v2-border)}
+.coach-card .coach-list>.coach-item:first-child{border-top:0;padding-top:0}
+.coach-card .coach-icon{width:20px;height:20px;background:none;font-size:12px}
+.coach-card .coach-item.stop .coach-icon{color:#ff8b82}
+.coach-card .coach-item.warn .coach-icon{color:#ffc477}
+.coach-card .coach-item.good .coach-icon{color:var(--lime)}
+.coach-card .coach-item.info .coach-icon{color:#8cc0ff}
+.coach-card .coach-item b{font-size:12.5px}
+.coach-card .coach-insights{margin-top:6px;padding-top:6px;border-top:1px solid var(--v2-border)}
+.coach-card .coach-insights-head{margin:0 0 10px}
+
+.ask-coach-btn{border-radius:12px;border-color:var(--v2-border);background:rgba(255,255,255,.03)}
+.ask-coach-btn:hover{border-color:var(--v2-border-hover)}
+
+/* ---------- Нижние секции ---------- */
+.activity-entry,.digest-card,.progression-panel{padding:var(--v2-pad);margin:0 0 var(--v2-section-gap)}
+.activity-entry input{border-radius:10px;border-color:var(--v2-border);background:rgba(255,255,255,.03)}
+/* Secondary: единственный Primary CTA страницы остаётся в Hero (01-design-principles.md). */
+.activity-entry button{border-radius:11px;border:1px solid var(--v2-border-hover);background:rgba(255,255,255,.05);color:#e6ebee;font-weight:700;transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease)}
+.activity-entry button:hover{border-color:color-mix(in srgb,var(--lime) 42%,transparent);background:rgba(255,255,255,.08)}
+.digest-grid article{border-radius:var(--v2-radius-md);border-color:var(--v2-border);background:rgba(255,255,255,.025)}
+.digest-grid b{color:#e2e7ea;font-weight:650}
+.grid-main{gap:var(--v2-gap);margin-bottom:var(--v2-section-gap)}
+.week-card,.goal-card{padding:var(--v2-pad)}
+.week-plan-row{border-radius:13px;border-color:var(--v2-border);background:rgba(255,255,255,.025)}
+.week-plan-row.is-today{border-color:color-mix(in srgb,var(--lime) 45%,transparent)}
+.week-plan-row button{border-radius:10px;border-color:var(--v2-border);background:rgba(255,255,255,.03)}
+.bar-slot i{background:rgba(255,255,255,.09)}
+.plan-section{margin-top:0;margin-bottom:var(--v2-section-gap)}
+.plan-title h3{font-size:clamp(19px,2vw,24px);font-weight:600;letter-spacing:-.024em}
+.filters button,.metric-tabs button,.period-tabs button{border-radius:999px;border-color:var(--v2-border);background:rgba(255,255,255,.03);color:#98a1a7}
+.filters button.active,.metric-tabs button.active,.period-tabs button.active{background:var(--lime);color:#0b0e07;border-color:transparent;font-weight:700}
+.workouts{gap:var(--v2-gap)}
+.workout{border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset),var(--v2-shadow);transition:transform var(--v2-base) var(--v2-ease),border-color var(--v2-base) var(--v2-ease)}
+.workout:hover{transform:translateY(-3px);border-color:var(--v2-border-hover)}
+.workout-copy{padding:18px}
+.workout-copy h4{font-size:16px;font-weight:600;letter-spacing:-.02em}
+.workout-copy small{color:#8e969d;letter-spacing:.1em}
+
+.volt-quote{max-width:640px;margin:0 auto;padding:8px 4px 0;color:#7d868d;font-size:13.5px;font-style:italic;line-height:1.6;text-align:center}
+
+/* Home: краткий недельный контекст — та же .week-card поверхность и те же
+   .week-days бейджи, что и на «Плане», но без графика/списка ниже. */
+.week-context .week-days{border-bottom:0;padding-bottom:0;margin-bottom:0}
+
+/* =========================================================================
+   ПЛАН — Home и принятый Workout Flow как единая композиционная система.
+   Один Hero владеет контекстом недели; выбранная тренировка — следующий
+   визуальный уровень; каталог программы остаётся справочным и спокойным. === */
+.plan-screen{display:grid;gap:clamp(38px,4vw,56px);padding-bottom:30px}
+.plan-screen>*{min-width:0}
+
+.plan-hero{
+  position:relative;isolation:isolate;overflow:hidden;
+  padding:clamp(24px,2.8vw,38px) clamp(20px,3vw,42px) 0;
+  border:1px solid rgba(255,255,255,.085);border-radius:var(--v2-radius-xl);
+  background:linear-gradient(118deg,rgba(13,17,19,.72),rgba(8,11,13,.46));
+  backdrop-filter:blur(28px) saturate(1.12);box-shadow:var(--v2-inset),0 32px 74px -50px rgba(0,0,0,.92);
+}
+.plan-hero-shade{position:absolute;inset:0;z-index:-1;background:radial-gradient(72% 120% at 94% 0%,rgba(199,255,50,.075),transparent 58%),linear-gradient(100deg,rgba(7,10,12,.12),transparent 70%)}
+.plan-hero-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(235px,290px);gap:clamp(28px,5vw,68px);align-items:end;padding-bottom:clamp(24px,2.7vw,34px)}
+.plan-hero-copy .eyebrow{margin:0 0 13px}
+.plan-hero-copy h2{margin:0;font-size:clamp(38px,4.8vw,64px);font-weight:600;line-height:.96;letter-spacing:-.052em}
+.plan-hero-summary{display:flex;gap:9px 16px;align-items:center;flex-wrap:wrap;margin:18px 0 0;color:#9da6ac;font-size:12px}
+.plan-hero-summary b{color:#eff3f1;font-weight:650}
+.plan-hero-summary span{position:relative;padding-left:14px;color:#98a1a7}
+.plan-hero-summary span:before{content:"";position:absolute;left:0;top:50%;width:3px;height:3px;border-radius:50%;background:#697279}
+.plan-hero-note{max-width:52ch;margin:9px 0 0;color:#828c92;font-size:11.5px;line-height:1.58}
+.plan-hero-status{display:grid;gap:11px;align-content:end}
+.plan-hero-status>div:first-child{display:flex;justify-content:space-between;gap:16px;color:#8d969c;font-size:10.5px}
+.plan-hero-status>div:first-child b{color:#f1f4f3;font-size:15px;font-weight:650}
+.plan-hero-progress{height:4px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.09)}
+.plan-hero-progress i{display:block;height:100%;border-radius:inherit;background:var(--lime);box-shadow:0 0 16px color-mix(in srgb,var(--lime) 34%,transparent)}
+.plan-edit-action{display:inline-flex;align-items:center;gap:8px;justify-self:start;min-height:44px;padding:0 15px;border-color:var(--v2-border);background:rgba(255,255,255,.035);font-size:10.5px}
+
+.plan-week-rail{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));margin:0 -42px;overflow:hidden;border-top:1px solid rgba(255,255,255,.075);background:rgba(3,6,8,.18)}
+.plan-day{position:relative;display:grid;grid-template-columns:auto 28px minmax(0,1fr);grid-template-rows:auto auto;gap:4px 9px;align-items:center;min-width:0;min-height:88px;padding:14px 16px;border:0;border-right:1px solid rgba(255,255,255,.055);border-radius:0;background:transparent;color:inherit;text-align:left;cursor:pointer;transition:background var(--v2-fast) var(--v2-ease),box-shadow var(--v2-fast) var(--v2-ease)}
+.plan-day:last-child{border-right:0}
+.plan-day:hover{background:rgba(255,255,255,.04)}
+.plan-day.selected{background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.025));box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+.plan-day.selected:after{content:"";position:absolute;left:16px;right:16px;bottom:0;height:2px;border-radius:999px;background:var(--lime)}
+.plan-day-date{grid-row:1/-1;display:grid;align-content:center;gap:4px;min-width:25px}
+.plan-day-date small{color:#747e84;font-size:8px;font-weight:800;letter-spacing:.11em}
+.plan-day-date b{font-size:18px;font-weight:600;line-height:1}
+.plan-day-symbol{grid-row:1/-1;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:9px;background:rgba(255,255,255,.035);color:#8b959b}
+.plan-day.swim .plan-day-symbol{color:#8eb6bb}.plan-day.strength .plan-day-symbol{color:#b4bdc1}.plan-day.rest .plan-day-symbol{color:#777f91}
+.plan-day-kind{align-self:end;overflow:hidden;color:#d9dee0;font-size:10.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.plan-day-state{display:flex;align-items:center;gap:4px;min-height:12px;color:#768087;font-size:7.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase}
+.plan-day.today .plan-day-state,.plan-day.done .plan-day-state{color:var(--lime)}
+
+.plan-now{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,.7fr);gap:var(--v2-gap);align-items:stretch}
+.plan-focus-card,.plan-next-card{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:var(--v2-radius-lg);box-shadow:var(--v2-inset),var(--v2-shadow)}
+.plan-focus-card{isolation:isolate;min-height:340px;padding:clamp(24px,3vw,40px);display:flex;align-items:flex-end;background:var(--v2-glass-hero);backdrop-filter:blur(24px) saturate(1.1)}
+.plan-focus-photo{position:absolute;inset:0;z-index:-2;background-position:center right;background-size:cover;filter:saturate(.82) contrast(1.04);opacity:.8}
+.plan-focus-shade{position:absolute;inset:0;z-index:-1;background:var(--v2-sheen),linear-gradient(96deg,rgba(7,10,12,.96) 0%,rgba(7,10,12,.78) 48%,rgba(7,10,12,.12) 100%)}
+.plan-focus-content{position:relative;width:min(68%,650px)}
+.plan-focus-content .eyebrow{margin:0 0 11px}
+.plan-focus-content h3{max-width:22ch;margin:0 0 6px;font-size:clamp(27px,3vw,40px);font-weight:600;line-height:1.1;letter-spacing:-.04em}
+.plan-focus-content .next-workout-type{margin-bottom:17px}
+.plan-focus-goal{max-width:54ch;margin:-8px 0 16px;color:#a9b1b6;font-size:11.5px;line-height:1.55}
+.plan-focus-content .next-workout-meta{margin-bottom:20px}
+.plan-focus-content>.start-btn,.plan-focus-content>.repeat-btn{display:inline-flex;align-items:center;gap:9px;min-height:46px;padding:10px 18px 10px 11px;border:0;border-radius:12px;background:var(--lime);color:#0b0e07;font-size:11.5px;font-weight:800;box-shadow:0 12px 30px -14px color-mix(in srgb,var(--lime) 50%,transparent)}
+.plan-focus-content>.start-btn:disabled,.plan-focus-content>.repeat-btn:disabled{cursor:not-allowed;opacity:.5;box-shadow:none}
+.plan-focus-content>.start-btn span,.plan-focus-content>.repeat-btn span{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:8px;background:rgba(9,12,6,.17)}
+.plan-focus-card.rest{background:linear-gradient(112deg,rgba(22,28,31,.94),rgba(11,16,18,.88) 58%,rgba(12,17,20,.78));}
+.plan-focus-card.rest .plan-rest-photo{background-position:center right;filter:saturate(.78) brightness(1.12) contrast(1.02);opacity:.96}
+.plan-focus-card.rest .plan-focus-shade{background:var(--v2-sheen),linear-gradient(96deg,rgba(7,10,12,.9) 0%,rgba(7,10,12,.74) 40%,rgba(7,10,12,.2) 72%,rgba(7,10,12,.05) 100%)}
+.plan-focus-card.rest .plan-focus-content{width:min(72%,680px)}
+.plan-rest-guide{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 18px}
+.plan-rest-guide span{display:inline-flex;align-items:center;gap:7px;min-height:34px;padding:7px 10px;border:1px solid rgba(255,255,255,.07);border-radius:11px;background:rgba(255,255,255,.035);color:#b2bbc1;font-size:10px;font-weight:650}
+.plan-rest-guide svg{color:#a9b6c4}
+.plan-next-card{display:grid;grid-template-rows:auto 1fr auto;gap:18px;padding:clamp(20px,2.2vw,30px);background:linear-gradient(150deg,rgba(20,25,27,.62),rgba(9,12,14,.46));backdrop-filter:blur(26px) saturate(1.1)}
+.plan-next-icon{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.045);color:#a8b1b6}
+.plan-next-card .eyebrow{margin:0 0 12px}
+.plan-next-date{color:#929ba1;font-size:11px}
+.plan-next-card h3{margin:9px 0 7px;font-size:clamp(18px,1.7vw,23px);font-weight:600;line-height:1.24;letter-spacing:-.03em}
+.plan-next-card p:last-child{margin:0;color:#8b949a;font-size:11px;line-height:1.5}
+.plan-next-card .ghost-btn{display:flex;align-items:center;gap:9px;align-self:end;justify-self:start;min-height:44px;padding:0;border:0;background:transparent;color:#bdc4c8;font-size:10.5px}
+
+.plan-day-exercises{display:grid;gap:22px;min-width:0}
+.plan-section-heading{align-items:end;margin:0}
+.plan-section-heading h3{font-size:clamp(23px,2.4vw,32px);letter-spacing:-.032em}
+.plan-section-heading>span{color:#858e94;font-size:10.5px}
+.plan-exercise-block{display:grid;gap:12px;padding-top:22px;border-top:1px solid rgba(255,255,255,.075)}
+.plan-exercise-block>header{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.plan-exercise-block>header>div{display:flex;align-items:center;gap:13px}
+.plan-exercise-block>header>div>span{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:11px;background:rgba(255,255,255,.045);color:#959fa5;font-size:9px;font-weight:800}
+.plan-exercise-block>header .eyebrow{margin:0 0 3px}
+.plan-exercise-block>header h4{margin:0;font-size:18px;font-weight:600;letter-spacing:-.025em}
+.plan-exercise-block>header>small{color:#858e94;font-size:10.5px}
+.plan-block-title{margin:16px 0 8px;color:#747d84;font-size:9px;font-weight:800;letter-spacing:.13em;text-transform:uppercase}
+.plan-exercises{display:grid;grid-template-columns:1fr;gap:9px;padding:0}
+.plan-exercises article{display:grid;grid-template-columns:112px minmax(0,1fr) auto;grid-template-rows:minmax(112px,auto) auto;gap:0 16px;overflow:hidden;padding:9px;border:1px solid rgba(255,255,255,.075);border-radius:var(--v2-radius-lg);background:linear-gradient(115deg,rgba(19,24,26,.58),rgba(9,12,14,.44));backdrop-filter:blur(20px) saturate(1.08);box-shadow:var(--v2-inset),0 22px 46px -38px rgba(0,0,0,.9);transition:border-color var(--v2-fast) var(--v2-ease),background var(--v2-fast) var(--v2-ease)}
+.plan-exercises article:hover{border-color:var(--v2-border-hover);background:var(--v2-glass-raised)}
+.plan-exercises img,.plan-exercise-fallback{grid-row:1/3;width:112px;height:112px;min-height:0;margin:0;border:1px solid rgba(255,255,255,.08);border-radius:13px;object-fit:cover;display:flex;align-items:center;justify-content:center;box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 14px 30px -24px rgba(0,0,0,.9)}
+.plan-exercises img{filter:saturate(.88) contrast(1.04)}
+.plan-exercise-fallback{background:rgba(255,255,255,.04);color:#768087}
+.plan-exercise-copy{display:grid;align-content:center;gap:7px;min-width:0;padding:4px 0}
+.plan-exercise-title{display:flex;align-items:flex-start;gap:10px}
+.plan-exercise-title>span{display:inline-flex;align-items:center;justify-content:center;flex:0 0 24px;width:24px;height:24px;border-radius:7px;background:rgba(255,255,255,.075);color:var(--lime);font-size:11px;font-weight:800}
+.plan-exercises h4{max-width:58ch;margin:1px 0 0;font-size:15px;font-weight:600;line-height:1.32;letter-spacing:-.018em}
+.plan-exercises p{max-width:78ch;margin:0;color:#949da3;font-size:11.5px;line-height:1.52}
+.plan-exercises article b{color:#aeb6bc;font-size:11px;font-weight:650}
+.plan-exercises .exercise-video{grid-column:3;grid-row:1/3;align-self:center;margin:0;padding:0 8px 0 0}
+.plan-exercises .exercise-video button{min-height:44px;padding:0 10px;border:0;background:transparent;color:#b7bfc4;font-size:10.5px;font-weight:650;white-space:nowrap}
+.plan-exercises .exercise-video button:hover{background:rgba(255,255,255,.04);color:#f0f3f4}
+.plan-exercises .exercise-video:has(.exercise-video-frame){grid-column:1/-1;grid-row:3;padding:8px 0 0}
+.plan-swim-intervals article{grid-template-rows:minmax(112px,auto)}
+.plan-swim-intervals .plan-exercise-fallback{grid-row:1;flex-direction:column;gap:8px;background:linear-gradient(145deg,rgba(116,196,202,.11),rgba(255,255,255,.025));color:#9bbec2}
+.plan-swim-intervals .plan-exercise-fallback small{color:#d8e2e3;font-size:9px;font-weight:750;letter-spacing:.04em}
+.plan-swim-intervals article>div{padding-bottom:4px!important}
+.plan-swim-stage{margin:0 0 5px!important;color:#788f93!important;font-size:8.5px!important;font-weight:750;letter-spacing:.1em;text-transform:uppercase}
+.plan-swim-empty,.plan-rest-note{border:1px solid rgba(255,255,255,.075);border-radius:var(--v2-radius-lg);background:var(--v2-glass);backdrop-filter:blur(20px)}
+.plan-swim-empty{padding:24px;color:#9ca5aa;font-size:11px;line-height:1.55}
+.plan-rest-note{display:flex;align-items:center;gap:16px;padding:22px;color:#9ca5aa}
+.plan-rest-note>span{display:flex;align-items:center;justify-content:center;width:48px;height:48px;border-radius:15px;background:rgba(255,255,255,.045);color:#8e96ac}
+.plan-rest-note b{color:#e4e8ea;font-size:14px}.plan-rest-note p{margin:5px 0 0;font-size:11px;line-height:1.55}
+
+.plan-program{position:relative;overflow:hidden;padding:clamp(26px,3vw,42px);border:1px solid rgba(255,255,255,.075);border-radius:var(--v2-radius-xl);background:linear-gradient(125deg,rgba(15,20,22,.63),rgba(8,11,13,.42));backdrop-filter:blur(26px) saturate(1.1);box-shadow:var(--v2-inset),0 30px 70px -48px rgba(0,0,0,.9)}
+.plan-program:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(60% 70% at 0 0,rgba(255,255,255,.035),transparent 68%)}
+.plan-program-head{position:relative;align-items:end;margin-bottom:20px}
+.plan-program-head h3{font-size:clamp(23px,2.4vw,32px);letter-spacing:-.032em}
+.plan-program-head>p{max-width:38ch;margin:0;color:#858e94;font-size:11px;line-height:1.55;text-align:right}
+.safety{display:flex;gap:13px;align-items:flex-start;margin:0 0 28px;border:0;border-left:2px solid rgba(199,255,50,.45);background:rgba(255,255,255,.025);border-radius:0 12px 12px 0;padding:14px 16px;color:var(--lime);font-size:13px}
+.safety span{display:grid;gap:4px;color:#9fa7ac;font-size:10.5px;line-height:1.55}
+.safety b{color:#dfe4e6;font-size:11px}
+.plan-program-phases{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}
+.plan-program-phase{min-width:0;padding-right:clamp(24px,3vw,42px)}
+.plan-program-phase+ .plan-program-phase{padding-right:0;padding-left:clamp(24px,3vw,42px);border-left:1px solid rgba(255,255,255,.07)}
+.plan-program-phase>header{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;align-items:start;margin-bottom:18px}
+.plan-program-phase>header>span{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.045);color:#949da3;font-size:10px;font-weight:800}
+.plan-program-phase>header .eyebrow{margin:0 0 4px}
+.plan-program-phase>header h4{margin:0 0 5px;font-size:18px;font-weight:600;letter-spacing:-.025em}
+.plan-program-phase>header p:last-child{margin:0;color:#858e94;font-size:10.5px;line-height:1.48}
+.plan-phase-rhythm{display:grid;position:relative}
+.plan-phase-day{position:relative;margin-left:18px;border:0;border-left:1px solid rgba(255,255,255,.085);background:transparent}
+.plan-phase-day:last-child{border-left-color:transparent}
+.plan-phase-day>summary{display:grid;grid-template-columns:34px minmax(0,1fr) 24px;gap:12px;align-items:center;min-height:66px;padding:7px 0 10px;cursor:pointer;list-style:none}
+.plan-phase-day>summary::-webkit-details-marker{display:none}
+.plan-phase-marker{display:flex;align-items:center;justify-content:center;width:34px;height:34px;margin-left:-17px;border:1px solid rgba(255,255,255,.08);border-radius:11px;background:rgba(13,17,19,.9);color:#9da6ab;box-shadow:0 0 0 5px rgba(11,14,16,.34)}
+.plan-phase-day.swim .plan-phase-marker{color:#8fbac0}.plan-phase-day.rest .plan-phase-marker{color:#81899e}
+.plan-phase-day summary div{min-width:0}.plan-phase-day summary small{color:#727c82;font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+.plan-phase-day summary h5{margin:3px 0 2px;overflow:hidden;color:#dde2e4;font-size:12px;font-weight:600;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
+.plan-phase-day summary p{margin:0;color:#818b91;font-size:9.5px}
+.plan-phase-open{color:#727c82;font-size:14px;transition:transform var(--v2-fast) var(--v2-ease)}
+.plan-phase-day[open]>.plan-phase-open,.plan-phase-day[open] summary .plan-phase-open{transform:rotate(45deg);color:var(--lime)}
+.plan-phase-details{display:grid;gap:9px;padding:2px 0 18px 29px}
+.plan-phase-details .plan-exercises article{grid-template-columns:74px minmax(0,1fr);grid-template-rows:auto auto;padding:7px}
+.plan-phase-details .plan-exercises img,.plan-phase-details .plan-exercise-fallback{width:74px;height:74px}
+.plan-phase-details .plan-exercises h4{font-size:12px}.plan-phase-details .plan-exercises p{font-size:10px}
+.plan-phase-details .plan-exercises .exercise-video{grid-column:2;grid-row:2;justify-self:start;padding:0}
+.plan-phase-details .plan-exercises .exercise-video:has(.exercise-video-frame){grid-column:1/-1;grid-row:3}
+.day-plan{display:grid;gap:var(--v2-gap)}
+.day-plan details{border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset),var(--v2-shadow);padding:0 clamp(16px,1.8vw,22px);transition:border-color var(--v2-base) var(--v2-ease)}
+.day-plan details[open]{border-color:var(--v2-border-hover)}
+.day-plan summary{display:grid;grid-template-columns:100px 1fr 78px;align-items:center;gap:12px;padding:15px 0;cursor:pointer;list-style:none}
+.day-plan summary::-webkit-details-marker{display:none}
+.day-plan summary>span{color:#8e969d;font-size:10px}
+.day-plan summary div{display:flex;gap:8px;align-items:center;min-width:0}
+.day-plan summary h4{min-width:0;margin:0;overflow:hidden;font-size:12px;font-weight:600;letter-spacing:-.01em;text-overflow:ellipsis;white-space:nowrap}
+.day-plan summary i{flex:none;font-style:normal;font-size:7.5px;font-weight:800;letter-spacing:.04em;padding:4px 6px;border-radius:6px;background:rgba(255,255,255,.045);color:#929ba1}
+.day-plan details[open] summary i{color:var(--lime)}
+.day-plan summary>b{text-align:right;color:#8e969d;font-size:9.5px;font-weight:600}
+
+/* WeekPlanEditor использует тот же focus material, что header Workout Flow. */
+.week-plan-editor{width:min(720px,100%);padding:22px;border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);background:var(--v2-glass-hero);backdrop-filter:blur(28px) saturate(1.12);box-shadow:var(--v2-inset),0 34px 90px -30px rgba(0,0,0,.9)}
+.week-plan-editor>header{margin:0;padding:0 0 16px;border-bottom:1px solid var(--v2-border);background:transparent;box-shadow:none}
+.week-plan-editor>header h2{margin-top:4px;font-size:clamp(23px,2.2vw,29px);font-weight:600;letter-spacing:-.03em}
+.week-plan-editor>header>button{width:40px;height:40px;border:1px solid var(--v2-border);border-radius:50%;background:rgba(255,255,255,.045);color:#d8dddf}
+.week-plan-editor-current{gap:5px;margin:16px 0;padding:14px 15px;border:1px solid var(--v2-border);border-radius:12px;background:rgba(255,255,255,.035);font-size:12px}
+.week-plan-editor-current small{color:#899299;font-size:10px}
+.week-plan-editor-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0}
+.week-plan-editor-actions button{min-width:0;min-height:48px;padding:10px;border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.03);color:#9ca4aa;font-size:11px;cursor:pointer}
+.week-plan-editor-actions button:hover{border-color:var(--v2-border-hover);color:#e7ebed}
+.week-plan-editor-actions button.active{border-color:color-mix(in srgb,var(--lime) 34%,transparent);background:rgba(199,255,50,.07);color:var(--lime)}
+.week-plan-editor label{gap:7px;margin-top:12px;color:#899299;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase}
+.week-plan-editor select{min-height:46px;padding:0 12px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(7,10,12,.58);color:#f0f3f4;font-size:12px}
+.week-plan-editor-preview{margin-top:14px;padding:12px 14px;border:1px solid color-mix(in srgb,var(--lime) 18%,transparent);border-radius:11px;background:rgba(199,255,50,.055);color:#dfe9c1;font-size:11px;font-weight:600;line-height:1.5}
+.week-plan-editor>footer{display:flex;align-items:center;gap:10px;margin-top:18px;padding:16px 0 0;border-top:1px solid var(--v2-border);background:transparent}
+.week-plan-editor-secondary-actions{display:flex;gap:8px;margin-right:auto}
+.week-plan-editor footer button{min-height:44px;border-radius:11px;font-size:10.5px}
+.week-plan-editor footer button.ghost-btn{border:1px solid var(--v2-border);background:rgba(255,255,255,.03);color:#a9b0b5}
+.week-plan-editor footer button:not(.ghost-btn){min-width:126px;border:0;background:var(--lime);color:#0b0e07;font-weight:800}
+.week-plan-editor footer button:not(.ghost-btn):disabled{background:rgba(255,255,255,.08);color:#697178}
+
+@media(max-width:1100px){
+  .plan-week-rail{margin-inline:-28px}
+  .plan-day{grid-template-columns:auto minmax(0,1fr);padding-inline:11px}
+  .plan-day-symbol{display:none}
+  .plan-now{grid-template-columns:minmax(0,1.55fr) minmax(220px,.72fr)}
+  .plan-program-phases{grid-template-columns:1fr}
+  .plan-program-phase{padding-right:0}
+  .plan-program-phase+ .plan-program-phase{margin-top:30px;padding:30px 0 0;border-top:1px solid rgba(255,255,255,.07);border-left:0}
+}
+@media(max-width:760px){
+  .plan-screen{gap:30px}
+  .plan-hero{padding:20px 14px 0;border-radius:var(--v2-radius-lg)}
+  .plan-hero-head{grid-template-columns:1fr;gap:20px;padding:0 4px 20px}
+  .plan-hero-copy h2{font-size:40px}
+  .plan-hero-summary{gap:7px 12px;font-size:10.5px}
+  .plan-hero-summary span{padding-left:10px}
+  .plan-hero-note{font-size:10.5px}
+  .plan-hero-status{grid-template-columns:1fr auto;align-items:center;gap:9px 12px}
+  .plan-hero-status>div:first-child{grid-column:1/-1}
+  .plan-hero-progress{grid-column:1}
+  .plan-edit-action{grid-column:2;grid-row:2;min-height:44px;padding:0 10px;font-size:9px}
+  .plan-edit-action svg{display:none}
+  .plan-week-rail{margin:0 -14px}
+  .plan-day{display:grid;grid-template-columns:1fr;grid-template-rows:auto auto auto;place-items:center;min-height:88px;padding:10px 2px;text-align:center}
+  .plan-day-date{grid-row:auto;display:flex;align-items:baseline;gap:4px}
+  .plan-day-date b{font-size:15px}
+  .plan-day-symbol{grid-row:auto;display:flex;width:24px;height:24px;border-radius:8px}
+  .plan-day-kind{display:none}
+  .plan-day-state{min-height:9px;max-width:100%;overflow:hidden;font-size:6px;text-overflow:clip}
+  .plan-day-state svg{display:none}
+  .plan-day.selected:after{left:6px;right:6px}
+  .plan-now{grid-template-columns:1fr}
+  .plan-focus-card{min-height:340px;padding:20px}
+  .plan-focus-photo{background-position:64% center}
+  .plan-focus-shade{background:var(--v2-sheen),linear-gradient(0deg,rgba(7,10,12,.92) 0%,rgba(7,10,12,.68) 58%,rgba(7,10,12,.22) 100%)}
+  .plan-focus-content{width:100%}
+  .plan-focus-content h3{font-size:27px}
+  .plan-focus-card.rest .plan-focus-content{width:100%}
+  .plan-focus-card.rest .plan-rest-photo{background-position:71% center;filter:saturate(.78) brightness(1.1) contrast(1.02);opacity:.9}
+  .plan-focus-card.rest .plan-focus-shade{background:var(--v2-sheen),linear-gradient(90deg,rgba(7,10,12,.82) 0%,rgba(7,10,12,.58) 48%,rgba(7,10,12,.1) 100%)}
+  .plan-rest-guide{max-width:240px}
+  .plan-next-card{grid-template-columns:40px minmax(0,1fr);grid-template-rows:auto auto;align-items:start;gap:4px 12px;padding:18px}
+  .plan-next-icon{grid-row:1}.plan-next-card>div{grid-column:2}.plan-next-card .ghost-btn{grid-column:1/-1;white-space:nowrap}
+  .plan-section-heading{align-items:flex-start}
+  .plan-section-heading>span{display:none}
+  .plan-exercise-block{padding-top:18px}
+  .plan-exercise-block>header{align-items:flex-end}
+  .plan-exercise-block>header>small{display:none}
+  .plan-exercises{gap:8px}
+  .plan-exercises article{grid-template-columns:82px minmax(0,1fr);grid-template-rows:auto auto;gap:0 10px;padding:7px}
+  .plan-exercises img,.plan-exercise-fallback{grid-row:1/3;width:82px;height:96px}
+  .plan-exercise-copy{padding:2px 0}
+  .plan-exercise-title{gap:7px}
+  .plan-exercise-title>span{flex-basis:21px;width:21px;height:21px;font-size:9px}
+  .plan-exercises h4{font-size:12.5px;line-height:1.35}
+  .plan-exercises p{font-size:10px}
+  .plan-exercises article b{font-size:10px}
+  .plan-exercises .exercise-video{grid-column:2;grid-row:2;align-self:end;justify-self:start;padding:0}
+  .plan-exercises .exercise-video button{min-height:36px;margin-left:-8px;padding:0 8px;font-size:9.5px}
+  .plan-exercises .exercise-video:has(.exercise-video-frame){grid-column:1/-1;grid-row:3}
+  .plan-rest-note{padding:18px}
+  .plan-program{padding:20px 16px}
+  .plan-program-head{align-items:flex-start}
+  .plan-program-head>p{display:none}
+  .plan-program-phase>header{grid-template-columns:36px minmax(0,1fr);gap:12px}
+  .plan-program-phase>header>span{width:34px;height:34px}
+  .plan-phase-day{margin-left:16px}
+  .plan-phase-marker{margin-left:-17px}
+  .plan-phase-details{padding-left:22px}
+  .plan-phase-details .plan-exercises article{grid-template-columns:62px minmax(0,1fr)}
+  .plan-phase-details .plan-exercises img,.plan-phase-details .plan-exercise-fallback{width:62px;height:70px}
+  .day-plan summary{grid-template-columns:1fr auto;gap:8px}
+  .day-plan summary>span{grid-column:1/-1}
+  .day-plan summary div{align-items:flex-start}
+  .day-plan summary h4{white-space:normal}
+  .week-plan-editor{padding:16px}
+  .week-plan-editor-actions{grid-template-columns:1fr}
+  .week-plan-editor-actions button{min-height:44px}
+  .week-plan-editor>footer{align-items:stretch;flex-direction:column-reverse}
+  .week-plan-editor-secondary-actions{display:grid;width:100%;margin:0}
+  .week-plan-editor footer button:not(.ghost-btn){width:100%}
+}
+
+/* =========================================================================
+   ТРЕНИРОВКИ (Моя история → вкладка «Тренировки») — перенос утверждённого
+   языка VOLT 2.0 с Home (08-reference-implementation.md). Presentation
+   layer поверх существующей разметки WorkoutHistory/StrengthLog/
+   StrengthAdvice/PersonalRecords/GarminImport: DOM, данные, обработчики и
+   маршруты не меняются. `.strength-card`,`.advice`,`.records`,
+   `.garmin-import`,`.body-map` уже наследуют общий `.card` (см. общее
+   правило выше) — здесь донастраивается только то, что этот общий рецепт
+   не покрывает: сами записи журнала и внутренние поля форм, которые до сих
+   пор используют старый плоский язык (globals.css/advanced-features.css).
+   Спейсинг и структура вкладки не трогаются — только материал и CTA-роль,
+   без нового визуального языка. ========================================= */
+
+/* Журнал тренировок: каждая запись — та же стеклянная поверхность, что и
+   .workout на Home (карточки плана тренировок), без transform-подъёма на
+   hover — это функциональный список/аккордеон, а не витрина. */
+.history-card{
+  border:1px solid var(--v2-border)!important;
+  border-radius:var(--v2-radius-lg)!important;
+  background:var(--v2-glass)!important;
+  backdrop-filter:blur(24px) saturate(1.1);
+  box-shadow:var(--v2-inset),var(--v2-shadow);
+  transition:border-color var(--v2-base) var(--v2-ease),box-shadow var(--v2-base) var(--v2-ease);
+}
+.history-card:hover,.history-card[open]{border-color:var(--v2-border-hover)!important;box-shadow:var(--v2-inset),var(--v2-shadow-lift)}
+.history-card summary small{color:#8e969d;letter-spacing:.02em}
+.history-card summary em{color:#8e969d;font-style:normal}
+.history-card summary>span b{color:#e2e7ea}
+.history-card form{border-top:1px solid var(--v2-border)}
+.history-fields input,.history-fields select,.history-exercises input{
+  border-radius:10px;border-color:var(--v2-border);background:rgba(255,255,255,.03);color:var(--text)}
+.history-exercises h5{color:#69727a;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:800}
+/* Secondary: страница без Hero, но дисциплина CTA та же — сохранить и
+   записать данные не должны заливаться лаймом наравне с "Начать
+   тренировку" на Home. */
+.history-form-actions button[type=submit]{
+  border:1px solid var(--v2-border-hover);background:rgba(255,255,255,.05);color:#e6ebee;font-weight:700;
+  transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease)}
+.history-form-actions button[type=submit]:hover{border-color:color-mix(in srgb,var(--lime) 42%,transparent);background:rgba(255,255,255,.08)}
+.history-form-actions .delete-workout{
+  border:1px solid var(--v2-border);background:rgba(255,255,255,.03);color:#ff8b82;font-weight:700;
+  transition:border-color var(--v2-fast) var(--v2-ease)}
+.history-form-actions .delete-workout:hover{border-color:color-mix(in srgb,#ff8b82 40%,transparent)}
+.history-message{border:1px solid var(--v2-border);background:rgba(255,255,255,.03);color:var(--lime)}
+
+/* Зал · рабочие веса — та же дисциплина полей и secondary-кнопки. */
+.strength-form input,.strength-form select{border-radius:10px;border-color:var(--v2-border);background:rgba(255,255,255,.03);color:var(--text)}
+.strength-form button{
+  border:1px solid var(--v2-border-hover);background:rgba(255,255,255,.05);color:#e6ebee;font-weight:700;border-radius:11px;
+  transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease)}
+.strength-form button:hover{border-color:color-mix(in srgb,var(--lime) 42%,transparent);background:rgba(255,255,255,.08)}
+.strength-history article{border-radius:var(--v2-radius-md);border:1px solid var(--v2-border);background:rgba(255,255,255,.025)}
+.strength-history span{color:#8e969d}
+
+/* Прогрессия упражнений (Coach advice) — волосяная линия вместо старой
+   рамки, акцент не лаймом (лайм — только CTA/active/индикаторы). */
+.advice article{border-top:1px solid var(--v2-border)}
+.advice article span{color:#b3bbc1}
+
+/* Личные рекорды — вложенная поверхность как week-plan-row на Home, не
+   отдельный непрозрачный блок; значение — обычный текст, PR — маленький
+   лаймовый индикатор (разрешённое использование лайма). */
+.records article{border-radius:var(--v2-radius-md);border:1px solid var(--v2-border);background:rgba(255,255,255,.03)}
+.records article b{color:#e2e7ea}
+.record-badge{background:color-mix(in srgb,var(--lime) 14%,transparent);border:1px solid color-mix(in srgb,var(--lime) 32%,transparent);color:var(--lime)}
+
+/* Garmin FIT import — те же вложенные поверхности и secondary CTA. */
+.file-drop{border-color:var(--v2-border);color:#8e969d}
+.garmin-preview{border-color:var(--v2-border);background:rgba(255,255,255,.025)}
+.fit-metrics span,.fit-match{border-color:var(--v2-border);background:rgba(255,255,255,.03)}
+.fit-match select{border-color:var(--v2-border);background:rgba(255,255,255,.03);color:var(--text)}
+.fit-actions button:not(.secondary){
+  border:1px solid var(--v2-border-hover);background:rgba(255,255,255,.05);color:#e6ebee;
+  transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease)}
+.fit-actions button:not(.secondary):hover{border-color:color-mix(in srgb,var(--lime) 42%,transparent);background:rgba(255,255,255,.08)}
+.fit-actions button.secondary{border-color:var(--v2-border)}
+
+/* =========================================================================
+   NUTRITION HUB — единая рабочая композиция поверх существующих Nutrition
+   API и данных. Фото остаётся главным входом; остальные способы видимы
+   рядом, а распознавание и ручная правка происходят внутри той же VOLT
+   Glass поверхности. Вложенные элементы — функциональные зоны, не набор
+   самостоятельных карточек. ================================================= */
+.nutrition-hub{display:grid;gap:clamp(28px,3.4vw,44px);padding-top:0}
+.nutrition-hub>*{min-width:0}
+.app-shell:has(.nutrition-hub)>.coach-chat-fab{display:none}
+.nutrition-hero{display:flex;align-items:flex-end;justify-content:space-between;gap:28px;padding:10px 2px 0}
+.nutrition-hero .eyebrow{margin:0 0 12px;color:#848d94;letter-spacing:.18em}
+.nutrition-hero h2{margin:0;font-size:clamp(42px,5vw,66px);font-weight:600;line-height:.94;letter-spacing:-.052em}
+.nutrition-hero>div>p:last-child{max-width:44ch;margin:16px 0 0;color:#9aa3a9;font-size:13px;line-height:1.65}
+.nutrition-date-control{display:flex;align-items:center;gap:6px;padding:5px;border:1px solid var(--v2-border);border-radius:14px;background:var(--v2-glass);backdrop-filter:blur(20px) saturate(1.1);box-shadow:var(--v2-inset)}
+.nutrition-date-control>button{width:44px;height:44px;border:0;border-radius:10px;background:rgba(255,255,255,.035);color:#aeb6bc;cursor:pointer;transition:background var(--v2-fast) var(--v2-ease),color var(--v2-fast) var(--v2-ease)}
+.nutrition-date-control>button:hover:not(:disabled){background:rgba(255,255,255,.08);color:#fff}
+.nutrition-date-control>button:disabled{opacity:.28;cursor:default}
+.nutrition-date-control label{display:flex;align-items:center;gap:8px;height:44px;padding:0 11px;border-inline:1px solid var(--v2-border);color:#899299}
+.nutrition-date-control input{min-width:116px;border:0;background:transparent;color:#dfe4e7;font:inherit;font-size:10px;font-weight:700;letter-spacing:.06em;color-scheme:dark;outline:0}
+
+.nutrition-primary-grid{display:grid;grid-template-columns:minmax(0,1.72fr) minmax(290px,.72fr);gap:var(--v2-gap);align-items:start}
+.nutrition-primary-grid>*{min-width:0}
+.nutrition-add-panel,.nutrition-balance,.nutrition-water,.nutrition-coach-note,.nutrition-meals-section,.nutrition-history,.nutrition-program-guide,.nutrition-hub .food-tools{
+  border:1px solid var(--v2-border);background:var(--v2-glass);backdrop-filter:blur(26px) saturate(1.12);box-shadow:var(--v2-inset),var(--v2-shadow)
+}
+.nutrition-add-panel{position:relative;overflow:hidden;min-height:440px;padding:clamp(22px,2.4vw,32px);border-radius:var(--v2-radius-xl);background:var(--v2-glass-hero)}
+.nutrition-add-panel:before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(68% 80% at 4% 0%,rgba(199,255,50,.055),transparent 62%)}
+.nutrition-add-panel>*{position:relative}
+.nutrition-panel-head,.nutrition-section-head,.nutrition-balance-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.nutrition-panel-head .eyebrow,.nutrition-section-head .eyebrow,.nutrition-balance-head .eyebrow{margin:0 0 9px;color:#7f888f;letter-spacing:.16em}
+.nutrition-panel-head h3{margin:0;font-size:clamp(23px,2.2vw,30px);font-weight:600;letter-spacing:-.035em}
+.nutrition-panel-head>span{display:flex;align-items:center;gap:6px;padding:7px 10px;border:1px solid rgba(199,255,50,.14);border-radius:999px;background:rgba(199,255,50,.045);color:#aab992;font-size:8px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;white-space:nowrap}
+.nutrition-panel-head>span svg{color:var(--lime)}
+
+.nutrition-methods{display:grid;grid-template-columns:minmax(0,1.15fr) repeat(2,minmax(0,1fr));gap:9px;margin-top:28px}
+.nutrition-method{appearance:none;display:flex;min-width:0;min-height:158px;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:8px;padding:16px;border:1px solid rgba(255,255,255,.075);border-radius:var(--v2-radius-md);background:rgba(255,255,255,.025);color:#eef2f4;font:inherit;text-align:left;cursor:pointer;transition:transform var(--v2-base) var(--v2-ease),border-color var(--v2-fast) var(--v2-ease),background var(--v2-fast) var(--v2-ease)}
+.nutrition-method:hover{transform:translateY(-2px);border-color:var(--v2-border-hover);background:rgba(255,255,255,.05)}
+.nutrition-method.selected{border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.065)}
+.nutrition-method.photo{border-color:color-mix(in srgb,var(--lime) 28%,transparent);background:linear-gradient(145deg,rgba(199,255,50,.09),rgba(255,255,255,.025))}
+.nutrition-method.photo:hover,.nutrition-method.photo.selected{border-color:color-mix(in srgb,var(--lime) 52%,transparent);background:linear-gradient(145deg,rgba(199,255,50,.14),rgba(255,255,255,.04))}
+.nutrition-method>span{display:grid;width:38px;height:38px;place-items:center;margin-bottom:8px;border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.045);color:#aeb7bd}
+.nutrition-method.photo>span{border-color:color-mix(in srgb,var(--lime) 25%,transparent);background:rgba(199,255,50,.09);color:var(--lime)}
+.nutrition-method>b{font-size:13px;font-weight:700;letter-spacing:-.01em}
+.nutrition-method>small{color:#7f888f;font-size:9.5px;line-height:1.5}
+.nutrition-method.unavailable{opacity:.58;cursor:not-allowed}
+.nutrition-method:disabled:hover{transform:none;border-color:rgba(255,255,255,.075);background:rgba(255,255,255,.025)}
+.nutrition-method.photo:disabled:hover{border-color:color-mix(in srgb,var(--lime) 28%,transparent);background:linear-gradient(145deg,rgba(199,255,50,.09),rgba(255,255,255,.025))}
+
+.nutrition-add-panel .ai-key-setup{margin:16px 0 0;padding:15px 16px;border-color:var(--v2-border);border-radius:14px;background:rgba(255,255,255,.025)}
+.nutrition-add-panel .ai-key-setup p{color:#9ea6ab;font-size:10.5px}
+.nutrition-add-panel .ai-key-setup div{display:flex;gap:8px}
+.nutrition-add-panel .ai-key-setup input{min-width:0;border-color:var(--v2-border);background:rgba(5,8,9,.48)}
+.nutrition-add-panel .ai-key-setup button{min-height:44px;padding:0 14px;border:1px solid var(--v2-border-hover);background:rgba(255,255,255,.06);color:#edf1f3}
+.nutrition-ai-unavailable{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;margin-top:16px;padding:14px 15px;border:1px solid rgba(255,255,255,.075);border-radius:13px;background:rgba(255,255,255,.025)}
+.nutrition-ai-unavailable b{color:#dbe0e3;font-size:11px;font-weight:700}
+.nutrition-ai-unavailable p{margin:5px 0 0;color:#8e979d;font-size:9.5px;line-height:1.5}
+.nutrition-ai-unavailable>button{min-height:44px;padding:0 13px;border:1px solid var(--v2-border-hover);border-radius:10px;background:rgba(255,255,255,.05);color:#e8edef;font-size:9.5px;font-weight:750;cursor:pointer}
+.nutrition-ai-unavailable>details{grid-column:1/-1;border-top:1px solid var(--v2-border);padding-top:10px}
+.nutrition-ai-unavailable>details>summary{color:#7f898f;font-size:9px;cursor:pointer}
+.nutrition-ai-unavailable .ai-key-setup{margin-top:10px}
+
+.nutrition-entry-workspace{display:grid;grid-template-columns:190px minmax(0,1fr);gap:14px;margin-top:18px;padding-top:18px;border-top:1px solid var(--v2-border)}
+.nutrition-entry-meta{display:grid;align-content:start;gap:10px}
+.nutrition-entry-workspace label{display:grid;gap:7px;color:#8f989e;font-size:9px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.nutrition-entry-workspace input,.nutrition-entry-workspace select,.nutrition-entry-workspace textarea{width:100%;border:1px solid var(--v2-border);border-radius:11px;background:rgba(6,9,10,.54);color:#eef2f4;font:inherit;outline:0}
+.nutrition-entry-workspace input,.nutrition-entry-workspace select{min-height:43px;padding:0 11px;color-scheme:dark}
+.nutrition-entry-workspace textarea{min-height:154px;padding:13px;resize:vertical;font-size:12px;line-height:1.6}
+.nutrition-entry-workspace input:focus,.nutrition-entry-workspace select:focus,.nutrition-entry-workspace textarea:focus{border-color:rgba(255,255,255,.24)}
+.nutrition-entry-text{grid-column:2;grid-row:1/3}
+.nutrition-entry-text>span{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.nutrition-entry-text>span small{color:#626c72;font-size:8px;font-weight:600;letter-spacing:0;text-transform:none}
+.nutrition-entry-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:8px}
+.nutrition-entry-actions button{min-height:46px;padding:0 17px;border-radius:11px;font-size:10px;font-weight:800;cursor:pointer}
+.nutrition-entry-actions button[type=submit]{display:flex;align-items:center;gap:8px;border:0;background:var(--lime);color:#0a0d08;box-shadow:0 14px 30px -18px color-mix(in srgb,var(--lime) 62%,transparent)}
+.nutrition-entry-actions button[type=submit]:disabled{background:rgba(255,255,255,.08);color:#687177;box-shadow:none;cursor:not-allowed}
+.nutrition-entry-actions button[type=submit] span{font-size:16px}
+.nutrition-entry-actions .ghost-btn{border:1px solid var(--v2-border);background:rgba(255,255,255,.025);color:#a5adb2}
+.nutrition-entry-workspace .food-ai-note,.nutrition-entry-workspace .food-error{grid-column:1/-1;margin:0;padding:11px 13px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(255,255,255,.025);color:#aab39f;font-size:10px;line-height:1.5}
+.nutrition-entry-workspace .food-ai-note b{color:var(--lime)}
+.nutrition-entry-workspace .food-error,.nutrition-add-panel>.food-error{color:#ffb0aa}
+
+.nutrition-day-column{display:grid;gap:var(--v2-gap)}
+.nutrition-balance{padding:22px;border-radius:var(--v2-radius-lg)}
+.nutrition-balance-head h3{margin:0;color:#cdd3d7;font-size:15px;font-weight:600;letter-spacing:-.015em}
+.nutrition-balance-head>span{padding:6px 9px;border:1px solid var(--v2-border);border-radius:999px;color:#778188;font-size:8px;white-space:nowrap}
+.nutrition-calorie-ring{position:relative;width:158px;height:158px;margin:22px auto;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--lime) var(--nutrition-progress),rgba(255,255,255,.075) 0);box-shadow:0 0 34px -22px rgba(199,255,50,.7)}
+.nutrition-calorie-ring:after{content:"";position:absolute;inset:10px;border-radius:50%;background:linear-gradient(145deg,rgba(21,25,28,.98),rgba(10,13,15,.98));box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.nutrition-calorie-ring>div{position:relative;z-index:1;display:grid;text-align:center}
+.nutrition-calorie-ring b{font-size:34px;font-weight:600;line-height:1;letter-spacing:-.045em}
+.nutrition-calorie-ring span{margin-top:6px;color:#747e85;font-size:8px;text-transform:uppercase;letter-spacing:.08em}
+.nutrition-macros{display:grid;gap:13px}
+.nutrition-macro>div:first-child{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.nutrition-macro span{color:#899299;font-size:9px}
+.nutrition-macro b{color:#dce1e4;font-size:10.5px;font-weight:700}
+.nutrition-macro b small{color:#667077;font-size:8px;font-weight:600}
+.nutrition-macro .macro-bar{height:4px;margin:7px 0 0;background:rgba(255,255,255,.075)}
+.nutrition-macro .macro-bar i{background:#9acb2e}
+.nutrition-macro.macro-жиры .macro-bar i{background:#d8a75a}
+.nutrition-macro.macro-углеводы .macro-bar i{background:#68a9b9}
+.nutrition-remaining{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;padding-top:15px;border-top:1px solid var(--v2-border)}
+.nutrition-remaining span{color:#778087;font-size:9px}
+.nutrition-remaining b{color:#dce2e5;font-size:11px}
+.nutrition-remaining.over b{color:#e2a777}
+
+.nutrition-water,.nutrition-coach-note{display:flex;align-items:flex-start;gap:13px;padding:18px;border-radius:var(--v2-radius-md)}
+.nutrition-water>span,.nutrition-coach-note>span{display:grid;flex:none;width:36px;height:36px;place-items:center;border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.035);color:#75b5c5}
+.nutrition-coach-note>span{color:var(--lime)}
+.nutrition-coach-note>div{min-width:0}
+.nutrition-water .eyebrow,.nutrition-coach-note .eyebrow{margin:1px 0 5px;color:#717b82;letter-spacing:.14em}
+.nutrition-water h3{margin:0 0 5px;font-size:16px;font-weight:600}
+.nutrition-water small{color:#69737a;font-size:8px;line-height:1.45}
+.nutrition-coach-note p:not(.eyebrow){margin:0;color:#a5adb2;font-size:10px;line-height:1.58}
+.nutrition-coach-action{display:inline-flex;min-height:44px;align-items:center;justify-content:center;margin-top:12px;padding:0 13px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(255,255,255,.035);color:#d9dfe1;font-size:9.5px;font-weight:750;cursor:pointer}
+.nutrition-coach-action:hover{border-color:var(--v2-border-hover);background:rgba(255,255,255,.06)}
+
+.nutrition-meals-section{padding:clamp(20px,2.4vw,30px);border-radius:var(--v2-radius-xl)}
+.nutrition-section-head h3{margin:0;font-size:clamp(20px,2vw,26px);font-weight:600;letter-spacing:-.025em}
+.nutrition-section-head .ghost-btn{min-height:44px;padding:0 13px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(255,255,255,.035);color:#abb3b8;font-size:9.5px;font-weight:700}
+.nutrition-meals-section .food-log-list{display:grid;gap:0;margin:18px 0 0}
+.nutrition-meals-section .food-log-list article{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:16px;align-items:start;padding:18px 0;border:0;border-top:1px solid var(--v2-border);border-radius:0;background:transparent}
+.nutrition-meals-section .food-log-list article:last-child{padding-bottom:0}
+.nutrition-meal-index{padding-top:4px;color:#555f66;font-size:10px;font-weight:700}
+.nutrition-meal-copy{min-width:0}
+.nutrition-meal-copy header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0;border:0}
+.nutrition-meal-copy header>div{display:flex;align-items:center;gap:9px}
+.nutrition-meal-copy header em{padding:5px 8px;border:1px solid rgba(199,255,50,.13);border-radius:7px;background:rgba(199,255,50,.055);color:#b6cb82;font-size:7px;font-style:normal;font-weight:800;letter-spacing:.09em;text-transform:uppercase}
+.nutrition-meal-copy header b{color:#747e84;font-size:8px;font-weight:650}
+.nutrition-meal-copy header>button{flex:0 0 44px;width:44px;height:44px;margin:-9px -9px -8px 0;border:1px solid transparent;border-radius:11px;background:transparent;color:#747d83;font-size:16px;cursor:pointer}
+.nutrition-meal-copy header>button:hover{border-color:rgba(255,126,118,.2);background:rgba(255,126,118,.06);color:#ff9b94}
+.nutrition-meal-copy p{display:flex;justify-content:space-between;gap:16px;margin:11px 0 0;color:#b2babf;font-size:11px;line-height:1.5}
+.nutrition-meal-copy p span{min-width:0;overflow-wrap:anywhere}
+.nutrition-meal-copy p b{flex:none;color:#858e94;font-size:9px;font-weight:650;white-space:nowrap}
+.nutrition-meal-copy .food-note{margin:11px 0 0;padding:9px 11px;border-radius:9px;background:rgba(255,255,255,.025);color:#87917f;font-size:9.5px;line-height:1.5}
+.nutrition-meal-total{display:grid;justify-items:end;min-width:112px;padding-top:3px}
+.nutrition-meal-total>b{display:flex;align-items:baseline;gap:4px;font-size:21px;font-weight:600;letter-spacing:-.035em}
+.nutrition-meal-total>b small{color:#7e878d;font-size:8px;font-weight:700;letter-spacing:0}
+.nutrition-meal-total>span{margin-top:5px;color:#6b757b;font-size:8px;white-space:nowrap}
+.nutrition-empty{display:flex;align-items:center;justify-content:center;gap:15px;min-height:120px;margin-top:18px;border-top:1px solid var(--v2-border);color:#778087}
+.nutrition-empty svg{color:#69737a}
+.nutrition-empty b{color:#d3d9dc;font-size:12px}
+.nutrition-empty p{margin:5px 0 0;font-size:10px}
+
+.nutrition-history,.nutrition-program-guide{overflow:hidden;border-radius:var(--v2-radius-lg)}
+.nutrition-history>summary,.nutrition-program-guide>summary{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:20px 24px;list-style:none;cursor:pointer}
+.nutrition-history>summary::-webkit-details-marker,.nutrition-program-guide>summary::-webkit-details-marker{display:none}
+.nutrition-history>summary .eyebrow,.nutrition-program-guide>summary .eyebrow{margin:0 0 5px;color:#727c83;letter-spacing:.15em}
+.nutrition-history>summary b,.nutrition-program-guide>summary b{font-size:13px;font-weight:600}
+.nutrition-history>summary svg,.nutrition-program-guide>summary svg{color:#768087;transition:transform var(--v2-fast) var(--v2-ease)}
+.nutrition-history[open]>summary svg,.nutrition-program-guide[open]>summary svg{transform:rotate(180deg)}
+.nutrition-history .food-history-chart{height:116px;margin:0;padding:0 24px 22px;border-top:1px solid var(--v2-border)}
+.nutrition-history .chart-labels{padding-top:14px}
+.nutrition-history .bars{grid-template-columns:repeat(14,1fr);gap:5px;padding-top:14px}
+.nutrition-history .bar-slot i{background:#45502e}
+.nutrition-history .bar-slot i.today{background:var(--lime)}
+.nutrition-history-list{display:none}
+
+.nutrition-hub .food-tools{margin:0;padding:clamp(20px,2.4vw,28px);border-radius:var(--v2-radius-xl)}
+.nutrition-hub .food-tools>.eyebrow{margin:0 0 8px;color:#7d868d;letter-spacing:.16em}
+.nutrition-hub .food-tools h3{margin:0 0 18px;font-size:clamp(19px,1.8vw,24px);font-weight:600;letter-spacing:-.025em}
+.nutrition-hub .food-tools .food-tools-note{max-width:68ch;margin:-8px 0 18px;color:#818b91;font-size:10px;line-height:1.55}
+.nutrition-hub .food-tools>div{display:flex;gap:8px;flex-wrap:wrap;padding-top:16px;border-top:1px solid var(--v2-border)}
+.nutrition-hub .food-tools>div>span{color:#737d83;font-size:10px}
+.nutrition-hub .food-tools button{min-height:44px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(255,255,255,.03);color:#aeb6bb;padding:9px 11px;font-size:9.5px;cursor:pointer}
+.nutrition-hub .food-tools button:hover{border-color:var(--v2-border-hover);color:#eef2f4}
+.nutrition-hub .food-tools ul{display:grid;gap:0;margin:14px 0 0;padding:0;list-style:none}
+.nutrition-hub .food-tools li{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:11px 0;border-top:1px solid var(--v2-border);color:#9fa7ac;font-size:10px}
+.nutrition-hub .food-tools li span{min-width:0;overflow-wrap:anywhere}
+.nutrition-hub .food-tools li>button:last-child{min-width:44px;padding-inline:0}
+
+.nutrition-program-guide>summary{padding:22px 26px}
+.nutrition-program-content{padding:0 26px 26px;border-top:1px solid var(--v2-border)}
+.nutrition-program-meals{display:grid;margin-top:6px}
+.nutrition-program-meals article{display:grid;grid-template-columns:40px minmax(0,1fr) 120px;gap:14px;align-items:center;padding:17px 0;border-bottom:1px solid var(--v2-border)}
+.nutrition-program-meals article>span{color:#555f65;font-size:9px}
+.nutrition-program-meals small{color:#87933d;font-size:7px;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.nutrition-program-meals h3{margin:5px 0 0;color:#c8ced2;font-size:12px;font-weight:550;line-height:1.5}
+.nutrition-program-meals article>b{color:#8a9399;font-size:10px;text-align:right}
+.nutrition-program-rules{display:grid;grid-template-columns:repeat(3,1fr);margin-top:24px}
+.nutrition-program-rules article{padding:0 22px}
+.nutrition-program-rules article:first-child{padding-left:0}
+.nutrition-program-rules article:last-child{padding-right:0}
+.nutrition-program-rules article+article{border-left:1px solid var(--v2-border)}
+.nutrition-program-rules small{color:#87933d;font-size:7px;font-weight:800;letter-spacing:.13em}
+.nutrition-program-rules h3{margin:8px 0;color:#d2d8db;font-size:13px;font-weight:600}
+.nutrition-program-rules p{margin:0;color:#818a90;font-size:9.5px;line-height:1.6}
+
+@media(max-width:1100px){
+  .nutrition-primary-grid{grid-template-columns:1fr}
+  .nutrition-day-column{grid-template-columns:1fr 1fr}
+  .nutrition-balance{grid-column:1/-1;grid-row:auto}
+  .nutrition-calorie-ring{width:132px;height:132px;margin:18px auto}
+  .nutrition-calorie-ring b{font-size:29px}
+}
+@media(max-width:760px){
+  .nutrition-hub{gap:24px;padding-bottom:28px}
+  .nutrition-hero{display:grid;gap:20px;padding-top:2px}
+  .nutrition-hero h2{font-size:43px}
+  .nutrition-hero>div>p:last-child{margin-top:12px;font-size:12px}
+  .nutrition-date-control{width:100%;justify-content:space-between}
+  .nutrition-date-control label{flex:1;justify-content:center}
+  .nutrition-date-control input{min-width:0;width:118px}
+  .nutrition-add-panel{min-height:0;padding:20px 15px;border-radius:var(--v2-radius-lg)}
+  .nutrition-panel-head>span{display:none}
+  .nutrition-panel-head h3{font-size:23px}
+  .nutrition-methods{grid-template-columns:1fr 1fr;gap:8px;margin-top:20px}
+  .nutrition-method.manual{grid-column:1/-1;min-height:112px}
+  .nutrition-method{min-height:138px;padding:14px}
+  .nutrition-method>span{width:34px;height:34px;margin-bottom:4px}
+  .nutrition-method>small{font-size:8.5px}
+  .nutrition-ai-unavailable{grid-template-columns:1fr;padding:14px}
+  .nutrition-ai-unavailable>button{justify-self:start}
+  .nutrition-ai-unavailable>details{grid-column:1}
+  .nutrition-ai-unavailable .ai-key-setup div{display:grid}
+  .nutrition-entry-workspace{grid-template-columns:1fr}
+  .nutrition-entry-text{grid-column:1;grid-row:auto}
+  .nutrition-entry-text>span{display:grid;gap:4px}
+  .nutrition-entry-actions{grid-column:1;display:grid;grid-template-columns:auto 1fr}
+  .nutrition-entry-actions button{padding-inline:12px}
+  .nutrition-day-column{grid-template-columns:1fr}
+  .nutrition-balance{grid-row:auto}
+  .nutrition-water,.nutrition-coach-note{padding:16px}
+  .nutrition-coach-action{display:inline-flex;align-items:center;justify-content:center}
+  .nutrition-meals-section{padding:20px 16px;border-radius:var(--v2-radius-lg)}
+  .nutrition-meals-section .food-log-list article{grid-template-columns:30px minmax(0,1fr);gap:10px;padding:16px 0}
+  .nutrition-meal-total{grid-column:2;justify-items:start;min-width:0;padding-top:7px}
+  .nutrition-meal-copy p{display:grid;gap:3px}
+  .nutrition-meal-copy p b{justify-self:start}
+  .nutrition-section-head{align-items:flex-end}
+  .nutrition-section-head .ghost-btn{padding-inline:10px}
+  .nutrition-empty{justify-content:flex-start;padding-inline:8px}
+  .nutrition-history>summary,.nutrition-program-guide>summary{padding:18px}
+  .nutrition-history .food-history-chart{display:none}
+  .nutrition-history-list{display:grid;padding:0 18px 16px;border-top:1px solid var(--v2-border)}
+  .nutrition-history-list>div{display:grid;grid-template-columns:54px minmax(0,1fr) 76px;gap:10px;align-items:center;min-height:38px;border-bottom:1px solid rgba(255,255,255,.055);color:#7d878d;font-size:9px}
+  .nutrition-history-list>div:last-child{border-bottom:0}
+  .nutrition-history-list>div.today>span{color:var(--lime);font-weight:750}
+  .nutrition-history-list i{height:3px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.07)}
+  .nutrition-history-list i b{display:block;height:100%;border-radius:inherit;background:#59643d}
+  .nutrition-history-list>div.today i b{background:var(--lime)}
+  .nutrition-history-list strong{color:#aeb6bb;font-size:9px;font-weight:650;text-align:right;white-space:nowrap}
+  .nutrition-hub .food-tools{padding:20px 16px;border-radius:var(--v2-radius-lg)}
+  .nutrition-hub .food-tools li{grid-template-columns:1fr auto}
+  .nutrition-hub .food-tools li button:first-child{grid-column:1/-1;justify-self:start}
+  .nutrition-program-content{padding:0 18px 20px}
+  .nutrition-program-meals article{grid-template-columns:30px minmax(0,1fr);gap:10px}
+  .nutrition-program-meals article>b{grid-column:2;text-align:left;color:#879099}
+  .nutrition-program-rules{grid-template-columns:1fr;margin-top:18px}
+  .nutrition-program-rules article{padding:16px 0}
+  .nutrition-program-rules article+article{border-top:1px solid var(--v2-border);border-left:0}
+}
+
+/* =========================================================================
+   Workout Flow (app/active-workout.tsx) — Presentation layer поверх
+   существующей разметки: markup, состояние тренировки (active/awaiting_
+   confirmation/completed/cancelled), порядок экранов и бизнес-логика не
+   затрагиваются, меняется только визуальный язык до уровня Reference
+   Implementation Home (docs/design-system/08-reference-implementation.md).
+   Селекторы намеренно ограничены `.active-workout-mode`, чтобы не задеть
+   другие потребители общих классов .modal-backdrop/.focus-mode/.ghost-btn
+   (вечерний чек-ин, редактор недели, обычная тренировочная сессия).
+   ========================================================================= */
+/* Focus mode keeps the shared app background as the only image layer. The
+   page UI beneath the modal is hidden while the flow is open, so the gym —
+   rather than a blurred copy of Home cards — remains the architectural base. */
+.app-shell:has(>.active-workout-mode)>.sidebar,
+.app-shell:has(>.active-workout-mode)>.content,
+.app-shell:has(>.active-workout-mode)>.coach-chat-fab,
+.app-shell:has(>.active-workout-mode)>.mobile-nav{visibility:hidden}
+.active-workout-mode{
+  background:
+    radial-gradient(125% 88% at 58% 4%,rgba(6,8,10,.12) 0%,rgba(6,8,10,.34) 48%,rgba(6,8,10,.66) 100%),
+    linear-gradient(180deg,rgba(6,8,10,.14) 0%,rgba(6,8,10,.46) 100%);
+  backdrop-filter:none;
+}
+.active-workout-mode .workout-modal{
+  padding:22px max(18px,calc((100vw - 920px)/2));
+  background:transparent;
+  backdrop-filter:none;
+  box-shadow:none;
+  color:var(--text);
+  scrollbar-color:rgba(255,255,255,.18) transparent;
+}
+/* Active uses a real five-row focus layout: header and action shelf stay in
+   place while only the exercise list scrolls. This removes footer overlap
+   without changing the component markup or workout lifecycle. */
+.active-workout-mode .active-workout-card:has(>.active-plan-list){
+  display:grid;
+  grid-template-rows:auto auto minmax(0,1fr) auto auto;
+  overflow:hidden;
+}
+.active-workout-mode .workout-modal>header{
+  position:relative;top:auto;z-index:8;
+  margin:0 0 14px;padding:18px 20px;
+  border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);
+  background:var(--v2-glass-hero);
+  backdrop-filter:blur(26px) saturate(1.12);
+  box-shadow:var(--v2-inset),var(--v2-shadow);
+}
+.active-workout-mode .workout-modal h2{margin-top:3px;font-size:clamp(23px,2.2vw,29px);font-weight:600;line-height:1.16;letter-spacing:-.028em}
+.active-workout-mode .eyebrow{margin:0;letter-spacing:.16em;font-size:10px}
+.active-workout-mode .workout-modal header>button{
+  border:1px solid var(--v2-border);background:rgba(255,255,255,.05);color:var(--text);
+  transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease);
+}
+.active-workout-mode .workout-modal header>button:hover{border-color:var(--v2-border-hover);background:rgba(255,255,255,.09)}
+.active-workout-mode .workout-modal>footer,
+.active-workout-mode .confirmation-screen>footer{
+  z-index:8;
+  margin:12px 0 0;padding:10px;
+  border:1px solid var(--v2-border);border-radius:18px;
+  background:var(--v2-glass-arch);
+  backdrop-filter:blur(26px) saturate(1.12);
+  box-shadow:var(--v2-inset),0 18px 46px -28px rgba(0,0,0,.88);
+}
+.active-workout-mode .workout-modal>footer{
+  position:relative;bottom:auto;
+}
+
+/* Мета-полоска активного занятия — тот же pill-язык, что и next-workout-meta */
+.active-workout-mode .active-workout-meta{margin:0 0 14px;padding:0 2px}
+.active-workout-meta span{
+  border:1px solid var(--v2-border);border-radius:999px;background:rgba(255,255,255,.03);color:#b3bbc1;
+}
+.active-workout-mode .active-workout-hint{margin:10px 2px 0;color:#9aa2a7;font-size:11.5px}
+.active-workout-mode .active-plan-list{
+  min-height:0;overflow-y:auto;overscroll-behavior:contain;
+  gap:10px;padding:2px 8px 12px 2px;align-content:start;grid-auto-rows:max-content;
+  scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.18) transparent;
+}
+
+/* План упражнений — карточки одной роли с плотностью контентной поверхности */
+.active-plan-item{
+  grid-template-columns:112px minmax(0,1fr);gap:16px;
+  padding:10px;
+  border:1px solid rgba(255,255,255,.075);border-radius:var(--v2-radius-lg);
+  background:var(--v2-glass);backdrop-filter:blur(20px) saturate(1.08);
+  box-shadow:var(--v2-inset),var(--v2-shadow);
+  transition:border-color var(--v2-base) var(--v2-ease),background var(--v2-base) var(--v2-ease);
+}
+.active-plan-item:hover{border-color:var(--v2-border-hover);background:var(--v2-glass-raised)}
+.active-workout-mode .exercise-thumb,.active-workout-mode .exercise-thumb-fallback{
+  width:112px;height:112px;min-height:0;align-self:start;
+  border:1px solid rgba(255,255,255,.08);border-radius:13px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),0 14px 30px -24px rgba(0,0,0,.9);
+}
+.active-workout-mode .exercise-thumb{filter:saturate(.88) contrast(1.04)}
+.active-workout-mode .exercise-thumb-fallback{background:rgba(255,255,255,.04)}
+.active-workout-mode .active-plan-item-head>span{
+  background:rgba(255,255,255,.08);color:var(--lime);border-radius:7px;
+}
+.active-workout-mode .active-plan-item-desc,.active-workout-mode .active-plan-item-target{color:#9aa2a7}
+
+/* Иерархия карточки: title → description → target/meta → secondary action
+   (03-typography.md/04-spacing.md). Роли из globals.css (12/10/10px, gap 5px)
+   слишком мелкие и плотные для VOLT 2.0 — здесь только размер, вес,
+   line-height и отступы; разметка, данные и переносы строк не меняются. */
+.active-workout-mode .active-plan-item-body{grid-template-columns:minmax(0,1fr) auto;column-gap:12px;padding:4px 8px 4px 0;gap:7px;align-content:start}
+.active-workout-mode .active-plan-item-head{align-items:flex-start;gap:10px}
+.active-workout-mode .active-plan-item-head,.active-workout-mode .active-plan-item-desc{grid-column:1/-1}
+.active-workout-mode .active-plan-item-head>span{
+  margin-top:1px;flex:0 0 24px;width:24px;height:24px;font-size:12px;
+}
+.active-workout-mode .active-plan-item-head>b{
+  max-width:56ch;font-size:15px;font-weight:600;letter-spacing:-.018em;line-height:1.32;
+}
+.active-workout-mode .active-plan-item-desc{
+  max-width:78ch;font-size:12px;line-height:1.52;
+}
+.active-workout-mode .active-plan-item-target{
+  grid-column:1;grid-row:3;align-self:center;font-size:11.5px;font-weight:600;letter-spacing:.01em;color:#aeb6bc;
+}
+.active-workout-mode .exercise-video.compact{grid-column:2;grid-row:3;margin-top:0;align-self:center}
+.active-workout-mode .exercise-video button{min-height:44px;font-size:11px;font-weight:650;padding:0 8px}
+
+/* "Смотреть технику" — secondary/ghost действие, не primary (02-colors.md:
+   лайм только для primary CTA, активного пункта навигации и мелких
+   индикаторов). Переопределяется только внутри Workout Flow — та же
+   ExerciseVideo используется на Home и в training-session.tsx и там
+   сохраняет исходный стиль. */
+.active-workout-mode .exercise-video button{
+  margin-left:-8px;color:#c6cdd2;border-color:transparent;background:transparent;
+}
+.active-workout-mode .exercise-video button:hover{
+  color:var(--text);background:rgba(255,255,255,.045);border-color:transparent;
+}
+
+/* CTA-иерархия: один primary на экран (buttons.md), тот же lime-pill, что у Hero */
+.active-workout-card footer button:not(.ghost-btn),
+.confirmation-screen footer button:not(.ghost-btn){
+  min-height:44px;padding:11px 17px;
+  border:0;border-radius:12px;background:var(--lime);color:#0b0e07;font-size:12px;font-weight:800;
+  box-shadow:0 10px 28px -10px color-mix(in srgb,var(--lime) 42%,transparent);
+  transition:transform var(--v2-fast) var(--v2-ease),box-shadow var(--v2-fast) var(--v2-ease);
+}
+.active-workout-card footer button:not(.ghost-btn):hover:not(:disabled),
+.confirmation-screen footer button:not(.ghost-btn):hover:not(:disabled){
+  transform:translateY(-2px);box-shadow:0 16px 36px -10px color-mix(in srgb,var(--lime) 52%,transparent);
+}
+.active-workout-card footer button:not(.ghost-btn):disabled,
+.confirmation-screen footer button:not(.ghost-btn):disabled{
+  background:rgba(255,255,255,.06);color:#6b7378;box-shadow:none;
+}
+.active-workout-card footer .ghost-btn,.confirmation-screen footer .ghost-btn{
+  min-height:44px;padding:10px 14px;border:1px solid transparent;background:transparent;color:#aeb6bc;
+}
+.active-workout-card footer .ghost-btn:hover:not(:disabled),
+.confirmation-screen footer .ghost-btn:hover:not(:disabled){border-color:var(--v2-border);background:rgba(255,255,255,.035);color:var(--text)}
+.confirmation-quick button,.exercise-actions button,.text-btn{
+  border:1px solid var(--v2-border);background:rgba(255,255,255,.03);color:#d8ded9;
+  transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease);
+}
+.active-workout-mode .confirmation-quick button:first-child{
+  border-color:var(--v2-border);background:rgba(255,255,255,.03);color:#d8ded9;font-weight:700;box-shadow:none;
+}
+.confirmation-quick button:hover:not(:disabled),.exercise-actions button:hover,.text-btn:hover{
+  border-color:var(--v2-border-hover);background:rgba(255,255,255,.06);
+}
+/* "Подтвердить тренировку" в футере — единственный primary CTA экрана
+   (components/buttons.md: не ставить несколько доминирующих CTA рядом).
+   Quick-action "Всё выполнено по плану" — тот же secondary вес, что и
+   остальные кнопки .confirmation-quick, лайм здесь не используется. */
+.exercise-actions button.restore{color:var(--lime)}
+
+/* Итоги подтверждения — одна стеклянная панель с внутренними разделителями,
+   тот же приём, что у .stat-strip на Главной */
+.confirmation-summary{
+  border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);
+  background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);
+  box-shadow:var(--v2-inset),var(--v2-shadow);overflow:hidden;
+}
+.confirmation-summary span{
+  border:0;border-right:1px solid var(--v2-border);border-radius:0;background:none;
+}
+.confirmation-summary span:last-child{border-right:0}
+.confirmation-summary small{color:#8e969d}
+@media(max-width:420px){.confirmation-summary{grid-template-columns:1fr 1fr}
+  .confirmation-summary span:nth-child(2n){border-right:0}
+  .confirmation-summary span:nth-child(-n+2){border-bottom:1px solid var(--v2-border)}}
+
+.confirmation-exercises article{
+  border:1px solid var(--v2-border);border-radius:var(--v2-radius-md);
+  background:var(--v2-glass);backdrop-filter:blur(20px) saturate(1.08);
+  box-shadow:var(--v2-inset),var(--v2-shadow);
+}
+.active-workout-mode .confirmation-screen{gap:16px;padding:2px 2px 20px}
+.active-workout-mode .confirmation-exercise-head>b,
+.active-workout-mode .confirmation-exercise-head b{font-weight:600;line-height:1.35;letter-spacing:-.012em}
+.active-workout-mode .exercise-comparison{gap:8px}
+.active-workout-mode .exercise-comparison span{padding:10px}
+.active-workout-mode .confirmation-feedback,
+.active-workout-mode .add-confirm-exercise{padding:14px;border:1px solid var(--v2-border);border-radius:var(--v2-radius-md);background:rgba(255,255,255,.025)}
+.active-workout-mode .confirmation-screen>footer{position:relative;bottom:auto}
+.confirmation-exercise-head em{color:var(--lime)}
+.exercise-comparison span{background:rgba(255,255,255,.03);border-radius:9px}
+.exercise-comparison small{color:#8e979b}
+
+.compact-set-editor input,.quick-set-editor input,.add-confirm-exercise input,
+.confirmation-feedback select,.confirmation-feedback input{
+  border:1px solid var(--v2-border);background:rgba(255,255,255,.03);color:var(--text);
+}
+.compact-set-editor input:focus,.quick-set-editor input:focus,.add-confirm-exercise input:focus,
+.confirmation-feedback select:focus,.confirmation-feedback input:focus{
+  outline:none;border-color:var(--v2-border-hover);
+}
+.compact-set-editor>div>button{border:1px solid var(--v2-border);background:rgba(255,255,255,.03)}
+.add-confirm-exercise button{border:1px solid var(--v2-border);background:rgba(255,255,255,.05);color:var(--text)}
+
+/* Result is a focus surface of the same flow; only its presentation changes. */
+.active-workout-mode .active-completed{
+  width:min(720px,100%);margin:clamp(18px,6vh,64px) auto 0;padding:clamp(24px,3vw,36px);
+  border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);
+  background:var(--v2-glass-hero);backdrop-filter:blur(26px) saturate(1.1);
+  box-shadow:var(--v2-inset),var(--v2-shadow-lift);
+}
+.active-completed>span{background:rgba(255,255,255,.08);color:var(--lime)}
+.active-completed p{color:#9aa2a7}
+.active-workout-mode .workout-result>b{font-size:clamp(21px,2.2vw,28px);font-weight:600;letter-spacing:-.02em}
+.active-workout-mode .result-exercise-groups{gap:8px;margin:18px 0}
+.active-workout-mode .result-exercise-groups p{padding:11px 13px;border-radius:12px;background:rgba(255,255,255,.03);line-height:1.55}
+.result-milestone{
+  border:1px solid var(--v2-border);border-radius:var(--v2-radius-md);
+  background:var(--v2-glass);box-shadow:var(--v2-inset);
+}
+.result-milestone p{color:#9aa2a7}
+
+@media(max-width:760px){
+  .active-workout-mode .workout-modal{padding:10px 12px 12px}
+  .active-workout-mode .workout-modal>header{margin-bottom:10px;padding:15px 16px;border-radius:var(--v2-radius-md)}
+  .active-workout-mode .workout-modal h2{font-size:22px}
+  .active-workout-mode .active-workout-meta{margin-bottom:10px;gap:6px;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}
+  .active-workout-mode .active-workout-meta span{flex:none;padding:6px 10px;font-size:10px}
+  .active-workout-mode .active-plan-list{gap:8px;padding:2px 2px 10px}
+  .active-workout-mode .active-plan-item{grid-template-columns:82px minmax(0,1fr);gap:11px;padding:8px;border-radius:var(--v2-radius-md)}
+  .active-workout-mode .exercise-thumb,.active-workout-mode .exercise-thumb-fallback{width:82px;height:82px;border-radius:11px}
+  .active-workout-mode .active-plan-item-body{padding:2px 3px 2px 0;gap:6px}
+  .active-workout-mode .active-plan-item-head{gap:8px}
+  .active-workout-mode .active-plan-item-head>span{flex-basis:22px;width:22px;height:22px;font-size:10px}
+  .active-workout-mode .active-plan-item-head>b{font-size:13.5px;line-height:1.34}
+  .active-workout-mode .active-plan-item-desc{font-size:11px;line-height:1.48}
+  .active-workout-mode .active-plan-item-target{font-size:10.5px}
+  .active-workout-mode .active-workout-hint{margin-top:8px;font-size:10px;line-height:1.45}
+  .active-workout-mode .workout-modal>footer{margin-top:8px;padding:8px;gap:8px;flex-direction:row}
+  .active-workout-mode .workout-modal>footer button{width:auto}
+  .active-workout-mode .workout-modal>footer .active-cancel{margin-right:auto}
+  .active-workout-card footer button:not(.ghost-btn),.confirmation-screen footer button:not(.ghost-btn){padding:10px 13px;font-size:11px}
+  .active-workout-card footer .ghost-btn,.confirmation-screen footer .ghost-btn{padding:9px 10px;font-size:10px}
+  .active-workout-mode .confirmation-screen>footer{flex-direction:row}
+  .active-workout-mode .confirmation-screen>footer button{width:auto}
+  .active-workout-mode .confirmation-screen>footer button:not(.ghost-btn){flex:1}
+  .active-workout-mode .active-completed{margin-top:12px;padding:22px 16px}
+}
+
+@media(max-width:420px){
+  .active-workout-mode .exercise-video.compact{grid-column:1/-1;grid-row:4;justify-self:start}
+  .active-workout-mode .workout-modal>footer .active-cancel{width:auto;white-space:nowrap;font-size:9px}
+  .active-workout-mode .workout-modal>footer button:not(.ghost-btn){flex:1}
+}
+
+/* =========================================================================
+   ДОРОЖНАЯ КАРТА — approved Roadmap composition поверх Home Reference
+   Implementation. Путь и фазы используют только общий App Background:
+   отдельные изображения из mockup не извлекаются и не подменяются.
+   ========================================================================= */
+.roadmap-screen{width:min(1040px,100%);margin:0 auto;padding-top:8px}
+.roadmap-topbar{min-height:40px;margin-bottom:16px;align-items:center}
+.roadmap-topbar-brand{visibility:hidden;font-size:18px;font-weight:850;letter-spacing:.16em}
+.roadmap-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin:4px 0 28px}
+.roadmap-heading .eyebrow{margin:0 0 10px}
+.roadmap-heading h2{margin:0 0 8px;font-size:clamp(38px,4vw,54px);font-weight:600;letter-spacing:-.045em;line-height:1}
+.roadmap-heading>div>p:last-child{margin:0;color:#a1a9ae;font-size:13px;line-height:1.55}
+.roadmap-summary{display:grid;grid-template-columns:1fr .8fr 1.2fr;margin-bottom:20px;border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset),var(--v2-shadow);overflow:hidden}
+.roadmap-summary>div{min-width:0;padding:24px clamp(20px,2.5vw,30px);border-right:1px solid var(--v2-border)}
+.roadmap-summary>div:last-child{border-right:0}
+.roadmap-summary small{display:block;margin-bottom:10px;color:#8d969c;font-size:10px;letter-spacing:.02em}
+.roadmap-summary b{font-size:18px;font-weight:600;letter-spacing:-.02em}
+.roadmap-summary>div>p{display:flex;align-items:baseline;gap:7px;margin:0}
+.roadmap-summary>div>p b{color:var(--lime);font-size:34px;line-height:1}
+.roadmap-summary>div>p span{color:#c3c9cd;font-size:12px}
+.roadmap-progress>span{display:block;height:6px;margin-top:13px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+.roadmap-progress>span i{display:block;height:100%;border-radius:inherit;background:var(--lime);box-shadow:0 0 14px color-mix(in srgb,var(--lime) 45%,transparent)}
+.roadmap-path{position:relative;display:grid;gap:14px;padding:0 0 0 2px}
+.roadmap-path:before{content:"";position:absolute;z-index:0;top:58px;bottom:58px;left:32px;width:1px;background:linear-gradient(180deg,var(--lime) 0 32%,rgba(255,255,255,.17) 32% 100%)}
+.roadmap-phase{position:relative;z-index:1;display:grid;grid-template-columns:64px minmax(0,1fr);gap:18px;align-items:center}
+.roadmap-node{display:grid;place-items:center;width:46px;height:46px;margin-left:9px;border:1px solid rgba(255,255,255,.24);border-radius:50%;background:rgba(11,14,16,.88);box-shadow:0 0 0 7px rgba(8,11,13,.46);backdrop-filter:blur(16px)}
+.roadmap-node span{color:#c8ced2;font-size:15px;font-weight:650}
+.roadmap-phase.current .roadmap-node{border-color:var(--lime);background:var(--lime);box-shadow:0 0 0 7px rgba(8,11,13,.55),0 0 24px color-mix(in srgb,var(--lime) 38%,transparent)}
+.roadmap-phase.current .roadmap-node span{color:#0a0d08}
+.roadmap-phase-card{position:relative;min-height:218px;display:flex;flex-direction:column;justify-content:center;padding:clamp(24px,3vw,38px);border:1px solid rgba(255,255,255,.15);border-radius:var(--v2-radius-lg);overflow:hidden;background:var(--v2-glass-hero);backdrop-filter:blur(26px) saturate(1.12);box-shadow:var(--v2-inset),var(--v2-shadow)}
+.roadmap-phase-card:after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(72% 110% at 100% 48%,rgba(255,255,255,.055),transparent 64%)}
+.roadmap-phase.current .roadmap-phase-card{border-color:color-mix(in srgb,var(--lime) 72%,transparent);background:linear-gradient(110deg,rgba(29,38,17,.62),rgba(13,17,17,.38) 68%),var(--v2-sheen);box-shadow:var(--v2-inset),0 26px 60px -34px rgba(0,0,0,.9),0 0 30px -22px color-mix(in srgb,var(--lime) 70%,transparent)}
+.roadmap-phase-card>*{position:relative;z-index:1}
+.roadmap-phase-card header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.roadmap-phase-card header small{display:block;margin-bottom:8px;color:#aab1b5;font-size:9px;font-weight:800;letter-spacing:.12em}
+.roadmap-phase.current .roadmap-phase-card header small{color:var(--lime)}
+.roadmap-phase-card h3{margin:0;font-size:clamp(26px,3vw,34px);font-weight:600;letter-spacing:-.035em;line-height:1.05}
+.roadmap-phase-card header>b{flex:none;padding:8px 14px;border:1px solid color-mix(in srgb,var(--lime) 42%,transparent);border-radius:999px;background:rgba(199,255,50,.13);color:#e5ff9d;font-size:8px;letter-spacing:.08em}
+.roadmap-phase-card>p{max-width:50ch;margin:16px 0 24px;color:#aeb6bb;font-size:13px;line-height:1.65}
+.roadmap-phase-meta{display:flex;flex-wrap:wrap;gap:8px}
+.roadmap-phase-meta span{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 13px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(5,8,9,.25);color:#bac1c5;font-size:10.5px}
+.roadmap-phase-meta svg{flex:none;color:#8f989e}
+.roadmap-phase.current .roadmap-phase-meta svg{color:var(--lime)}
+.roadmap-footer{display:grid;grid-template-columns:auto minmax(0,1fr);gap:20px;align-items:center;margin:36px 0 10px;padding:26px 30px;border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset),var(--v2-shadow)}
+.roadmap-footer>span{display:grid;place-items:center;width:54px;height:54px;border:1px solid color-mix(in srgb,var(--lime) 34%,transparent);border-radius:50%;background:rgba(199,255,50,.08);color:var(--lime)}
+.roadmap-footer h3{margin:0 0 6px;font-size:clamp(18px,2vw,23px);font-weight:600;letter-spacing:-.025em}
+.roadmap-footer p{max-width:64ch;margin:0;color:#929ba1;font-size:11.5px;line-height:1.6}
+
+@media(max-width:760px){
+  .roadmap-topbar{min-height:40px;flex-direction:row;align-items:center;margin-bottom:8px}
+  .roadmap-topbar-brand{visibility:visible;color:#fff}
+  .roadmap-topbar .header-actions{margin-left:auto;flex-wrap:nowrap}
+  .roadmap-topbar .sync-chip,.roadmap-topbar .coach-indicator{display:none}
+  .roadmap-status-bar{grid-template-columns:1fr 1fr 1.1fr!important;gap:3px!important;margin:0 0 14px!important;padding:5px 7px!important}
+  .roadmap-status-bar>span{padding:4px 5px!important;font-size:9px!important}
+  .roadmap-status-bar .mobile-status-profile{grid-column:auto!important;justify-content:flex-end!important;border-top:0!important;padding-top:4px!important}
+  .roadmap-status-bar .mobile-status-profile b{max-width:52px}
+  .roadmap-screen{padding-top:0}
+  .roadmap-heading{margin:2px 0 20px}
+  .roadmap-heading .eyebrow{display:none}
+  .roadmap-heading h2{font-size:36px;line-height:1.04}
+  .roadmap-heading>div>p:last-child{max-width:28ch;font-size:12px}
+  .roadmap-summary{grid-template-columns:1fr;margin-bottom:24px;border-radius:var(--v2-radius-md)}
+  .roadmap-summary>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-right:0;border-bottom:1px solid var(--v2-border)}
+  .roadmap-summary>div:last-child{border-bottom:0}
+  .roadmap-summary small{margin:0}
+  .roadmap-summary b{font-size:13px}
+  .roadmap-summary>div>p b{font-size:27px}
+  .roadmap-progress{display:grid!important;grid-template-columns:1fr auto;grid-template-rows:auto auto}
+  .roadmap-progress>span{grid-column:1/-1;width:100%;margin-top:10px}
+  .roadmap-path{gap:12px}
+  .roadmap-path:before{top:46px;bottom:46px;left:16px}
+  .roadmap-phase{grid-template-columns:34px minmax(0,1fr);gap:13px;align-items:start}
+  .roadmap-node{width:34px;height:34px;margin:26px 0 0;border-width:1px;box-shadow:0 0 0 5px rgba(8,11,13,.54)}
+  .roadmap-node span{font-size:12px}
+  .roadmap-phase.current .roadmap-node{box-shadow:0 0 0 5px rgba(8,11,13,.6),0 0 19px color-mix(in srgb,var(--lime) 36%,transparent)}
+  .roadmap-phase-card{min-height:0;padding:21px 18px;border-radius:var(--v2-radius-md)}
+  .roadmap-phase-card header{gap:10px}
+  .roadmap-phase-card header small{margin-bottom:7px}
+  .roadmap-phase-card h3{font-size:25px}
+  .roadmap-phase-card header>b{padding:7px 9px;font-size:7px}
+  .roadmap-phase-card>p{margin:13px 0 17px;font-size:11.5px;line-height:1.58}
+  .roadmap-phase-meta span{min-height:34px;padding:0 10px;font-size:9.5px}
+  .roadmap-phase-meta span:not(:first-child){display:none}
+  .roadmap-footer{gap:14px;margin-top:20px;padding:18px;border-radius:var(--v2-radius-md)}
+  .roadmap-footer>span{width:42px;height:42px}
+  .roadmap-footer h3{font-size:16px;line-height:1.25}
+  .roadmap-footer p{display:none}
+}
+
+/* =========================================================================
+   МОЙ ПУТЬ / JOURNEY — approved Journey composition поверх Home Reference
+   Implementation. Экран собирает уже существующие факты в историю: Hero,
+   лента событий, «тогда → сейчас», календарь и вехи. Глубокие редактирование
+   и аналитика остаются в существующих вкладках и не дублируются в overview.
+   ========================================================================= */
+.journey-topbar{align-items:center;margin-bottom:18px}
+.journey-topbar-copy h1{margin:0 0 7px;text-transform:uppercase;font-size:clamp(30px,3.2vw,43px);letter-spacing:-.035em}
+.journey-topbar-copy p{margin:0;color:#9aa2a7;font-size:13px;line-height:1.45}
+.journey-topbar-copy em{color:var(--lime);font-style:normal}
+.journey-page{width:min(1120px,100%);margin:0 auto}
+.journey-tabs{display:flex;justify-content:flex-start;gap:6px;margin:0 0 18px;padding:5px;border:1px solid var(--v2-border);border-radius:14px;background:rgba(7,10,12,.32);backdrop-filter:blur(18px);overflow-x:auto;scrollbar-width:none}
+.journey-tabs::-webkit-scrollbar{display:none}
+.journey-tabs button{flex:0 0 auto;min-height:38px;padding:0 14px;border:0!important;border-radius:10px!important;background:transparent!important;color:#80898f!important;font-size:10.5px;font-weight:650}
+.journey-tabs button.active{background:rgba(255,255,255,.075)!important;color:#f1f4f3!important;box-shadow:var(--v2-inset)}
+.journey-tabs button.active:before{content:"";display:inline-block;width:5px;height:5px;margin:0 7px 1px 0;border-radius:50%;background:var(--lime)}
+.journey-overview{display:grid;gap:var(--v2-gap)}
+.journey-hero,.journey-events,.journey-story-card,.journey-activity-panel,.journey-milestones-panel,.journey-quote{
+  border:1px solid var(--v2-border);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset),var(--v2-shadow)
+}
+.journey-hero{position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(0,1.25fr) minmax(130px,.55fr) minmax(220px,.78fr);min-height:330px;overflow:hidden;border-radius:var(--v2-radius-xl);background:var(--v2-glass-hero)}
+.journey-hero:after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:radial-gradient(72% 115% at 52% 42%,rgba(199,255,50,.055),transparent 62%),linear-gradient(90deg,rgba(5,8,9,.42),transparent 52%,rgba(5,8,9,.24))}
+.journey-hero-copy{display:flex;min-width:0;flex-direction:column;align-items:flex-start;justify-content:center;padding:clamp(26px,3vw,40px)}
+.journey-hero-copy>span{display:inline-flex;min-height:26px;align-items:center;margin-bottom:15px;padding:0 10px;border:1px solid color-mix(in srgb,var(--lime) 24%,transparent);border-radius:8px;background:rgba(199,255,50,.06);color:var(--lime);font-size:8px;font-weight:800;letter-spacing:.11em}
+.journey-achievement{display:flex;align-items:baseline;gap:9px;margin:0;color:#f4f6f5;line-height:.9}
+.journey-achievement b{font-size:clamp(48px,5.4vw,72px);font-weight:560;letter-spacing:-.065em}
+.journey-achievement b:first-letter{color:var(--lime)}
+.journey-achievement small{font-size:clamp(20px,2vw,28px);font-weight:600}
+.journey-achievement-context{display:flex;align-items:center;gap:7px;margin:12px 0 0!important;color:#aeb6bb!important;font-size:10.5px!important}
+.journey-achievement-context svg{color:var(--lime)}
+.journey-hero-copy h2{max-width:23ch;margin:23px 0 7px;font-size:clamp(18px,1.8vw,23px);font-weight:600;line-height:1.25;letter-spacing:-.025em}
+.journey-hero-copy>p:last-of-type{max-width:42ch;margin:0;color:#929ba1;font-size:11px;line-height:1.6}
+.journey-hero-copy>button,.journey-story-card>button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:12px;margin-top:20px;padding:0 15px;border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.045);color:#e8ecee;font-size:10.5px;font-weight:750;cursor:pointer;transition:border-color var(--v2-fast) var(--v2-ease),background var(--v2-fast) var(--v2-ease),transform var(--v2-fast) var(--v2-ease)}
+.journey-hero-copy>button:hover,.journey-story-card>button:hover{border-color:var(--v2-border-hover);background:rgba(255,255,255,.075);transform:translateY(-1px)}
+.journey-hero-copy>button span{display:grid;width:24px;height:24px;place-items:center;border-radius:50%;background:rgba(255,255,255,.07)}
+.journey-hero-mark{display:grid;place-items:center;min-width:0;overflow:hidden}
+.journey-hero-mark span{display:grid;width:112px;height:150px;place-items:center;border:1px solid color-mix(in srgb,var(--lime) 38%,transparent);border-radius:22px;background:linear-gradient(145deg,rgba(199,255,50,.08),rgba(255,255,255,.015));color:color-mix(in srgb,var(--lime) 72%,white);font-size:76px;font-weight:800;font-style:italic;line-height:1;box-shadow:var(--v2-inset),0 0 42px -22px color-mix(in srgb,var(--lime) 55%,transparent);transform:skew(-5deg)}
+.journey-hero-stats{display:grid;align-content:center;margin:22px 22px 22px 0;padding:4px 20px;border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);background:rgba(5,8,9,.3);backdrop-filter:blur(20px)}
+.journey-hero-stats article{display:grid;grid-template-columns:40px minmax(0,1fr);gap:12px;align-items:center;min-height:66px;border-bottom:1px solid var(--v2-border)}
+.journey-hero-stats article:last-child{border-bottom:0}
+.journey-hero-stats article>span{display:grid;width:38px;height:38px;place-items:center;border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.04);color:#aeb6bb}
+.journey-hero-stats article:last-child>span{color:var(--lime)}
+.journey-hero-stats article div{display:grid;gap:3px;min-width:0}
+.journey-hero-stats b{font-size:18px;font-weight:600;letter-spacing:-.025em}
+.journey-hero-stats small{color:#8d969c;font-size:9px;line-height:1.25}
+
+.journey-events{overflow:hidden;padding:clamp(20px,2.4vw,28px);border-radius:var(--v2-radius-lg)}
+.journey-events>header,.journey-milestones-panel>header,.journey-activity-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}
+.journey-events h2,.journey-section-heading h2{margin:5px 0 0;font-size:clamp(19px,2vw,25px);font-weight:600;letter-spacing:-.025em}
+.journey-events>header>button,.journey-milestones-panel>header>button{min-height:44px;border:0;background:transparent;color:#8e979d;font-size:9.5px;cursor:pointer}
+.journey-events>header>button:hover,.journey-milestones-panel>header>button:hover{color:#e6eaec}
+.journey-events ol{position:relative;display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:0;margin:24px 0 0;padding:0;list-style:none}
+.journey-events ol:before{content:"";position:absolute;top:49px;right:2%;left:2%;height:1px;background:rgba(255,255,255,.17)}
+.journey-events li{position:relative;z-index:1;display:grid;grid-template-rows:20px 48px auto;justify-items:center;min-width:0;padding:0 7px;text-align:center}
+.journey-events time{color:#788187;font-size:8px;text-transform:uppercase}
+.journey-event-icon{display:grid;width:44px;height:44px;place-items:center;border:1px solid var(--v2-border-hover);border-radius:50%;background:rgba(9,12,14,.92);color:#aeb7bc;box-shadow:0 0 0 5px rgba(8,11,13,.5)}
+.journey-events li:first-child .journey-event-icon{border-color:color-mix(in srgb,var(--lime) 54%,transparent);color:var(--lime);box-shadow:0 0 0 5px rgba(8,11,13,.52),0 0 22px -12px color-mix(in srgb,var(--lime) 70%,transparent)}
+.journey-events li>div{display:grid;gap:4px;justify-items:center;min-width:0;padding-top:11px}
+.journey-events li>div small{color:#69737a;font-size:7.5px;text-transform:uppercase;letter-spacing:.07em}
+.journey-events li>div b{max-width:16ch;overflow:hidden;color:#e1e6e8;font-size:10px;font-weight:600;line-height:1.35;text-overflow:ellipsis}
+.journey-events li>div p{max-width:18ch;margin:0;color:#818a90;font-size:8px;line-height:1.4}
+.journey-empty,.journey-story-empty{display:flex;align-items:center;justify-content:center;gap:12px;min-height:116px;color:#7f888e;text-align:left}
+.journey-empty p,.journey-story-empty p{max-width:40ch;margin:0;font-size:10.5px;line-height:1.55}
+.journey-empty svg,.journey-story-empty svg{flex:none;color:#8d969c}
+
+.journey-section-heading{margin:24px 0 4px}
+.journey-section-heading .eyebrow{margin:0}
+.journey-story-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:var(--v2-gap)}
+.journey-story-card{display:flex;min-width:0;min-height:330px;flex-direction:column;overflow:hidden;padding:clamp(18px,2vw,24px);border-radius:var(--v2-radius-lg)}
+.journey-story-card>header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.journey-story-card>header .eyebrow{margin:0 0 9px}
+.journey-story-card>header h3{margin:0;font-size:clamp(19px,2vw,26px);font-weight:600;letter-spacing:-.03em}
+.journey-story-card>header>svg{color:#7f898f}
+.journey-story-card>header>span{padding:6px 8px;border:1px solid var(--v2-border);border-radius:8px;color:#9ca5aa;font-size:8px}
+.journey-story-card>header>span.positive{color:var(--lime)}
+.journey-story-card>button{align-self:flex-start;margin-top:auto;background:rgba(255,255,255,.025)}
+.journey-weight-trend{display:flex;height:92px;align-items:flex-end;gap:7px;margin:24px 0 14px;padding:12px 10px 0;border-bottom:1px solid var(--v2-border);background:linear-gradient(180deg,transparent,rgba(199,255,50,.025))}
+.journey-weight-trend i{flex:1;min-width:4px;max-width:24px;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--lime),rgba(199,255,50,.25))}
+.journey-weight-trend span{align-self:center;margin:auto;color:#747e84;font-size:9px;text-align:center}
+.journey-then-now{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center}
+.journey-then-now>span{display:grid;gap:4px}
+.journey-then-now>span:last-child{text-align:right}
+.journey-then-now small{color:#737d83;font-size:8px;text-transform:uppercase}
+.journey-then-now b{font-size:12px;font-weight:600}
+.journey-then-now>i{color:#596269;font-style:normal}
+.journey-photo-pair{position:relative;display:grid;grid-template-columns:1fr 1fr;gap:7px;min-height:150px;margin:20px 0 14px;overflow:hidden;border-radius:13px;background:rgba(4,7,8,.36)}
+.journey-photo-pair figure{position:relative;min-width:0;margin:0;overflow:hidden;background:rgba(255,255,255,.03)}
+.journey-photo-pair img{width:100%;height:150px;object-fit:cover;filter:blur(13px) brightness(.45);transform:scale(1.08);transition:filter var(--v2-base) var(--v2-ease),transform var(--v2-base) var(--v2-ease)}
+.journey-photo-pair.revealed img{filter:none;transform:none}
+.journey-photo-pair figcaption{position:absolute;right:7px;bottom:7px;left:7px;padding:5px 6px;border-radius:7px;background:rgba(4,7,8,.68);color:#d6dcde;font-size:7.5px;text-align:center}
+.journey-photo-placeholder{display:grid;place-items:center;align-content:center;gap:7px;border:1px dashed var(--v2-border);color:#737d83;font-size:8px;text-align:center}
+.journey-photo-reveal{position:absolute;z-index:2;right:50%;bottom:14px;min-height:36px;padding:0 12px;border:1px solid var(--v2-border-hover);border-radius:9px;background:rgba(7,10,12,.86);color:#e6eaec;font-size:9px;transform:translateX(50%);cursor:pointer}
+.journey-photo-card>.journey-story-empty{flex:1;min-height:150px}
+.journey-strength-list{display:grid;margin:17px 0 15px;border-top:1px solid var(--v2-border)}
+.journey-strength-list article{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--v2-border)}
+.journey-strength-list article>span{display:grid;gap:3px;min-width:0}
+.journey-strength-list article b{overflow:hidden;color:#cdd3d6;font-size:9.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+.journey-strength-list article small{color:#6f797f;font-size:7.5px}
+.journey-strength-list strong{flex:none;color:#eef1f2;font-size:11px;font-weight:650}
+.journey-volume-card header>div>small{display:block;margin-top:5px;color:#747e84;font-size:8px}
+.journey-volume-bars{display:flex;height:145px;align-items:flex-end;justify-content:space-between;gap:7px;margin:17px 0 14px;padding:12px 4px 0;border-bottom:1px solid var(--v2-border)}
+.journey-volume-bars>span{display:grid;height:100%;flex:1;grid-template-rows:1fr 18px;align-items:end;justify-items:center;gap:6px}
+.journey-volume-bars i{width:70%;min-height:6px;border-radius:5px 5px 1px 1px;background:linear-gradient(180deg,var(--lime),rgba(199,255,50,.28))}
+.journey-volume-bars i.empty{min-height:2px;background:rgba(255,255,255,.08)}
+.journey-volume-bars small{color:#6f797f;font-size:7px;text-transform:uppercase}
+
+.journey-bottom-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(320px,.8fr);gap:var(--v2-gap)}
+.journey-activity-panel,.journey-milestones-panel{padding:clamp(20px,2.4vw,28px);border-radius:var(--v2-radius-lg)}
+.journey-activity-panel h3,.journey-milestones-panel h3{margin:5px 0 0;font-size:19px;font-weight:600;letter-spacing:-.02em}
+.journey-activity-panel>header>span{display:grid;gap:2px;text-align:right}
+.journey-activity-panel>header>span b{font-size:21px;font-weight:600}
+.journey-activity-panel>header>span small{color:#747e84;font-size:8px}
+.journey-heatmap{display:grid;grid-template-columns:repeat(16,minmax(7px,1fr));grid-template-rows:repeat(7,minmax(7px,1fr));grid-auto-flow:column;gap:5px;margin:25px 0}
+.journey-heatmap i{aspect-ratio:1;border:1px solid rgba(255,255,255,.025);border-radius:3px;background:rgba(255,255,255,.045)}
+.journey-heatmap i.level-1{background:color-mix(in srgb,var(--lime) 24%,rgba(255,255,255,.04))}
+.journey-heatmap i.level-2{background:color-mix(in srgb,var(--lime) 52%,rgba(255,255,255,.04))}
+.journey-heatmap i.level-3{background:var(--lime);box-shadow:0 0 9px -5px var(--lime)}
+.journey-activity-panel>footer{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--v2-border)}
+.journey-activity-panel>footer span{display:grid;gap:5px;padding:16px 10px 0;border-right:1px solid var(--v2-border)}
+.journey-activity-panel>footer span:first-child{padding-left:0}
+.journey-activity-panel>footer span:last-child{padding-right:0;border-right:0;text-align:right}
+.journey-activity-panel>footer small{color:#747e84;font-size:8px}
+.journey-activity-panel>footer b{font-size:12px;font-weight:600}
+.journey-milestones-panel>div{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:20px}
+.journey-milestones-panel article{display:grid;grid-template-columns:38px minmax(0,1fr);gap:10px;align-items:center;min-width:0;padding:11px;border:1px solid var(--v2-border);border-radius:12px;background:rgba(255,255,255,.025)}
+.journey-milestones-panel article>span{display:grid;width:36px;height:36px;place-items:center;border:1px solid color-mix(in srgb,var(--lime) 22%,transparent);border-radius:10px;background:rgba(199,255,50,.045);color:#aab69b}
+.journey-milestones-panel article>div{display:grid;gap:4px;min-width:0}
+.journey-milestones-panel article b{overflow:hidden;color:#d7dcde;font-size:9px;font-weight:600;line-height:1.35;text-overflow:ellipsis}
+.journey-milestones-panel article small{color:#707a80;font-size:7.5px}
+.journey-quote{display:grid;grid-template-columns:auto minmax(0,1fr);gap:18px;align-items:center;margin:10px 0 0;padding:24px 28px;border-radius:var(--v2-radius-lg)}
+.journey-quote>span{color:var(--lime);font-size:48px;font-weight:700;line-height:.8}
+.journey-quote p{margin:0;color:#dce1e3;font-size:16px;line-height:1.5}
+.journey-quote p b{color:var(--lime);font-weight:600}
+.journey-quote small{display:block;margin-top:4px;color:#8e979d;font-size:10px}
+
+@media(max-width:1100px){
+  .journey-hero{grid-template-columns:minmax(0,1.2fr) minmax(230px,.8fr)}
+  .journey-hero-mark{position:absolute;inset:30px 34% 30px auto;z-index:-1;opacity:.24}
+  .journey-hero-stats{grid-column:2;margin-left:0}
+  .journey-events ol{grid-template-columns:repeat(auto-fit,minmax(110px,1fr));row-gap:24px}
+  .journey-events ol:before{display:none}
+  .journey-story-grid{grid-template-columns:1fr 1fr}
+  .journey-bottom-grid{grid-template-columns:1fr}
+}
+@media(max-width:760px){
+  .journey-topbar{min-height:40px;flex-direction:row;align-items:center;margin-bottom:8px}
+  .journey-topbar-copy h1{margin:0;font-size:19px;letter-spacing:.02em}
+  .journey-topbar-copy p{display:none}
+  .journey-topbar .header-actions{margin-left:auto;flex-wrap:nowrap}
+  .journey-topbar .sync-chip,.journey-topbar .coach-indicator{display:none}
+  .journey-tabs{margin-bottom:12px;padding:4px}
+  .journey-tabs button{min-height:40px;padding:0 12px}
+  .journey-hero{display:block;min-height:0;border-radius:var(--v2-radius-lg)}
+  .journey-hero-copy{position:relative;z-index:1;padding:24px 18px 20px}
+  .journey-achievement b{font-size:50px}
+  .journey-achievement small{font-size:20px}
+  .journey-hero-copy h2{max-width:20ch;margin-top:20px;font-size:20px}
+  .journey-hero-copy>p:last-of-type{max-width:31ch}
+  .journey-hero-copy>button{width:100%;margin-top:18px}
+  .journey-hero-mark{inset:20px 15px auto auto;z-index:0;opacity:.14}
+  .journey-hero-mark span{width:74px;height:98px;border-radius:15px;font-size:51px}
+  .journey-hero-stats{position:relative;z-index:1;grid-template-columns:1fr 1fr;margin:0;border-width:1px 0 0;border-radius:0;background:rgba(5,8,9,.4)}
+  .journey-hero-stats article{grid-template-columns:34px minmax(0,1fr);min-height:72px;padding:7px 12px;border-right:1px solid var(--v2-border)}
+  .journey-hero-stats article:nth-child(2n){border-right:0}
+  .journey-hero-stats article:nth-child(-n+2){border-bottom:1px solid var(--v2-border)}
+  .journey-hero-stats article>span{width:32px;height:32px}
+  .journey-hero-stats b{font-size:14px}
+  .journey-hero-stats small{font-size:8px}
+  .journey-events{padding:20px 16px}
+  .journey-events>header{align-items:center}
+  .journey-events h2{font-size:18px}
+  .journey-events ol{display:grid;grid-template-columns:1fr;gap:0;margin-top:18px}
+  .journey-events li{grid-template-columns:46px 42px minmax(0,1fr);grid-template-rows:auto;align-items:start;justify-items:start;padding:0 0 18px;text-align:left}
+  .journey-events li:after{content:"";position:absolute;top:42px;bottom:0;left:66px;width:1px;background:var(--v2-border)}
+  .journey-events li:last-child:after{display:none}
+  .journey-events time{padding-top:12px;font-size:7.5px}
+  .journey-event-icon{width:38px;height:38px;box-shadow:none}
+  .journey-events li>div{justify-items:start;padding:3px 0 0 8px;text-align:left}
+  .journey-events li>div b,.journey-events li>div p{max-width:none}
+  .journey-section-heading{margin:18px 0 2px}
+  .journey-section-heading h2{font-size:20px;line-height:1.2}
+  .journey-story-grid{grid-template-columns:1fr}
+  .journey-story-card{min-height:300px;padding:20px 17px;border-radius:var(--v2-radius-md)}
+  .journey-photo-pair{min-height:180px}
+  .journey-photo-pair img{height:180px}
+  .journey-bottom-grid{grid-template-columns:1fr}
+  .journey-activity-panel,.journey-milestones-panel{padding:20px 16px;border-radius:var(--v2-radius-md)}
+  .journey-heatmap{gap:3px;margin:22px 0}
+  .journey-activity-panel>footer{grid-template-columns:1fr 1fr}
+  .journey-activity-panel>footer span{padding:14px 8px 0}
+  .journey-activity-panel>footer span:nth-child(2){border-right:0;text-align:right}
+  .journey-activity-panel>footer span:last-child{grid-column:1/-1;margin-top:12px;padding:12px 0 0;border-top:1px solid var(--v2-border);text-align:left}
+  .journey-milestones-panel>div{grid-template-columns:1fr}
+  .journey-quote{gap:12px;padding:20px 17px;border-radius:var(--v2-radius-md)}
+  .journey-quote>span{font-size:38px}
+  .journey-quote p{font-size:14px}
+  .journey-quote small{font-size:9px;line-height:1.5}
+}
+
+@supports not (backdrop-filter:blur(1px)){
+  .journey-tabs,.journey-hero,.journey-events,.journey-story-card,.journey-activity-panel,.journey-milestones-panel,.journey-quote{background:linear-gradient(160deg,#171b1e,#101214)}
+}
+
+/* =========================================================================
+   АНАЛИТИКА + AI COACH — единый раздел по утверждённому экрану.
+   Analytics интерпретирует только фактические данные; существующий Coach chat
+   остаётся тем же разговором и API, но становится частью этой композиции.
+   ========================================================================= */
+.analytics-coach-page{display:grid;gap:var(--v2-gap);min-width:0;padding-top:2px}
+.analytics-page-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;margin-bottom:4px}
+.analytics-page-heading h1{margin:0;font-size:clamp(28px,3vw,40px);font-weight:600;letter-spacing:-.035em}
+.analytics-page-heading>div:first-child p{margin:7px 0 0;color:#9aa3a9;font-size:12px}
+.analytics-heading-actions{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.analytics-period-select,.analytics-export-menu{display:flex;align-items:center;min-height:44px;padding:4px;border:1px solid var(--v2-border);border-radius:13px;background:var(--v2-glass);backdrop-filter:blur(22px) saturate(1.1);box-shadow:var(--v2-inset)}
+.analytics-period-select button,.analytics-export-menu button{min-height:34px;border:0;border-radius:9px;background:transparent;color:#818a90;padding:0 10px;font-size:9px;font-weight:650;cursor:pointer}
+.analytics-period-select button.active{background:rgba(255,255,255,.08);color:#edf1f2}
+.analytics-export-menu{gap:3px;padding-left:12px}
+.analytics-export-menu>span{color:#9ba4a9;font-size:9px;margin-right:3px;white-space:nowrap}
+.analytics-export-menu button{border-left:1px solid var(--v2-border);border-radius:0;color:#b2b9bd}
+.analytics-export-menu button:hover{color:var(--lime)}
+
+.analytics-mode-tabs{display:grid;grid-template-columns:1.35fr 1fr;overflow:hidden;border:1px solid var(--v2-border);border-radius:var(--v2-radius-md);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset)}
+.analytics-mode-tabs button{position:relative;display:flex;min-height:54px;align-items:center;justify-content:center;gap:10px;border:0;background:transparent;color:#9aa3a8;font-size:12px;font-weight:650;cursor:pointer;transition:background var(--v2-fast) var(--v2-ease),color var(--v2-fast) var(--v2-ease)}
+.analytics-mode-tabs button+button{border-left:1px solid var(--v2-border)}
+.analytics-mode-tabs button.active{background:rgba(255,255,255,.045);color:#eef2f3}
+.analytics-mode-tabs button.active:after{content:"";position:absolute;right:22%;bottom:0;left:22%;height:2px;border-radius:2px;background:var(--lime)}
+.analytics-mode-tabs button:nth-child(2).active:after{background:rgba(255,255,255,.65)}
+.analytics-mode-tabs button:first-child svg{color:var(--lime)}
+
+.analytics-coach-layout{display:grid;grid-template-columns:minmax(0,1.46fr) minmax(330px,.78fr);gap:var(--v2-gap);align-items:start;min-width:0}
+.analytics-insights-column{display:grid;gap:var(--v2-gap);min-width:0}
+.analytics-metric-strip,.analytics-insights-panel,.analytics-trends-panel,.analytics-coach-column{
+ border:1px solid var(--v2-border);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset),var(--v2-shadow)
+}
+.analytics-metric-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden;border-radius:var(--v2-radius-md)}
+.analytics-metric-strip article{display:flex;min-width:0;min-height:116px;flex-direction:column;justify-content:center;padding:18px;border-right:1px solid var(--v2-border)}
+.analytics-metric-strip article:last-child{border-right:0}
+.analytics-metric-strip article>span{display:flex;align-items:center;gap:8px;color:#8f989e;font-size:9px;white-space:nowrap}
+.analytics-metric-strip article>span svg{color:var(--lime)}
+.analytics-metric-strip article>b{margin:12px 0 5px;overflow:hidden;color:#f1f4f5;font-size:clamp(20px,2.4vw,30px);font-weight:560;letter-spacing:-.035em;text-overflow:ellipsis;white-space:nowrap}
+.analytics-metric-strip article>small{color:#768087;font-size:8px;line-height:1.35}
+.analytics-metric-strip article.tone-good>small{color:var(--lime)}
+.analytics-metric-strip article.tone-warn>small{color:#efad65}
+
+.analytics-insights-panel,.analytics-trends-panel{padding:clamp(20px,2.3vw,28px);border-radius:var(--v2-radius-lg)}
+.analytics-insights-panel>header,.analytics-trends-panel>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.analytics-insights-panel h2,.analytics-trends-panel h2{margin:4px 0 0;font-size:clamp(19px,2vw,25px);font-weight:600;letter-spacing:-.025em}
+.analytics-insights-panel>header>span,.analytics-trends-panel>header>span{color:#7e888e;font-size:9px;white-space:nowrap}
+.analytics-insight-list{display:grid;margin-top:18px;border-top:1px solid var(--v2-border)}
+.analytics-insight-list article{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:14px;align-items:center;min-height:94px;padding:15px 4px;border-bottom:1px solid var(--v2-border)}
+.analytics-insight-list article:last-child{border-bottom:0;padding-bottom:2px}
+.analytics-insight-icon{display:grid;width:40px;height:40px;place-items:center;border:1px solid var(--v2-border);border-radius:12px;background:rgba(255,255,255,.035);color:#a9b2b7}
+.analytics-insight-list article.tone-good .analytics-insight-icon{color:var(--lime);background:rgba(199,255,50,.045)}
+.analytics-insight-list article.tone-warn .analytics-insight-icon{color:#efad65;background:rgba(239,173,101,.045)}
+.analytics-insight-list article>div{min-width:0}
+.analytics-insight-list h3{margin:0 0 5px;color:#e7ebed;font-size:13px;font-weight:600;letter-spacing:-.01em}
+.analytics-insight-list p{margin:0;color:#a3abb0;font-size:10px;line-height:1.45}
+.analytics-insight-list small{display:block;margin-top:5px;color:#717b81;font-size:8.5px;line-height:1.4}
+.analytics-insight-list article>svg{color:#606a70}
+
+.analytics-volume-chart{margin:22px 0 0}
+.analytics-volume-chart>div{display:flex;height:168px;align-items:end;gap:9px;padding:18px 8px 0;border-bottom:1px solid var(--v2-border);background:repeating-linear-gradient(to bottom,transparent 0,transparent 41px,rgba(255,255,255,.035) 42px)}
+.analytics-volume-chart>div>span{display:grid;height:100%;flex:1;grid-template-rows:1fr 22px;align-items:end;justify-items:center;gap:6px;min-width:10px}
+.analytics-volume-chart i{display:block;width:min(72%,28px);min-height:8px;border-radius:6px 6px 1px 1px;background:linear-gradient(180deg,var(--lime),rgba(199,255,50,.22));box-shadow:0 0 16px -11px var(--lime)}
+.analytics-volume-chart small{max-width:56px;overflow:hidden;color:#707a80;font-size:7.5px;text-overflow:ellipsis;white-space:nowrap}
+.analytics-volume-chart figcaption{margin-top:12px;color:#7f898f;font-size:9px;line-height:1.5}
+.analytics-empty-chart{display:flex;min-height:150px;align-items:center;justify-content:center;gap:14px;color:#7f898f;text-align:left}
+.analytics-empty-chart svg{flex:none}
+.analytics-empty-chart p{max-width:46ch;margin:0;font-size:10px;line-height:1.55}
+
+.analytics-coach-column{position:sticky;top:18px;display:flex;min-width:0;max-height:calc(100vh - 36px);flex-direction:column;overflow:hidden;border-radius:var(--v2-radius-lg)}
+.analytics-coach-identity{display:grid;grid-template-columns:48px minmax(0,1fr);gap:13px;align-items:center;padding:20px 20px 14px}
+.analytics-coach-identity>span{display:grid;width:46px;height:46px;place-items:center;border:1px solid color-mix(in srgb,var(--lime) 45%,transparent);border-radius:50%;background:rgba(199,255,50,.045);color:var(--lime);box-shadow:0 0 26px -17px var(--lime)}
+.analytics-coach-identity h2{margin:0;font-size:18px;font-weight:600;letter-spacing:-.025em}
+.analytics-coach-identity h2 i{display:inline-flex;align-items:center;gap:5px;margin-left:6px;color:var(--lime);font-size:8px;font-weight:650;font-style:normal;letter-spacing:.04em}
+.analytics-coach-identity h2 i:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--lime)}
+.analytics-coach-identity p{margin:5px 0 0;color:#8f989e;font-size:9px;line-height:1.45}
+.analytics-coach-column .coach-chat-panel.coach-chat-embedded{position:static;right:auto;bottom:auto;width:auto;height:min(650px,calc(100vh - 240px));min-height:420px;flex:1;border:0;border-top:1px solid var(--v2-border);border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;z-index:auto}
+.coach-chat-embedded .coach-chat-head{padding:12px 17px;border-bottom-color:var(--v2-border)}
+.coach-chat-embedded .coach-chat-head small{color:#778188}
+.coach-chat-embedded .coach-provider-choice{padding:8px 14px;border-bottom-color:var(--v2-border);background:rgba(3,6,7,.16)}
+.coach-chat-embedded .coach-provider-choice button{border-color:var(--v2-border);background:rgba(255,255,255,.025);color:#818b91}
+.coach-chat-embedded .coach-provider-choice button.active{border-color:var(--v2-border-hover);background:rgba(255,255,255,.065);color:#e5e9ea}
+.coach-chat-embedded .coach-quick-actions{padding:9px 14px;border-bottom-color:var(--v2-border);background:transparent}
+.coach-chat-embedded .coach-quick-actions button{min-height:40px;border-color:var(--v2-border);background:rgba(255,255,255,.03)}
+.coach-suggested-questions{display:grid;gap:6px;padding:10px 14px;border-bottom:1px solid var(--v2-border)}
+.coach-suggested-questions>small{margin-bottom:2px;color:#7d878d;font-size:8px;text-transform:uppercase;letter-spacing:.08em}
+.coach-suggested-questions>button{display:flex;min-height:38px;align-items:center;justify-content:space-between;gap:10px;padding:0 12px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(255,255,255,.025);color:#c2c9cc;font-size:9.5px;text-align:left;cursor:pointer}
+.coach-suggested-questions>button:hover{border-color:var(--v2-border-hover);background:rgba(255,255,255,.05)}
+.coach-suggested-questions>button span{color:#737d83;font-size:16px}
+.coach-chat-embedded .coach-chat-list{min-height:155px;padding:13px 15px}
+.coach-chat-embedded .coach-chat-bubble{border-color:var(--v2-border);background:rgba(255,255,255,.035);font-size:10px}
+.coach-chat-embedded .coach-chat-bubble.user{border-color:color-mix(in srgb,var(--lime) 22%,transparent);background:rgba(114,143,23,.24);color:#eff6db}
+.coach-chat-embedded .coach-chat-form{padding:11px 14px;border-top-color:var(--v2-border)}
+.coach-chat-embedded .coach-chat-form input{min-height:44px;border-color:var(--v2-border);background:rgba(3,6,7,.38)}
+.coach-chat-embedded .coach-chat-form button{min-height:44px;background:var(--lime)}
+.analytics-coach-facts{padding:13px 18px 16px;border-top:1px solid var(--v2-border);background:rgba(3,6,7,.16)}
+.analytics-coach-facts small{color:var(--lime);font-size:8px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.analytics-coach-facts p{margin:6px 0 0;color:#9ea6ab;font-size:9px;line-height:1.5}
+
+@media(max-width:1120px){
+  .analytics-coach-layout{grid-template-columns:minmax(0,1.25fr) minmax(310px,.8fr)}
+  .analytics-metric-strip{grid-template-columns:1fr 1fr}
+  .analytics-metric-strip article:nth-child(2){border-right:0}
+  .analytics-metric-strip article:nth-child(-n+2){border-bottom:1px solid var(--v2-border)}
+}
+@media(max-width:900px){
+  .analytics-page-heading{display:grid}
+  .analytics-heading-actions{justify-content:flex-start}
+  .analytics-coach-layout{grid-template-columns:1fr}
+  .analytics-coach-column{position:static;max-height:none}
+  .analytics-coach-layout.mode-insights .analytics-coach-column{display:none}
+  .analytics-coach-layout.mode-coach .analytics-insights-column{display:none}
+  .analytics-coach-column .coach-chat-panel.coach-chat-embedded{height:auto;min-height:620px}
+}
+@media(max-width:760px){
+  .analytics-coach-page{gap:10px}
+  .analytics-page-heading{gap:14px}
+  .analytics-page-heading h1{font-size:27px}
+  .analytics-page-heading>div:first-child p{font-size:10px}
+  .analytics-heading-actions{display:grid;grid-template-columns:1fr;width:100%}
+  .analytics-period-select{display:grid;grid-template-columns:repeat(4,1fr);width:100%}
+  .analytics-period-select button{padding:0 3px;font-size:8px}
+  .analytics-export-menu{width:100%;justify-content:space-between}
+  .analytics-mode-tabs{grid-template-columns:1fr 1fr}
+  .analytics-mode-tabs button{min-height:48px}
+  .analytics-metric-strip article{min-height:104px;padding:15px}
+  .analytics-metric-strip article>b{font-size:21px}
+  .analytics-insights-panel,.analytics-trends-panel{padding:18px 15px;border-radius:var(--v2-radius-md)}
+  .analytics-insights-panel>header,.analytics-trends-panel>header{display:grid}
+  .analytics-insights-panel>header>span,.analytics-trends-panel>header>span{white-space:normal}
+  .analytics-insight-list article{grid-template-columns:38px minmax(0,1fr);gap:11px;padding:14px 0}
+  .analytics-insight-icon{width:36px;height:36px}
+  .analytics-insight-list article>svg{display:none}
+  .analytics-volume-chart>div{gap:5px;padding-inline:2px}
+  .analytics-volume-chart small{font-size:6.5px}
+  .analytics-coach-column{border-radius:var(--v2-radius-md)}
+  .analytics-coach-identity{padding:17px 15px 13px}
+  .analytics-coach-column .coach-chat-panel.coach-chat-embedded{min-height:680px}
+  .coach-chat-embedded .coach-chat-form{display:grid;grid-template-columns:minmax(0,1fr) auto}
+}
+@media(max-width:410px){
+  .coach-chat-embedded .coach-chat-form{grid-template-columns:1fr}
+}
+
+@supports not (backdrop-filter:blur(1px)){
+  .analytics-period-select,.analytics-export-menu,.analytics-mode-tabs,.analytics-metric-strip,.analytics-insights-panel,.analytics-trends-panel,.analytics-coach-column{background:linear-gradient(160deg,#171b1e,#101214)}
+}
+
+/* =========================================================================
+   PROFILE + SETTINGS — единый персональный hub по approved PNG.
+   Использует только существующие profile, push, AI settings, Garmin import и
+   logout flows. Изображение зала по-прежнему принадлежит только .app-shell.
+   ========================================================================= */
+.profile-settings-page{display:grid;gap:var(--v2-gap);min-width:0;padding-top:2px}
+.profile-page-heading{margin-bottom:4px}
+.profile-page-heading h1{margin:0;font-size:clamp(29px,3vw,40px);font-weight:600;letter-spacing:-.035em}
+.profile-page-heading>div>p:last-child{max-width:62ch;margin:8px 0 0;color:#929ba1;font-size:11px;line-height:1.5}
+.profile-identity-panel,.profile-current-goal,.profile-program-card,.profile-settings-shell,.profile-system-actions{
+ border:1px solid var(--v2-border);background:var(--v2-glass);backdrop-filter:blur(24px) saturate(1.1);box-shadow:var(--v2-inset),var(--v2-shadow)
+}
+.profile-identity-panel{position:relative;display:grid;grid-template-columns:112px minmax(240px,1fr) auto;gap:22px;align-items:center;overflow:hidden;padding:26px;border-radius:var(--v2-radius-xl)}
+.profile-identity-panel:after{content:"V";position:absolute;right:5%;top:-24px;color:rgba(199,255,50,.035);font-size:190px;font-weight:900;line-height:1;pointer-events:none}
+.profile-avatar{position:relative;z-index:1;display:grid;width:106px;height:106px;place-items:center;border:1px solid color-mix(in srgb,var(--lime) 58%,transparent);border-radius:50%;background:radial-gradient(circle at 34% 28%,rgba(255,255,255,.13),transparent 30%),linear-gradient(145deg,#30383d,#15191c);box-shadow:0 0 30px -20px var(--lime)}
+.profile-avatar>span{font-size:34px;font-weight:580;letter-spacing:-.04em}
+.profile-avatar>i{position:absolute;right:0;bottom:4px;display:grid;width:32px;height:32px;place-items:center;border:1px solid var(--v2-border-hover);border-radius:50%;background:#111517;color:#c7ced1}
+.profile-identity-copy{position:relative;z-index:1;min-width:0}
+.profile-identity-copy h2{margin:0;font-size:clamp(25px,2.8vw,36px);font-weight:580;letter-spacing:-.04em}
+.profile-identity-copy>p{margin:6px 0 0;color:#a3abb0;font-size:11px}
+.profile-identity-copy>button{display:inline-flex;min-height:40px;align-items:center;gap:8px;margin-top:15px;padding:0 13px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(255,255,255,.035);color:#d3d8da;font-size:9.5px;font-weight:650;cursor:pointer;transition:background var(--v2-fast) var(--v2-ease),border-color var(--v2-fast) var(--v2-ease)}
+.profile-identity-copy>button:hover{border-color:var(--v2-border-hover);background:rgba(255,255,255,.065)}
+.profile-identity-copy blockquote{margin:16px 0 0;padding-left:12px;border-left:2px solid var(--lime);color:#aeb5b9;font-size:10px;line-height:1.55}
+.profile-program-mark{position:relative;z-index:1;display:flex;min-width:200px;align-items:center;gap:12px;padding:15px 17px;border:1px solid var(--v2-border);border-radius:var(--v2-radius-md);background:rgba(4,7,8,.25)}
+.profile-program-mark>svg{color:var(--lime)}
+.profile-program-mark>span{display:grid;gap:3px}
+.profile-program-mark small{color:#727c82;font-size:7px;font-weight:750;letter-spacing:.09em}
+.profile-program-mark b{color:#e9edee;font-size:13px;font-weight:600}
+.profile-program-mark em{color:#858e93;font-size:8px;font-style:normal}
+.profile-key-stats{position:relative;z-index:1;display:grid;grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr));margin:2px -26px -26px;border-top:1px solid var(--v2-border);background:rgba(3,6,7,.18)}
+.profile-key-stats article{display:flex;min-width:0;align-items:center;gap:11px;padding:18px 26px;border-right:1px solid var(--v2-border)}
+.profile-key-stats article:last-child{border-right:0}
+.profile-key-stats svg{flex:none;color:var(--lime)}
+.profile-key-stats span{display:grid;min-width:0;gap:5px}
+.profile-key-stats small{color:#7e888e;font-size:8px}
+.profile-key-stats b{overflow:hidden;color:#eef1f2;font-size:20px;font-weight:560;text-overflow:ellipsis;white-space:nowrap}
+.profile-key-stats em{color:#858e93;font-size:8px;font-weight:500;font-style:normal}
+
+.profile-goal-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(300px,.85fr);gap:var(--v2-gap)}
+.profile-current-goal,.profile-program-card{border-radius:var(--v2-radius-lg);padding:24px}
+.profile-current-goal>header{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:13px;align-items:center}
+.profile-current-goal>header>span{display:grid;width:38px;height:38px;place-items:center;border-radius:11px;background:rgba(199,255,50,.055);color:var(--lime)}
+.profile-current-goal h2,.profile-program-card h2{margin:4px 0 0;font-size:clamp(18px,2vw,24px);font-weight:590;letter-spacing:-.025em}
+.profile-current-goal>header>b{color:var(--lime);font-size:24px;font-weight:570}
+.profile-goal-progress{height:7px;margin:25px 0 18px;overflow:hidden;border-radius:999px;background:rgba(255,255,255,.09)}
+.profile-goal-progress i{display:block;height:100%;border-radius:inherit;background:var(--lime);box-shadow:0 0 18px -10px var(--lime);transition:width 400ms var(--v2-ease)}
+.profile-current-goal>footer{display:grid;grid-template-columns:repeat(3,1fr)}
+.profile-current-goal>footer span{display:grid;gap:4px;padding-right:18px}
+.profile-current-goal>footer span+span{padding-left:18px;border-left:1px solid var(--v2-border)}
+.profile-current-goal>footer small{color:#737d83;font-size:8px}
+.profile-current-goal>footer b{font-size:14px;font-weight:580}
+.profile-program-card{display:grid;grid-template-columns:42px minmax(0,1fr);gap:14px;align-content:center}
+.profile-program-card>svg{color:var(--lime)}
+.profile-program-card p:last-child{margin:9px 0 0;color:#8e979d;font-size:9.5px;line-height:1.5}
+.profile-program-card>button{display:flex;grid-column:2;min-height:40px;align-items:center;justify-content:center;gap:6px;width:max-content;margin-top:5px;padding:0 13px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(255,255,255,.035);color:#cbd1d4;font-size:9px;font-weight:650;cursor:pointer}
+
+.profile-settings-shell{overflow:hidden;border-radius:var(--v2-radius-xl)}
+.profile-settings-shell>header{display:flex;align-items:end;justify-content:space-between;gap:24px;padding:24px 26px;border-bottom:1px solid var(--v2-border)}
+.profile-settings-shell>header h2{margin:3px 0 0;font-size:23px;font-weight:600;letter-spacing:-.025em}
+.profile-settings-shell>header>p{max-width:42ch;margin:0;color:#7e888e;font-size:9.5px;line-height:1.5;text-align:right}
+.profile-settings-columns{display:grid;grid-template-columns:1fr 1fr}
+.profile-settings-group{min-width:0;padding:9px 24px 18px}
+.profile-settings-group+.profile-settings-group{border-left:1px solid var(--v2-border)}
+.profile-settings-group-title{display:flex;align-items:center;gap:12px;min-height:62px;padding:8px 3px;border-bottom:1px solid var(--v2-border);color:var(--lime)}
+.profile-settings-group-title span{display:grid;gap:3px}
+.profile-settings-group-title b{color:#dce1e3;font-size:11px;font-weight:600}
+.profile-settings-group-title small{color:#717b81;font-size:8px}
+.profile-settings-row{display:grid;width:100%;min-height:68px;grid-template-columns:40px minmax(0,1fr) auto 18px;gap:12px;align-items:center;padding:10px 3px;border:0;border-bottom:1px solid var(--v2-border);background:transparent;color:#dce0e2;text-align:left;cursor:pointer;transition:background var(--v2-fast) var(--v2-ease)}
+.profile-settings-row:hover,.profile-settings-row.active{background:rgba(255,255,255,.025)}
+.profile-settings-row-icon{display:grid;width:38px;height:38px;place-items:center;border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.03);color:var(--lime)}
+.profile-settings-row>span:nth-child(2){display:grid;min-width:0;gap:4px}
+.profile-settings-row b{font-size:11px;font-weight:590}
+.profile-settings-row small{overflow:hidden;color:#7f898f;font-size:8.5px;line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
+.profile-settings-row em{padding:4px 7px;border-radius:6px;background:rgba(199,255,50,.06);color:var(--lime);font-size:7px;font-weight:750;font-style:normal}
+.profile-settings-row>svg{color:#687278;transition:transform var(--v2-base) var(--v2-ease)}
+.profile-settings-row.active>svg{transform:rotate(90deg);color:#aeb5b9}
+.profile-settings-detail,.profile-hub-form{margin:0 -4px;border-bottom:1px solid var(--v2-border);background:rgba(3,6,7,.2)}
+.profile-settings-detail{padding:16px}
+.profile-hub-form{display:grid;gap:18px;padding:18px}
+.profile-hub-form-section{display:grid;gap:11px}
+.profile-hub-form-section h3{margin:2px 0 0;font-size:14px;font-weight:600}
+.profile-hub-form-grid,.profile-ai-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.profile-hub-form label,.profile-ai-settings label{display:grid;gap:6px;color:#899298;font-size:8px;font-weight:650}
+.profile-hub-form input,.profile-ai-settings input{width:100%;min-width:0;min-height:44px;padding:0 12px;border:1px solid var(--v2-border);border-radius:10px;outline:0;background:rgba(5,8,9,.4);color:#e4e8e9;font-size:10px}
+.profile-hub-form input:focus,.profile-ai-settings input:focus{border-color:rgba(199,255,50,.42);box-shadow:0 0 0 2px rgba(199,255,50,.07)}
+.profile-hub-form-actions{display:flex;justify-content:flex-end}
+.profile-hub-form-actions button,.profile-ai-settings form>button{min-height:42px;padding:0 16px;border:0;border-radius:10px;background:var(--lime);color:#101407;font-size:9px;font-weight:800;cursor:pointer}
+.profile-hub-form-actions button:disabled,.profile-ai-settings button:disabled{opacity:.55;cursor:wait}
+.profile-hub-error{margin:0;color:#ef9c85;font-size:9px;line-height:1.5}
+.profile-hub-loading{margin:0;color:#8c959a;font-size:9px}
+.profile-hub-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:18px}
+.profile-hub-toggle-row b{font-size:11px;font-weight:600}
+.profile-hub-toggle-row p,.profile-hub-honest-state p{margin:5px 0 0;color:#7f898f;font-size:8.5px;line-height:1.45}
+.profile-hub-toggle-row>button{display:flex;min-height:42px;align-items:center;gap:7px;padding:0 10px;border:1px solid var(--v2-border);border-radius:999px;background:rgba(255,255,255,.03);color:#858f94;font-size:8px;cursor:pointer}
+.profile-hub-toggle-row>button span{width:15px;height:15px;border-radius:50%;background:#5f686d;transition:background var(--v2-fast) var(--v2-ease),transform var(--v2-fast) var(--v2-ease)}
+.profile-hub-toggle-row>button.enabled{color:#dfe8c6}
+.profile-hub-toggle-row>button.enabled span{background:var(--lime)}
+.profile-hub-honest-state{display:flex;align-items:flex-start;gap:12px;padding:15px;color:#9ba4a9}
+.profile-hub-honest-state b{color:#c6cccf;font-size:10px;font-weight:590}
+.profile-ai-settings{display:grid;gap:14px}
+.profile-ai-settings>header{display:flex;align-items:center;gap:11px}
+.profile-ai-settings>header>svg{color:var(--lime)}
+.profile-ai-settings>header b{font-size:11px;font-weight:600}
+.profile-ai-settings>header p{margin:4px 0 0;color:#778188;font-size:8px}
+.profile-ai-settings form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:end;padding:14px;border:1px solid var(--v2-border);border-radius:12px;background:rgba(255,255,255,.018)}
+.profile-ai-settings form>label{grid-column:1}
+.profile-ai-settings form>button{grid-column:2;grid-row:2;white-space:nowrap}
+.profile-ai-settings form:nth-of-type(2)>button{grid-row:3}
+.profile-ai-provider{display:flex;grid-column:1/-1;align-items:center;gap:9px}
+.profile-ai-provider>span{width:7px;height:7px;border-radius:50%;background:#626b70}
+.profile-ai-provider>span.connected{background:var(--lime);box-shadow:0 0 10px -2px var(--lime)}
+.profile-ai-provider>div{display:grid;gap:3px}
+.profile-ai-provider b{font-size:10px;font-weight:600}
+.profile-ai-provider small{color:#737d83;font-size:8px}
+.profile-ai-grid{grid-column:1/-1}
+.profile-garmin-detail .garmin-import.card{margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.profile-garmin-detail .garmin-import>div:first-child p:first-child{display:none}
+.profile-garmin-detail .garmin-import h3{font-size:15px}
+.profile-garmin-detail .file-drop{min-height:48px}
+
+.profile-system-actions{display:flex;align-items:center;justify-content:space-between;gap:24px;margin-top:calc(var(--v2-section-gap) - var(--v2-gap));padding:22px 26px;border-radius:var(--v2-radius-lg);border-color:rgba(239,156,133,.2);background:linear-gradient(160deg,rgba(43,28,25,.28),rgba(15,17,18,.42)),var(--v2-sheen)}
+.profile-system-actions h2{margin:3px 0 0;font-size:19px;font-weight:600}
+.profile-system-actions>div>p:last-child{margin:7px 0 0;color:#858e93;font-size:9px}
+.profile-system-actions>button{display:flex;min-height:44px;align-items:center;gap:9px;padding:0 15px;border:1px solid rgba(239,156,133,.28);border-radius:10px;background:rgba(91,39,29,.16);color:#e8b2a5;font-size:9px;font-weight:700;cursor:pointer}
+.profile-settings-page button:focus-visible,.side-nav button:focus-visible,.side-nav a:focus-visible,.profile:focus-visible{outline:2px solid rgba(199,255,50,.68);outline-offset:2px}
+
+@media(max-width:1120px){
+  .profile-identity-panel{grid-template-columns:96px minmax(220px,1fr)}
+  .profile-avatar{width:92px;height:92px}
+  .profile-program-mark{grid-column:2;min-width:0;width:max-content}
+  .profile-key-stats{grid-row:3}
+  .profile-settings-columns{grid-template-columns:1fr}
+  .profile-settings-group+.profile-settings-group{border-top:1px solid var(--v2-border);border-left:0}
+}
+@media(max-width:760px){
+  .profile-settings-page{gap:12px;padding-bottom:26px}
+  .profile-page-heading{padding:2px 2px 5px}
+  .profile-page-heading h1{font-size:28px}
+  .profile-page-heading>div>p:last-child{font-size:10px}
+  .profile-identity-panel{grid-template-columns:72px minmax(0,1fr);gap:15px;padding:18px 16px;border-radius:var(--v2-radius-lg)}
+  .profile-identity-panel:after{right:-2%;top:-4px;font-size:130px}
+  .profile-avatar{width:70px;height:70px}
+  .profile-avatar>span{font-size:24px}
+  .profile-avatar>i{right:-2px;bottom:0;width:25px;height:25px}
+  .profile-avatar>i svg{width:13px}
+  .profile-identity-copy h2{font-size:25px}
+  .profile-identity-copy>p{font-size:9px}
+  .profile-identity-copy>button{min-height:44px;margin-top:12px}
+  .profile-identity-copy blockquote{grid-column:1/-1;margin-top:12px;font-size:9px}
+  .profile-program-mark{grid-column:1/-1;width:100%;padding:13px 14px}
+  .profile-key-stats{grid-row:auto;grid-template-columns:1fr 1fr;margin:2px -16px -18px}
+  .profile-key-stats article{min-height:72px;padding:14px 16px}
+  .profile-key-stats article:nth-child(2){border-right:0}
+  .profile-key-stats article:nth-child(-n+2){border-bottom:1px solid var(--v2-border)}
+  .profile-key-stats b{font-size:18px}
+  .profile-goal-grid{grid-template-columns:1fr}
+  .profile-current-goal,.profile-program-card{padding:18px 16px;border-radius:var(--v2-radius-md)}
+  .profile-current-goal>header{grid-template-columns:36px minmax(0,1fr) auto;gap:10px}
+  .profile-current-goal h2,.profile-program-card h2{font-size:18px}
+  .profile-current-goal>header>b{font-size:20px}
+  .profile-current-goal>footer span{padding-right:10px}
+  .profile-current-goal>footer span+span{padding-left:10px}
+  .profile-current-goal>footer b{font-size:12px}
+  .profile-program-card>button{min-height:44px}
+  .profile-settings-shell{border-radius:var(--v2-radius-lg)}
+  .profile-settings-shell>header{display:grid;gap:9px;padding:20px 16px}
+  .profile-settings-shell>header h2{font-size:21px}
+  .profile-settings-shell>header>p{text-align:left}
+  .profile-settings-group{padding:7px 12px 15px}
+  .profile-settings-row{min-height:72px;grid-template-columns:40px minmax(0,1fr) auto 18px;gap:9px}
+  .profile-settings-row small{white-space:normal}
+  .profile-settings-detail{padding:14px 10px}
+  .profile-hub-form{padding:16px 12px}
+  .profile-hub-form-grid,.profile-ai-grid{grid-template-columns:1fr}
+  .profile-hub-form-actions button{width:100%;min-height:48px}
+  .profile-hub-toggle-row{display:grid}
+  .profile-hub-toggle-row>button{min-height:46px;justify-self:start}
+  .profile-ai-settings form{grid-template-columns:1fr}
+  .profile-ai-settings form>label,.profile-ai-settings form>button,.profile-ai-settings form:nth-of-type(2)>button{grid-column:1;grid-row:auto}
+  .profile-ai-settings form>button{min-height:46px}
+  .profile-system-actions{display:grid;gap:18px;margin-top:22px;padding:20px 16px}
+  .profile-system-actions>button{min-height:48px;justify-content:center;width:100%}
+}
+
+@supports not (backdrop-filter:blur(1px)){
+  .profile-identity-panel,.profile-current-goal,.profile-program-card,.profile-settings-shell,.profile-system-actions{background:linear-gradient(160deg,#171b1e,#101214)}
+}
+
+/* ---------- Мобильная навигация ---------- */
+@media(max-width:760px){
+  .content{margin-left:0;padding:20px 16px 104px}
+  /* Мобильный аналог Sidebar — та же архитектурная поверхность (05-glass-system.md). */
+  .mobile-nav{background:var(--v2-glass-arch);backdrop-filter:blur(26px) saturate(1.12);border-top:1px solid var(--v2-border)}
+  .app-shell:not(.swim-shell)>.mobile-nav{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  .app-shell:not(.swim-shell)>.mobile-nav>.mobile-nav-module{display:none}
+  .app-shell:not(.swim-shell)>.mobile-nav button,
+  .app-shell:not(.swim-shell)>.mobile-nav a{min-width:0;min-height:44px;overflow:visible;text-overflow:clip;white-space:normal;line-height:1.08;text-align:center;align-content:start}
+}
+
+/* ---------- Motion: уважение к prefers-reduced-motion (06-motion.md) ---------- */
+@media(prefers-reduced-motion:reduce){
+  .card,.next-workout-card,.streak-highlight-card,.ring-card,.readiness.card,.last-workout-card,
+  .coach-card,.workout,.hero .start-btn,.side-nav button,.side-nav a,.profile,.icon-btn,.mini-avatar,
+  .day-plan details,.week-plan-row,.plan-day,.plan-exercises article,.active-plan-item,.active-workout-card footer button,
+  .confirmation-screen footer button,.confirmation-quick button,.exercise-actions button,.text-btn,.nutrition-method,
+  .nutrition-date-control button,.nutrition-history summary svg,.nutrition-program-guide summary svg,
+  .journey-hero-copy>button,.journey-story-card>button,.journey-photo-pair img,
+  .analytics-mode-tabs button,.analytics-period-select button,.coach-suggested-questions>button,
+  .profile-identity-copy>button,.profile-settings-row,.profile-settings-row>svg,.profile-hub-toggle-row>button span,.profile-goal-progress i{transition:none!important}
+  .card:hover,.next-workout-card:hover,.streak-highlight-card:hover,.ring-card:hover,.readiness.card:hover,
+  .last-workout-card:hover,.coach-card:hover,.workout:hover,.hero .start-btn:hover,
+  .active-workout-card footer button:hover,.confirmation-screen footer button:hover,
+  .journey-hero-copy>button:hover,.journey-story-card>button:hover{transform:none!important}
+}
+
+/* ---------- Fallback без backdrop-filter (05-glass-system.md: "blur не
+   должен быть единственным условием читаемости") — плотнее тонированная
+   база компенсирует отсутствие блюра, иерархия поверхностей не меняется. */
+@supports not (backdrop-filter:blur(1px)){
+  .sidebar,.mobile-nav{background:linear-gradient(180deg,#14171a,#0c0e10)}
+  .hero{background:linear-gradient(100deg,#14171b 0%,#101317 55%,#0c0f11 100%)}
+  .plan-hero,.plan-focus-card,.week-plan-editor{background:linear-gradient(105deg,#171b1f 0%,#111519 58%,#0d1012 100%)}
+  .nutrition-date-control,.nutrition-add-panel,.nutrition-balance,.nutrition-water,.nutrition-coach-note,
+  .nutrition-meals-section,.nutrition-history,.nutrition-program-guide,.nutrition-hub .food-tools,
+  .roadmap-summary,.roadmap-phase-card,.roadmap-footer{background:linear-gradient(160deg,#171b1e,#101214)}
+  .card,.next-workout-card,.streak-highlight-card,.ring-card,.readiness.card,.last-workout-card,
+  .evening-cta,.mood-cta,.milestone-cta,.milestone-celebration,.coach-card,.progression-panel,
+  .digest-card,.week-card,.goal-card,.activity-entry,.analytics,.calendar,.schedule-editor,
+  .advice,.food-tools,.body-map,.garmin-import,.records,.today-mosaic-side,.stat-strip,.workout,.plan-next-card,.plan-program,.plan-exercises article,
+  .day-plan details,.active-plan-item,.confirmation-summary,.confirmation-exercises article,
+  .result-milestone{
+    background:linear-gradient(160deg,#171b1e,#101214);
+  }
+  .active-workout-mode .workout-modal{background:linear-gradient(160deg,#14171a,#0d1012)}
+}

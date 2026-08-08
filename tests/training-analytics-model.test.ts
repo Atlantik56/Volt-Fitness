@@ -15,6 +15,7 @@ import {
   type WeeklyPlanDay,
   type WorkoutRecord,
 } from "../app/training-analytics-model.ts";
+import type { WeekScheduleChange } from "../app/week-schedule-model.ts";
 
 const anchor = new Date("2026-07-25T12:00:00");
 const planDays: WeeklyPlanDay[] = [
@@ -140,11 +141,85 @@ test("computePeriodSummary: замена требует фактически в�
   assert.equal(matching.planCompletionPct, Math.round(1 / matching.expectedTrainingDays * 100));
 });
 
+function wsc(overrides: Partial<WeekScheduleChange>): WeekScheduleChange {
+  return {
+    id: 1, date: "2026-07-20", action: "replace", assignedSourceDay: null, swapWithDate: null,
+    reasonCode: "", createdAt: "", updatedAt: "",
+    ...overrides,
+  };
+}
+
+test("computePeriodSummary: week_schedule_changes 'rest' исключает день из ожидаемых", () => {
+  const withRest = computePeriodSummary(
+    [],
+    planDays,
+    "4W",
+    anchor,
+    [],
+    [wsc({ date: "2026-07-20", action: "rest", assignedSourceDay: null })],
+  );
+  const withoutRest = computePeriodSummary([], planDays, "4W", anchor);
+  assert.equal(withRest.expectedTrainingDays, withoutRest.expectedTrainingDays - 1);
+});
+
+test("computePeriodSummary: week_schedule_changes 'replace' меняет ожидаемый тип дня", () => {
+  // 2026-07-20 (Пн) по шаблону Силовая, заменена на день 2 (Вт) — Кардио.
+  const change = [wsc({ date: "2026-07-20", action: "replace", assignedSourceDay: 2 })];
+  const strengthDone = computePeriodSummary(
+    [w(1, "2026-07-20", { type: "Силовая" })], planDays, "4W", anchor, [], change,
+  );
+  const cardioDone = computePeriodSummary(
+    [w(1, "2026-07-20", { type: "Кардио" })], planDays, "4W", anchor, [], change,
+  );
+  assert.equal(strengthDone.planCompletionPct, 0);
+  assert.equal(cardioDone.planCompletionPct, Math.round(1 / cardioDone.expectedTrainingDays * 100));
+});
+
+test("computePeriodSummary: week_schedule_changes 'swap' меняет ожидания для обеих дат", () => {
+  // Пн (Силовая, day 1) и Вт (Кардио, day 2) поменяны местами, как это делает applySwap.
+  const changes = [
+    wsc({ date: "2026-07-20", action: "swap", assignedSourceDay: 2, swapWithDate: "2026-07-21" }),
+    wsc({ date: "2026-07-21", action: "swap", assignedSourceDay: 1, swapWithDate: "2026-07-20" }),
+  ];
+  const s = computePeriodSummary(
+    [w(1, "2026-07-20", { type: "Кардио" }), w(2, "2026-07-21", { type: "Силовая" })],
+    planDays, "4W", anchor, [], changes,
+  );
+  assert.equal(s.planCompletionPct, Math.round(2 / s.expectedTrainingDays * 100));
+});
+
+test("computePeriodSummary: week_schedule_changes имеет приоритет над schedule_overrides для одной даты", () => {
+  const overrides = [{
+    originalDate: "2026-07-19", scheduledDate: "2026-07-20",
+    planTitle: "Гантели по кругу", replacementTitle: "Прогулка и мобильность",
+  }];
+  const changes = [wsc({ date: "2026-07-20", action: "rest", assignedSourceDay: null })];
+  const s = computePeriodSummary([], planDays, "4W", anchor, overrides, changes);
+  // Если бы победил schedule_overrides, день ожидал бы "recovery"; при
+  // приоритете week_schedule_changes день должен быть исключён как отдых.
+  assert.equal(s.expectedTrainingDays, computePeriodSummary([], planDays, "4W", anchor, overrides).expectedTrainingDays - 1);
+});
+
+test("computePeriodSummary: schedule_overrides продолжает работать без week_schedule_changes", () => {
+  const overrides = [{
+    originalDate: "2026-07-20", scheduledDate: "2026-07-21",
+    planTitle: "Гантели по кругу", replacementTitle: "",
+  }];
+  const s = computePeriodSummary(
+    [w(1, "2026-07-20", { type: "Силовая" }), w(2, "2026-07-21", { type: "Силовая" })],
+    planDays, "4W", anchor, overrides,
+  );
+  assert.equal(s.planCompletionPct, Math.round(1 / s.expectedTrainingDays * 100));
+});
+
 test("computePeriodSummary: does not mutate input arrays", () => {
   const workouts = [w(1, "2026-07-20")];
+  const changes = [wsc({ date: "2026-07-20", action: "rest", assignedSourceDay: null })];
   const before = JSON.stringify(workouts);
-  computePeriodSummary(workouts, planDays, "1Y", anchor);
+  const beforeChanges = JSON.stringify(changes);
+  computePeriodSummary(workouts, planDays, "1Y", anchor, [], changes);
   assert.equal(JSON.stringify(workouts), before);
+  assert.equal(JSON.stringify(changes), beforeChanges);
 });
 
 test("computePeriodSummary: 500 workouts stays finite, deterministic and performant", () => {

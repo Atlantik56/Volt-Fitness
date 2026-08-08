@@ -54,7 +54,7 @@ export function LatestMilestoneCard({ data, onOpen }: { data: any; onOpen: () =>
         <p className="eyebrow">ВЕХИ</p>
         <h3>{latest ? latest.title : "Пока нет вех"}</h3>
       </div>
-      <button type="button" onClick={onOpen}>Моя история →</button>
+      <button type="button" onClick={onOpen}>Мой путь →</button>
     </section>
   );
 }

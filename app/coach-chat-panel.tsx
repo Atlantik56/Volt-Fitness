@@ -15,7 +15,7 @@ type HubSettings={anthropicKeySet:boolean;mwsKeySet:boolean;mwsProject:string;mw
 
 type QuickAction={label:string;icon?:string;onClick:()=>void};
 
-export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], onFoodSaved, originalPlan=null, planChanged=false, changeReasonCode="" }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string; quickActions?: QuickAction[]; onFoodSaved?: () => void; originalPlan?: { title: string; type: string } | null; planChanged?: boolean; changeReasonCode?: string }) {
+export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], suggestedQuestions=[], embedded=false, onFoodSaved, originalPlan=null, planChanged=false, changeReasonCode="" }: { open: boolean; onClose: () => void; plan: { title: string; type: string } | null; today: string; quickActions?: QuickAction[]; suggestedQuestions?: string[]; embedded?: boolean; onFoodSaved?: () => void; originalPlan?: { title: string; type: string } | null; planChanged?: boolean; changeReasonCode?: string }) {
   const notify = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [savingFood, setSavingFood] = useState<number|null>(null);
@@ -44,9 +44,8 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], on
 
   if (!open) return null;
 
-  const ask = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const text = question.trim();
+  const sendQuestion = async (text: string) => {
+    text = text.trim();
     if (!text || sending) return;
     setQuestion("");
     setMessages((current) => [...current, { role: "user", text }]);
@@ -75,6 +74,11 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], on
     }
   };
 
+  const ask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await sendQuestion(question);
+  };
+
   const saveFood = async (index: number, items: FoodItem[]) => {
     setSavingFood(index);
     const rawText = items.map(f => `${f.name} — ${f.calories} ккал (Б ${f.protein} / Ж ${f.fat} / У ${f.carbs})`).join("\n");
@@ -93,12 +97,16 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], on
   };
 
   return (
-    <div className="coach-chat-panel card" role="dialog" aria-label="Чат с VOLT Coach">
+    <div className={`coach-chat-panel card${embedded?" coach-chat-embedded":""}`} role={embedded?"region":"dialog"} aria-label="Чат с VOLT Coach">
       <header className="coach-chat-head">
         <div><p className="eyebrow">VOLT COACH · AI HUB</p><small>{provider?`Последний ответ: ${provider==="anthropic+mws"?"Консилиум":provider==="mws"?"MWS GPT":"Anthropic"}`:"Anthropic основной · MWS резервный"}</small></div>
-        <div className="coach-chat-head-actions"><button type="button" aria-label="Настроить AI Hub" title="Настроить AI Hub" onClick={()=>setSettingsOpen(v=>!v)}>⚙</button><button type="button" aria-label="Закрыть чат" onClick={onClose}>×</button></div>
+        <div className="coach-chat-head-actions"><button type="button" aria-label="Настроить AI Hub" title="Настроить AI Hub" onClick={()=>setSettingsOpen(v=>!v)}>⚙</button>{!embedded&&<button type="button" aria-label="Закрыть чат" onClick={onClose}>×</button>}</div>
       </header>
       {settingsOpen&&<MwsSetup settings={hubSettings} onSaved={(next)=>{setHubSettings(next);setSettingsOpen(false);notify("MWS GPT подключён как резерв","good")}}/>}
+      {suggestedQuestions.length>0&&<div className="coach-suggested-questions" role="group" aria-label="Популярные вопросы">
+        <small>Популярные вопросы</small>
+        {suggestedQuestions.map(text=><button key={text} type="button" disabled={sending} onClick={()=>sendQuestion(text)}>{text}<span aria-hidden="true">›</span></button>)}
+      </div>}
       {quickActions.length>0&&<div className="coach-quick-actions" role="group" aria-label="Быстрые действия без ИИ">
         <small>Без ИИ, сразу:</small>
         {quickActions.map(a=><button key={a.label} type="button" onClick={a.onClick}>{a.icon&&<span aria-hidden="true">{a.icon} </span>}{a.label}</button>)}

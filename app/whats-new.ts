@@ -24,11 +24,11 @@ export const WHATS_NEW_RELEASES: WhatsNewRelease[] = [
       "Историю тренировок теперь можно выгрузить в CSV или JSON.",
     ],
     highlights: [
-      { title: "Раздел «Прогресс»", text: "Здесь теперь сводка, графики по периодам и история замеров вместо одной большой формы.", target: '[data-tour-id="nav-progress"], [data-tour-id="nav-progress-mobile"]', activate: ['[data-tour-id="nav-progress"], [data-tour-id="nav-progress-mobile"]'] },
-      { title: "Новый замер", text: "Форма компактная и открывается по кнопке — не занимает экран постоянно.", target: ".add-measurement-btn" },
-      { title: "Вкладка «Аналитика»", text: "Выполнение плана, регулярность, объём тренировок и самочувствие после нагрузки.", target: '[data-tour-id="tab-analytics"]', activate: ['[data-tour-id="tab-analytics"]'] },
-      { title: "Экспорт данных", text: "Выгрузи историю тренировок за период в CSV или JSON.", target: ".analytics-export" },
-      { title: "Календарь нагрузки", text: "Heatmap активности за 6 месяцев или год.", target: ".heatmap-card" },
+      { title: "Раздел «Прогресс»", text: "Здесь теперь сводка, графики по периодам и история замеров вместо одной большой формы.", target: ".journey-page", activate: ['[data-tour-id="nav-progress"]'] },
+      { title: "Новый замер", text: "Форма компактная и открывается по кнопке — не занимает экран постоянно.", target: ".add-measurement-btn", activate: ['[data-tour-id="progress-body-tab"]'] },
+      { title: "Раздел «Аналитика»", text: "Выполнение плана, регулярность, объём тренировок и самочувствие после нагрузки.", target: ".analytics-mode-tabs", activate: ['[data-tour-id="nav-analytics"], [data-tour-id="nav-analytics-mobile"]'] },
+      { title: "Экспорт данных", text: "Выгрузи историю тренировок за период в CSV или JSON.", target: ".analytics-export-menu" },
+      { title: "Динамика тренировок", text: "Здесь виден фактический тренировочный ритм за выбранный период.", target: ".analytics-trends-panel" },
     ],
   },
 ];

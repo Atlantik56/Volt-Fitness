@@ -1,4 +1,5 @@
 import { normalizeCoachPlanKind, type CoachPlanKind } from "../lib/coach.ts";
+import { changesByDateMap, type WeekScheduleChange } from "./week-schedule-model.ts";
 
 const DAY_MS = 86400000;
 
@@ -102,24 +103,32 @@ function buildExpectedPlanByDate(
   scheduleOverrides: ScheduleOverrideRecord[],
   fromIso: string,
   toIso: string,
+  weekScheduleChanges: WeekScheduleChange[] = [],
 ): Map<string, CoachPlanKind> {
   const planByWeekday = new Map(
     planDays.map((day) => [day.day, normalizeCoachPlanKind(day.type)]),
   );
   const movedFrom = new Map(scheduleOverrides.map((item) => [item.originalDate, item]));
   const movedTo = new Map(scheduleOverrides.map((item) => [item.scheduledDate, item]));
+  const weekChangesByDate = changesByDateMap(weekScheduleChanges);
   const expected = new Map<string, CoachPlanKind>();
   const cursor = new Date(`${fromIso}T12:00:00`);
   const end = new Date(`${toIso}T12:00:00`);
   while (cursor <= end) {
     const date = localIso(cursor);
-    const movedHere = movedTo.get(date);
-    const movedAway = movedFrom.get(date);
+    const weekChange = weekChangesByDate.get(date);
     let kind: CoachPlanKind | undefined;
-    if (movedHere) {
-      kind = normalizeCoachPlanKind("", movedHere.replacementTitle || movedHere.planTitle);
-    } else if (!movedAway || movedAway.scheduledDate === date) {
-      kind = planByWeekday.get(isoWeekday(cursor));
+    if (weekChange) {
+      // AI-11 — канонический источник: приоритет над старым schedule_overrides.
+      kind = weekChange.action === "rest" ? "rest" : planByWeekday.get(weekChange.assignedSourceDay ?? isoWeekday(cursor));
+    } else {
+      const movedHere = movedTo.get(date);
+      const movedAway = movedFrom.get(date);
+      if (movedHere) {
+        kind = normalizeCoachPlanKind("", movedHere.replacementTitle || movedHere.planTitle);
+      } else if (!movedAway || movedAway.scheduledDate === date) {
+        kind = planByWeekday.get(isoWeekday(cursor));
+      }
     }
     if (kind && kind !== "rest") expected.set(date, kind);
     cursor.setDate(cursor.getDate() + 1);
@@ -147,6 +156,7 @@ export function computePeriodSummary(
   period: AnalyticsPeriod,
   anchor: Date,
   scheduleOverrides: ScheduleOverrideRecord[] = [],
+  weekScheduleChanges: WeekScheduleChange[] = [],
 ): PeriodSummary {
   const fromIso = localIso(periodCutoffDate(period, anchor));
   const toIso = localIso(anchor);
@@ -160,7 +170,7 @@ export function computePeriodSummary(
     activeWeeks.add(weekBucket(w.date, fromIso));
   }
   const totalWeeks = Math.max(1, Math.ceil(daysBetweenInclusive(fromIso, toIso) / 7));
-  const expectedPlanByDate = buildExpectedPlanByDate(planDays, scheduleOverrides, fromIso, toIso);
+  const expectedPlanByDate = buildExpectedPlanByDate(planDays, scheduleOverrides, fromIso, toIso, weekScheduleChanges);
   const expectedTrainingDays = expectedPlanByDate.size;
   const completedPlannedDays = new Set<string>();
   for (const workout of inPeriod) {

@@ -5,6 +5,10 @@ import "./fitness-features.css";
 import "./advanced-features.css";
 import "./body-map-realistic.css";
 import "./mobile-shell.css";
+// VOLT 2.0 — слой редизайна Главной. Импортируется последним намеренно:
+// он переопределяет визуал поверх всех предыдущих таблиц стилей, не меняя
+// их саму разметку и логику (см. шапку файла).
+import "./volt2.css";
 import PwaRegister from "./pwa-register";
 import { ToastProvider } from "./toast";
 

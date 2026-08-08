@@ -30,7 +30,7 @@ export function CoachCard({result,plan,date,ready=true,onAskCoach}:{result:Coach
  const meta=decision?COACH_ACTION_LABELS[decision.action]:null;
  return <section id="volt-coach" className="coach-card card" aria-label="VOLT Coach — решение на сегодня">
   <div className="coach-head">
-   <p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p>
+   <p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ <span className="coach-beta">BETA</span></p>
    <small>Локальное решение · AI только по запросу</small>
   </div>
   {decision&&meta?<>

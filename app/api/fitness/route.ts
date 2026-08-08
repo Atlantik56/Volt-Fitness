@@ -42,9 +42,13 @@ export async function GET(){
  const progressionOverrides=Object.fromEntries((db.prepare(`SELECT o.exercise,o.weight,o.reps FROM exercise_load_overrides o
   WHERE NOT EXISTS (SELECT 1 FROM strength_logs s WHERE s.exercise=o.exercise AND s.created_at>o.created_at)`).all() as any[]).map(x=>[x.exercise,{weight:x.weight,reps:x.reps}]));
  const workoutDrafts=listOpenWorkoutDrafts();
- // AI-11 — только изменения текущей календарной недели; дальше не тянутся.
- const {mondayIso,sundayIso}=weekRangeContaining(weekLocalIso(new Date()));
- const weekScheduleChanges=listWeekScheduleChanges(mondayIso,sundayIso);
+ const {sundayIso}=weekRangeContaining(weekLocalIso(new Date()));
+ // Диапазон покрывает максимальный период Аналитики (1 год) — WeekPlanEditor
+ // и AI-11 в целом по-прежнему разрешают редактировать только текущую
+ // неделю (см. lib/week-schedule-service.ts), но Analytics plan-vs-fact
+ // должна видеть и более старые изменения расписания как исторический факт.
+ const analyticsFrom=new Date();analyticsFrom.setFullYear(analyticsFrom.getFullYear()-1);
+ const weekScheduleChanges=listWeekScheduleChanges(weekLocalIso(analyticsFrom),sundayIso);
  return Response.json({profile,workouts,workoutDrafts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
 }
 
