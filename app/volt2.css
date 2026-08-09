@@ -1191,6 +1191,10 @@ body:has(.auth-screen),body:has(.volt-widget-page){
   grid-column:1;grid-row:3;align-self:center;font-size:11.5px;font-weight:600;letter-spacing:.01em;color:#aeb6bc;
 }
 .active-workout-mode .exercise-video.compact{grid-column:2;grid-row:3;margin-top:0;align-self:center}
+.active-workout-mode .exercise-video.compact:has(.exercise-video-frame){
+  grid-column:1/-1;grid-row:4;width:100%;min-width:0;justify-self:stretch;
+}
+.active-workout-mode .exercise-video.compact .exercise-video-frame{max-width:none}
 .active-workout-mode .exercise-video button{min-height:44px;font-size:11px;font-weight:650;padding:0 8px}
 
 /* "Смотреть технику" — secondary/ghost действие, не primary (02-colors.md:
@@ -1332,7 +1336,9 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 }
 
 @media(max-width:420px){
+  .active-workout-mode .active-plan-item:has(.exercise-video-frame) .active-plan-item-body{grid-column:1/-1}
   .active-workout-mode .exercise-video.compact{grid-column:1/-1;grid-row:4;justify-self:start}
+  .active-workout-mode .exercise-video.compact:has(.exercise-video-frame){justify-self:stretch}
   .active-workout-mode .workout-modal>footer .active-cancel{width:auto;white-space:nowrap;font-size:9px}
   .active-workout-mode .workout-modal>footer button:not(.ghost-btn){flex:1}
 }
