@@ -97,10 +97,10 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
         {day.changed && <small>Исходно по программе: {day.original.type === "Отдых" ? "Отдых" : day.original.title}</small>}
       </div>
 
-      {locked?.completed && <p className="week-plan-editor-locked">Эта тренировка уже выполнена — план на этот день изменить нельзя.</p>}
-      {!locked?.completed && locked?.openDraft && <p className="week-plan-editor-locked">На этот день есть незавершённый черновик тренировки. Сначала продолжите или отмените его на главной, потом возвращайтесь к изменению плана.</p>}
+      {locked?.anyCompleted && <p className="week-plan-editor-locked">На этот день уже выполнена хотя бы одна сессия — план дня изменить нельзя.</p>}
+      {!locked?.anyCompleted && locked?.openDraft && <p className="week-plan-editor-locked">На этот день есть незавершённый черновик тренировки. Сначала продолжите или отмените его на главной, потом возвращайтесь к изменению плана.</p>}
 
-      {!locked?.completed && !locked?.openDraft && <>
+      {!locked?.anyCompleted && !locked?.openDraft && <>
         <div className="week-plan-editor-actions" role="group" aria-label="Действие">
           <button type="button" className={mode === "replace" ? "active" : ""} onClick={() => setMode("replace")}>Заменить тренировку</button>
           <button type="button" className={mode === "swap" ? "active" : ""} onClick={() => setMode("swap")}>Поменять с другим днём</button>

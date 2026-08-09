@@ -214,7 +214,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
           <div>
             <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
             <h1>План тренировок</h1>
-            <p>Foundation · 6 недель</p>
+            <p>Foundation · 8 недель</p>
           </div>
         </header>
         <SwimNavigation />

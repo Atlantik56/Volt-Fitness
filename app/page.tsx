@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildHomeWeek, currentProgramWeek, meals, safety, week } from "./personal-data";
+import { buildHomeWeek, buildProgramWeek, currentProgramWeek, meals, safety, week } from "./personal-data";
 import { ExerciseVideo } from "./exercise-video";
 import { ActiveWorkout, type ActiveDraft } from "./active-workout";
 import { WeekPlanEditor } from "./week-plan-editor";
-import { buildWeekSchedule, weekRangeContaining, type ResolvedDayPlan } from "./week-schedule-model";
+import { buildWeekSchedule, sessionsForDay, weekRangeContaining, type HomeWeekSession, type ResolvedDayPlan } from "./week-schedule-model";
 import { isSwimSlot } from "@/lib/swim/schedule-sync";
 import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
 import { intervalTotalMeters, intervalTypeLabel, totalDistanceMeters } from "@/lib/swim/workout-engine";
@@ -38,6 +38,10 @@ import {
 } from "./progress-model";
 
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
+const isSwimSession=(session:HomeWeekSession)=>session.type==="Кардио"&&(session.title==="Бассейн"||session.id?.startsWith("swim-")===true);
+const sessionCompleted=(session:HomeWeekSession,date:string,workouts:any[])=>isSwimSession(session)
+ ?workouts.some(workout=>workout.date===date&&String(workout.type||"").startsWith("Плавание"))
+ :workouts.some(workout=>workout.date===date&&workout.title===session.title);
 const NAV_ITEMS = [
   {id:"Сегодня",label:"Сегодня",mobilePlacement:"primary"},
   {id:"План",label:"План",mobilePlacement:"primary"},
@@ -98,34 +102,48 @@ export default function Home() {
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
   const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
+  const programWeek=currentProgramWeek(data.profile?.programStart);
   const homeWeek=useMemo(()=>buildHomeWeek(data.profile?.programStart),[data.profile?.programStart]);
   // AI-11 — Гибкая неделя: план на дату = каноническая программа (homeWeek) +
   // пользовательские изменения текущей недели (week_schedule_changes). Никогда
   // не переходит на следующую неделю — see app/week-schedule-model.ts.
   const weekMondayIso=useMemo(()=>weekRangeContaining(today).mondayIso,[today]);
   const weekPlanRaw=useMemo(()=>buildWeekSchedule(homeWeek,data.weekScheduleChanges||[],weekMondayIso),[homeWeek,data.weekScheduleChanges,weekMondayIso]);
-  const weekPlan:ResolvedDayPlan[]=useMemo(()=>weekPlanRaw.map(d=>({...d,locked:{
-   completed:(data.workouts||[]).some((w:any)=>w.date===d.date),
-   openDraft:(data.workoutDrafts||[]).some((w:any)=>w.date===d.date),
-  }})),[weekPlanRaw,data.workouts,data.workoutDrafts]);
+  const weekPlan:ResolvedDayPlan[]=useMemo(()=>weekPlanRaw.map(d=>{
+   const sessions=sessionsForDay(d.scheduled),required=sessions.filter(session=>session.type!=="Отдых"&&!session.optional);
+   const completedRequiredSessions=required.filter(session=>sessionCompleted(session,d.date,data.workouts||[])).length;
+   return {...d,locked:{
+    completed:required.length>0&&completedRequiredSessions===required.length,
+    anyCompleted:sessions.some(session=>sessionCompleted(session,d.date,data.workouts||[])),
+    openDraft:(data.workoutDrafts||[]).some((w:any)=>w.date===d.date),
+    completedRequiredSessions,requiredSessions:required.length,
+   }};
+  }),[weekPlanRaw,data.workouts,data.workoutDrafts]);
   const todayResolved=weekPlan.find(d=>d.date===today)??weekPlan[0];
-  const todayPlan=todayResolved.scheduled;
+  const todaySessions=sessionsForDay(todayResolved.scheduled);
+  const todayRequiredSessions=todaySessions.filter(session=>session.type!=="Отдых"&&!session.optional);
+  const todayPlan=todayRequiredSessions.find(session=>!sessionCompleted(session,today,data.workouts||[]))
+   ??todaySessions.find(session=>!sessionCompleted(session,today,data.workouts||[]))??todaySessions[0];
+  const todayPlanCompleted=sessionCompleted(todayPlan,today,data.workouts||[]);
   const [editingDate,setEditingDate]=useState<string|null>(null);
   const editingDay=editingDate?weekPlan.find(d=>d.date===editingDate):null;
   // Экран «План»: выбранный для просмотра день текущей недели (по умолчанию —
   // сегодня). Отдельно от editingDate — выбор дня только показывает его план,
   // редактирование по-прежнему открывает WeekPlanEditor.
   const [selectedPlanDate,setSelectedPlanDate]=useState<string|null>(null);
+  const [selectedPlanSessionId,setSelectedPlanSessionId]=useState<string|null>(null);
   const selectedResolved=weekPlan.find(d=>d.date===(selectedPlanDate??today))??todayResolved;
-  const selectedPlan=selectedResolved.scheduled;
+  const selectedSessions=sessionsForDay(selectedResolved.scheduled);
+  const selectedPlan=selectedSessions.find(session=>session.id===selectedPlanSessionId)??selectedSessions[0];
   const isSelectedToday=selectedResolved.date===today;
-  const isSelectedSwim=isSwimSlot(selectedPlan);
+  const isSelectedSwim=isSwimSession(selectedPlan);
+  const selectedPlanCompleted=sessionCompleted(selectedPlan,selectedResolved.date,data.workouts||[]);
+  const selectPlanDate=(date:string)=>{setSelectedPlanDate(date);setSelectedPlanSessionId(null)};
   // Для любого выбранного Swim-дня запрашиваем тот же календарный resolver,
   // что используют Главная и сам VOLT Swim. Plan больше не показывает
   // generic-заглушки из personal-data как будто это состав тренировки.
-  const [selectedSwimResult,setSelectedSwimResult]=useState<{date:string;slot:ResolvedSwimSlot|null;workout:SwimWorkoutDef|null}|null>(null);
+  const [selectedSwimResult,setSelectedSwimResult]=useState<{date:string;slot:ResolvedSwimSlot|null}|null>(null);
   const selectedSwim=selectedSwimResult?.date===selectedResolved.date?selectedSwimResult.slot:null;
-  const selectedSwimWorkout=selectedSwimResult?.date===selectedResolved.date?selectedSwimResult.workout:null;
   const selectedSwimLoading=isSelectedSwim&&selectedSwimResult?.date!==selectedResolved.date;
   useEffect(()=>{
    if(!isSelectedSwim)return;
@@ -133,17 +151,8 @@ export default function Home() {
    const requestedDate=selectedResolved.date;
    fetch(`/api/swim/today?date=${encodeURIComponent(selectedResolved.date)}`,{cache:"no-store",signal:controller.signal})
     .then(r=>r.ok?r.json():Promise.reject(new Error("swim resolver failed")))
-    .then(async d=>{
-     const slot=(d?.slot??null) as ResolvedSwimSlot|null;
-     if(slot?.kind!=="workout")return {slot,workout:null};
-     const response=await fetch(`/api/swim/programs/${encodeURIComponent(slot.programId)}`,{cache:"no-store",signal:controller.signal});
-     if(!response.ok)return {slot,workout:null};
-     const program=await response.json();
-     const workout=(program?.progress?.workouts||[]).find((item:any)=>item.workout?.id===slot.workoutId)?.workout??null;
-     return {slot,workout};
-    })
-    .then(result=>setSelectedSwimResult({date:requestedDate,...result}))
-    .catch(error=>{if(error?.name!=="AbortError")setSelectedSwimResult({date:requestedDate,slot:null,workout:null})});
+    .then(d=>setSelectedSwimResult({date:requestedDate,slot:d?.slot??null}))
+    .catch(error=>{if(error?.name!=="AbortError")setSelectedSwimResult({date:requestedDate,slot:null})});
    return()=>controller.abort();
   },[isSelectedSwim,selectedResolved.date]);
   // Незавершённая (но не отменённая и не подтверждённая) сессия на сегодня —
@@ -153,7 +162,7 @@ export default function Home() {
   // признак состояния. Используется только для текста кнопки на карточке —
   // реальным источником истины остаётся сам черновик/workout_log.
   const openDraftToday=(data.workoutDrafts||[]).find((d:any)=>d.date===today&&d.snapshot?.title===todayPlan?.title);
-  const coach=useMemo(()=>buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile}),[data,todayPlan,today,loaded]);
+  const coach=buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile});
   const coachAction:CoachAction|null=coach.decision?.action??null;
   const nutritionCalories=coach.summary.nutrition.calories??0;
   const nutritionCalorieTarget=coach.summary.targets.calories;
@@ -177,7 +186,7 @@ export default function Home() {
   // реальную структурированную тренировку Foundation. Если сегодня по общему
   // расписанию бассейн, ведём через resolveScheduledSwimWorkout на тот же
   // /swim/workouts/[programId]/[workoutId], что открывают /swim и План Swim.
-  const isTodaySwim=isSwimSlot(todayPlan);
+  const isTodaySwim=isSwimSession(todayPlan);
   const startTodayWorkout=()=>{
    if(todayPlan.type==="Отдых"){
     setSelectedPlanDate(today);
@@ -260,7 +269,8 @@ export default function Home() {
             <p className="eyebrow">СЛЕДУЮЩАЯ ТРЕНИРОВКА{todayResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
             <h3>{todayPlan.title}</h3>
             <p className="next-workout-type">{todayPlan.type}</p>
-            {coach.summary.workoutDone&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
+            {todayPlanCompleted&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
+            {todaySessions.length>1&&<div className="today-session-list" aria-label="Сессии на сегодня">{todaySessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} onClick={()=>{setSelectedPlanDate(today);setSelectedPlanSessionId(session.id??null);setNav("План")}}><span>{sessionCompleted(session,today,data.workouts||[])?"✓":String(index+1).padStart(2,"0")}</span><b>{session.title}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
             <div className="next-workout-meta">
               <span><Clock3 size={14}/>{todayPlan.time}</span>
               <span><Dumbbell size={14}/>{todayPlan.exercises.length} упражнений</span>
@@ -269,7 +279,7 @@ export default function Home() {
             <div className="next-workout-actions">
              {isTodaySwim
               ?<button className={swimToday?.kind==="workout"&&swimToday.status==="completed"?"repeat-btn":"start-btn"} onClick={startTodayWorkout}><span aria-hidden="true">{swimToday?.kind==="workout"&&swimToday.status==="completed"?<CheckCircle2 size={13}/>:<Play size={12} fill="currentColor"/>}</span>{swimToday?.kind==="workout"?(swimToday.status==="completed"?"Тренировка выполнена":swimToday.status==="in_progress"?"Продолжить тренировку":swimToday.status==="awaiting_confirmation"?"Подтвердить результат":"Начать тренировку"):"Начать тренировку"}</button>
-              :coach.summary.workoutDone?<button className="repeat-btn" onClick={startTodayWorkout}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
+              :todayPlanCompleted?<button className="repeat-btn" onClick={startTodayWorkout}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
               :openDraftToday?<button className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
               :<button className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>{todayPlan.type==="Отдых"?"Открыть план дня":"Начать тренировку"}</button>}
              <button type="button" className="ghost-btn hero-edit-plan-btn" onClick={()=>setEditingDate(today)}>Изменить план</button>
@@ -359,10 +369,11 @@ export default function Home() {
         <p className="volt-quote">«Маленькие шаги каждый день приводят к большим результатам.»</p>
         </> : nav==="План" ? <PlanScreen
           today={today} weekPlan={weekPlan} selectedResolved={selectedResolved} selectedPlan={selectedPlan}
-          isSelectedToday={isSelectedToday} onSelectDate={setSelectedPlanDate} onEditDate={setEditingDate}
-          onStartSelected={startSelectedWorkout} planMeta={planActionMeta(selectedResolved,isSelectedToday,coach.summary.workoutDone,!!openDraftToday)}
-          selectedSwim={selectedSwim} selectedSwimWorkout={selectedSwimWorkout} selectedSwimLoading={selectedSwimLoading}
-          homeWeek={homeWeek}
+          selectedSessions={selectedSessions} selectedSessionId={selectedPlan.id??null} onSelectSession={setSelectedPlanSessionId}
+          isSelectedToday={isSelectedToday} onSelectDate={selectPlanDate} onEditDate={setEditingDate}
+          onStartSelected={startSelectedWorkout} planMeta={planActionMeta(selectedResolved,isSelectedToday,selectedPlanCompleted,!!openDraftToday)}
+          selectedSwim={selectedSwim} selectedSwimLoading={selectedSwimLoading}
+          programWeek={programWeek}
         /> : nav==="Аналитика" ? <AnalyticsCoachPage
           data={data} coach={coach} today={today} mode={analyticsMode} onModeChange={setAnalyticsMode}
           plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null}
@@ -395,27 +406,30 @@ export default function Home() {
 // выбранная/следующая тренировка, её состав и спокойная справочная программа.
 // Данные и действия остаются прежними: WeekPlanEditor по-прежнему единственная
 // точка replace/swap/rest, а запуск использует существующие обработчики.
-function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,isSelectedToday,onSelectDate,onEditDate,onStartSelected,planMeta,selectedSwim,selectedSwimWorkout,selectedSwimLoading,homeWeek}:{
+function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessions,selectedSessionId,onSelectSession,isSelectedToday,onSelectDate,onEditDate,onStartSelected,planMeta,selectedSwim,selectedSwimLoading,programWeek}:{
   today:string;weekPlan:ResolvedDayPlan[];selectedResolved:ResolvedDayPlan;selectedPlan:any;isSelectedToday:boolean;
+  selectedSessions:HomeWeekSession[];selectedSessionId:string|null;onSelectSession:(id:string|null)=>void;
   onSelectDate:(date:string)=>void;onEditDate:(date:string)=>void;onStartSelected:()=>void;
   planMeta:{label:string;cls:string;repeat:boolean};
-  selectedSwim:ResolvedSwimSlot|null;selectedSwimWorkout:SwimWorkoutDef|null;selectedSwimLoading:boolean;
-  homeWeek:any[];
+  selectedSwim:ResolvedSwimSlot|null;selectedSwimLoading:boolean;
+  programWeek:number;
 }){
- const strengthDays=weekPlan.filter(d=>d.scheduled.type==="Силовая").length;
- const swimDays=weekPlan.filter(d=>isSwimSlot(d.scheduled)).length;
- const plannedDays=weekPlan.filter(d=>d.scheduled.type!=="Отдых").length;
- const completedDays=weekPlan.filter(d=>d.locked?.completed&&d.scheduled.type!=="Отдых").length;
- const weekProgress=plannedDays?Math.round((completedDays/plannedDays)*100):0;
- const todayIndex=Math.max(0,weekPlan.findIndex(d=>d.date===today));
- const nextResolved=weekPlan.slice(todayIndex+1).find(d=>d.scheduled.type!=="Отдых")
-  ?? weekPlan.find(d=>d.date>today&&d.scheduled.type!=="Отдых")
-  ?? weekPlan.find(d=>d.scheduled.type!=="Отдых")
-  ?? selectedResolved;
- const isSwim=isSwimSlot(selectedPlan);
+ const weekSessions=weekPlan.flatMap(day=>sessionsForDay(day.scheduled).map(session=>({day,session})));
+ const strengthDays=weekSessions.filter(({session})=>session.type==="Силовая").length;
+ const swimDays=weekSessions.filter(({session})=>isSwimSession(session)).length;
+ const plannedDays=weekSessions.filter(({session})=>session.type!=="Отдых"&&!session.optional).length;
+ const completedDays=weekPlan.reduce((sum,day)=>sum+(day.locked?.completedRequiredSessions??0),0);
+ const weekProgress=plannedDays?Math.round((completedDays/plannedDays)*100):100;
+ const selectedEntryIndex=weekSessions.findIndex(({day,session})=>day.date===selectedResolved.date&&(
+  selectedPlan.id?session.id===selectedPlan.id:session.title===selectedPlan.title
+ ));
+ const nextEntry=weekSessions.slice(Math.max(0,selectedEntryIndex)+1).find(({session})=>session.type!=="Отдых")??null;
+ const nextResolved=nextEntry?.day??selectedResolved;
+ const nextSession=nextEntry?.session??selectedPlan;
+ const isSwim=isSwimSession(selectedPlan);
  const isRest=selectedPlan.type==="Отдых";
  const resolvedSwim=selectedSwim?.kind==="workout"?selectedSwim:null;
- const swimWorkout=selectedSwimWorkout;
+ const swimWorkout=resolvedSwim?.workout??null;
  const focusTitle=isSwim?(swimWorkout?.title??(selectedSwimLoading?"Загрузка тренировки…":"Тренировка не определена")):(selectedPlan.type==="Отдых"?"Отдых":selectedPlan.title);
  const focusType=isSwim?"VOLT Swim · Foundation":isRest?"День восстановления":selectedPlan.type;
  const actionMeta=isSwim?{
@@ -429,9 +443,9 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,isSelectedToda
    <div className="plan-hero-shade"/>
    <div className="plan-hero-head">
     <div className="plan-hero-copy">
-     <p className="eyebrow">CURRENT WEEK · ДОМАШНЯЯ БАЗА</p>
-     <h2>Неделя 1</h2>
-     <p className="plan-hero-summary"><b>{completedDays} из {plannedDays} выполнено</b><span>{strengthDays} силовых</span><span>{swimDays} бассейна</span></p>
+     <p className="eyebrow">CURRENT WEEK · PLAN V2</p>
+     <h2>Неделя {programWeek}</h2>
+     <p className="plan-hero-summary"><b>{completedDays} из {plannedDays} обязательных сессий</b><span>{strengthDays} силовых</span><span>{swimDays} Swim</span></p>
      <p className="plan-hero-note">Техника, устойчивый ритм и восстановление без перегруза.</p>
     </div>
     <div className="plan-hero-status">
@@ -444,17 +458,20 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,isSelectedToda
    <div className="plan-week-rail" role="group" aria-label="План на семь дней">
     {weekPlan.map(d=>{
      const state=d.locked?.completed?"done":d.date===today?"today":d.date<today?"past":"future";
-     const kind=d.scheduled.type==="Отдых"?"rest":isSwimSlot(d.scheduled)?"swim":d.scheduled.type==="Силовая"?"strength":"cardio";
-     const DayIcon=kind==="swim"?Waves:kind==="strength"?Dumbbell:kind==="rest"?Moon:Footprints;
+     const sessions=sessionsForDay(d.scheduled);
+     const kind=d.scheduled.type==="Отдых"?"rest":sessions.length>1?"mixed":isSwimSlot(d.scheduled)?"swim":d.scheduled.type==="Силовая"?"strength":"cardio";
+     const DayIcon=kind==="swim"?Waves:kind==="strength"?Dumbbell:kind==="rest"?Moon:kind==="mixed"?Zap:Footprints;
      return <button key={d.date} type="button" aria-pressed={d.date===selectedResolved.date} className={`plan-day ${state} ${kind}${d.date===selectedResolved.date?" selected":""}`} onClick={()=>onSelectDate(d.date)}>
       <span className="plan-day-date"><small>{d.original.d.slice(0,2).toUpperCase()}</small><b>{Number(d.date.slice(8,10))}</b></span>
       <span className="plan-day-symbol" aria-hidden="true"><DayIcon size={15}/></span>
-      <span className="plan-day-kind">{d.scheduled.type==="Отдых"?"Отдых":isSwimSlot(d.scheduled)?"Swim":d.scheduled.type}</span>
+      <span className="plan-day-kind">{d.scheduled.type==="Отдых"?"Отдых":sessions.length>1?`${sessions.length} сессии`:isSwimSlot(d.scheduled)?"Swim":d.scheduled.optional?"Опционально":d.scheduled.type}</span>
       <span className="plan-day-state">{d.locked?.completed?<><CheckCircle2 size={10}/>Готово</>:d.date===today?"Сегодня":d.changed?"Изменён":""}</span>
      </button>;
     })}
    </div>
   </section>
+
+  {selectedSessions.length>1&&<div className="plan-session-switcher" role="group" aria-label="Сессии выбранного дня">{selectedSessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} className={(session.id??null)===selectedSessionId?"active":""} onClick={()=>onSelectSession(session.id??null)}><span>{String(index+1).padStart(2,"0")}</span><b>{session.title}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
 
   <section className="plan-now" aria-label="Текущая и следующая тренировки">
    <article className={`plan-focus-card${isRest?" rest":""}`}>
@@ -464,6 +481,7 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,isSelectedToda
      <p className="eyebrow">{isSelectedToday?"TODAY · СЕГОДНЯ":dayLabel(selectedResolved.date,today).toUpperCase()}{selectedResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
      <h3>{focusTitle}</h3>
      <p className="next-workout-type">{focusType}</p>
+     {selectedPlan.optional&&<p className="plan-focus-goal">Опциональная сессия · можно оставить в состоянии planned, пока велостанок недоступен.</p>}
      {swimWorkout&&<p className="plan-focus-goal">{swimWorkout.goal}</p>}
      {isRest&&<div className="plan-rest-guide" aria-label="Фокус восстановления"><span><Footprints size={14}/>Спокойная прогулка</span><span><RefreshCw size={14}/>Лёгкая мобилизация</span><span><Moon size={14}/>Полноценный сон</span></div>}
      <div className="next-workout-meta">
@@ -482,10 +500,10 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,isSelectedToda
     <div>
      <p className="eyebrow">NEXT · ДАЛЬШЕ</p>
      <span className="plan-next-date">{dayLabel(nextResolved.date,today)}</span>
-     <h3>{nextResolved.scheduled.title}</h3>
-     <p>{isSwimSlot(nextResolved.scheduled)?"VOLT Swim":nextResolved.scheduled.type} · {nextResolved.scheduled.time}</p>
+     <h3>{nextSession.title}</h3>
+     <p>{isSwimSession(nextSession)?"VOLT Swim":nextSession.type} · {nextSession.time}</p>
     </div>
-    <button type="button" className="ghost-btn" onClick={()=>onSelectDate(nextResolved.date)}>Посмотреть день <span aria-hidden="true">→</span></button>
+    <button type="button" className="ghost-btn" onClick={()=>{onSelectDate(nextResolved.date);onSelectSession(nextSession.id??null)}}>Посмотреть день <span aria-hidden="true">→</span></button>
    </aside>
   </section>
 
@@ -504,7 +522,7 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,isSelectedToda
    <div className="section-head plan-program-head"><div><p className="eyebrow">PROGRAM · PROGRESSION</p><h3>Путь программы</h3></div><p>От уверенной техники дома — к залу и устойчивому кардио.</p></div>
    <Notice/>
    <div className="plan-program-phases">
-    <PlanProgramPhase number="01" period="НЕДЕЛИ 1–3" title="Домашняя база" note="2 круга → 3 круга → прибавка веса или повторов" days={homeWeek.map((d:any)=>({day:d.d,type:d.type,title:d.title,time:d.time,warmup:d.warmup,exercises:d.exercises}))}/>
+    <PlanProgramPhase number="01" period="НЕДЕЛИ 1–3" title="Домашняя база" note="2 круга → 3 круга → прибавка веса или повторов" days={buildProgramWeek(1).map((d:any)=>({day:d.d,type:d.type,title:d.title,time:d.time,warmup:d.warmup,exercises:d.exercises}))}/>
     <PlanProgramPhase number="02" period="С НЕДЕЛИ 4" title="Зал + кардио" note="Силовая прогрессия, бассейн и велосипед" days={week.map((d:any)=>({day:d.d,type:d.t,title:d.n,time:d.time,exercises:d.x}))}/>
    </div>
   </section>

@@ -85,7 +85,7 @@ function addDaysIso(dateIso: string, days: number): string {
 // Единственное место, где VOLT Swim подключается к общему расписанию VOLT
 // (app/week-schedule-model.ts + week_schedule_changes текущей недели) —
 // вместо собственной нумерации дней программы. Дописывает calendar на каждую
-// тренировку и calendarDays на весь горизонт программы (6 недель от
+// тренировку и calendarDays на весь горизонт программы (8 недель от
 // отдельного старта Swim), не трогая расчёт статусов/прогресса.
 function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
   const { programStart, swimPlanStartedAt } = getProfilePlanDates();
@@ -186,6 +186,7 @@ export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimS
     ...base,
     programId: program.id,
     workoutId: match.workout.id,
+    workout: match.workout,
     status: match.status,
     draftId: match.draftId,
     origin: match.calendar.origin,

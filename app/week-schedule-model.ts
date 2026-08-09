@@ -5,6 +5,7 @@
 // как app/training-analytics-model.ts.
 
 export type HomeWeekDay = {
+  id?: string;
   day: number; // 1 (Пн) .. 7 (Вс)
   d: string;
   type: string;
@@ -14,7 +15,18 @@ export type HomeWeekDay = {
   image: string;
   exercises: any[];
   warmup?: any[];
+  optional?: boolean;
+  availability?: "planned";
+  sessions?: HomeWeekSession[];
 };
+
+export type HomeWeekSession = Omit<HomeWeekDay, "day" | "d" | "sessions"> & { day?: number; d?: string };
+
+// Plan v2 добавляет несколько сессий внутри одного календарного дня. Старые
+// дни остаются валидны и автоматически рассматриваются как одна сессия.
+export function sessionsForDay(day: HomeWeekDay): HomeWeekSession[] {
+  return day.sessions?.length ? day.sessions : [day];
+}
 
 export const WEEK_SCHEDULE_ACTIONS = ["replace", "swap", "rest"] as const;
 export type WeekScheduleAction = (typeof WEEK_SCHEDULE_ACTIONS)[number];
@@ -111,7 +123,7 @@ export type ResolvedDayPlan = {
   changeId: number | null;
   // Заполняется на клиенте (app/page.tsx) из workouts/workoutDrafts — чистая
   // модель здесь не знает о них, только о week_schedule_changes.
-  locked?: { completed: boolean; openDraft: boolean };
+  locked?: { completed: boolean; anyCompleted?: boolean; openDraft: boolean; completedRequiredSessions?: number; requiredSessions?: number };
 };
 
 export function resolvePlanForDate(

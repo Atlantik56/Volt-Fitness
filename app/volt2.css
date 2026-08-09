@@ -238,6 +238,10 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .next-workout-card>*{position:relative;z-index:1}
 .next-workout-card h3{margin:8px 0 4px;font-size:clamp(19px,1.9vw,24px);font-weight:600;letter-spacing:-.026em}
 .next-workout-type{margin:0 0 12px;color:#aeb6bc;font-size:13px}
+.today-session-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:0 0 13px}
+.today-session-list button{display:grid;grid-template-columns:24px minmax(0,1fr);gap:1px 8px;align-items:center;min-width:0;padding:8px 10px;border:1px solid var(--v2-border);border-radius:10px;background:rgba(7,10,12,.48);color:#dce1e3;text-align:left}
+.today-session-list button>span{grid-row:1/3;display:flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:8px;background:rgba(255,255,255,.055);color:var(--lime);font-size:8px;font-weight:800}
+.today-session-list b{overflow:hidden;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.today-session-list small{color:#7f898f;font-size:8px}
 .next-workout-meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
 .next-workout-meta span{display:inline-flex;align-items:center;gap:7px;padding:7px 12px;border:1px solid var(--v2-border);border-radius:999px;background:rgba(255,255,255,.03);color:#b3bbc1;font-size:11.5px}
 .next-workout-meta svg{color:#8e969d;flex:none}
@@ -523,6 +527,14 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .plan-day-kind{align-self:end;overflow:hidden;color:#d9dee0;font-size:10.5px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
 .plan-day-state{display:flex;align-items:center;gap:4px;min-height:12px;color:#768087;font-size:7.5px;font-weight:750;letter-spacing:.05em;text-transform:uppercase}
 .plan-day.today .plan-day-state,.plan-day.done .plan-day-state{color:var(--lime)}
+.plan-day.mixed .plan-day-symbol{color:var(--lime)}
+
+.plan-session-switcher{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.plan-session-switcher button{display:grid;grid-template-columns:34px minmax(0,1fr);gap:2px 11px;align-items:center;min-width:0;padding:12px 14px;border:1px solid var(--v2-border);border-radius:13px;background:var(--v2-glass);color:#dce1e3;text-align:left;cursor:pointer}
+.plan-session-switcher button>span{grid-row:1/3;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.045);color:#899399;font-size:9px;font-weight:800}
+.plan-session-switcher button b{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}.plan-session-switcher button small{color:#7f898f;font-size:9px}
+.plan-session-switcher button.active{border-color:color-mix(in srgb,var(--lime) 34%,transparent);background:rgba(199,255,50,.055)}
+.plan-session-switcher button.active>span{color:var(--lime)}
 
 .plan-now{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,.7fr);gap:var(--v2-gap);align-items:stretch}
 .plan-focus-card,.plan-next-card{position:relative;overflow:hidden;border:1px solid rgba(255,255,255,.08);border-radius:var(--v2-radius-lg);box-shadow:var(--v2-inset),var(--v2-shadow)}
@@ -671,6 +683,7 @@ body:has(.auth-screen),body:has(.volt-widget-page){
   .plan-program-phase+ .plan-program-phase{margin-top:30px;padding:30px 0 0;border-top:1px solid rgba(255,255,255,.07);border-left:0}
 }
 @media(max-width:760px){
+  .today-session-list{grid-template-columns:1fr}
   .plan-screen{gap:30px}
   .plan-hero{padding:20px 14px 0;border-radius:var(--v2-radius-lg)}
   .plan-hero-head{grid-template-columns:1fr;gap:20px;padding:0 4px 20px}
@@ -692,6 +705,7 @@ body:has(.auth-screen),body:has(.volt-widget-page){
   .plan-day-state{min-height:9px;max-width:100%;overflow:hidden;font-size:6px;text-overflow:clip}
   .plan-day-state svg{display:none}
   .plan-day.selected:after{left:6px;right:6px}
+  .plan-session-switcher{grid-template-columns:1fr}
   .plan-now{grid-template-columns:1fr}
   .plan-focus-card{min-height:340px;padding:20px}
   .plan-focus-photo{background-position:64% center}

@@ -5,11 +5,13 @@
 // Не создаёт отдельный алгоритм расписания и не хранит собственных дат:
 // "слот плавания" — это любая дата, для которой resolvePlanForDate вернул
 // активность {type:"Кардио", title:"Бассейн"} (см. app/personal-data.ts).
-import { resolvePlanForDate, type HomeWeekDay, type WeekScheduleChange } from "@/app/week-schedule-model";
+import { resolvePlanForDate, sessionsForDay, type HomeWeekDay, type WeekScheduleChange } from "@/app/week-schedule-model";
 import type { SwimCalendarOrigin, SwimCalendarSlot } from "@/lib/swim/types";
 
-export function isSwimSlot(day: Pick<HomeWeekDay, "type" | "title">): boolean {
-  return day.type === "Кардио" && day.title === "Бассейн";
+export function isSwimSlot(day: Pick<HomeWeekDay, "type" | "title"> & Partial<Pick<HomeWeekDay, "sessions">>): boolean {
+  return sessionsForDay(day as HomeWeekDay).some((session) =>
+    session.type === "Кардио" && (session.title === "Бассейн" || session.id?.startsWith("swim-") === true),
+  );
 }
 
 export type SwimScheduleWorkoutInput = {
@@ -65,6 +67,10 @@ export function assignSwimCalendar(params: {
   let pendingIndex = 0;
   for (let offset = 0; offset < horizonDays && pendingIndex < pending.length; offset++) {
     const dateIso = addDaysIso(scheduleStartIso, offset);
+    // После перехода с 2 на 3 Swim-слота не заполняем задним числом свободный
+    // слот прошлой недели. Завершённые/активные тренировки уже закреплены выше,
+    // а новый pending может назначаться только на сегодня или будущее.
+    if (dateIso < todayIso) continue;
     if (usedDates.has(dateIso)) continue;
     const resolved = resolvePlanForDate(dateIso, homeWeek as HomeWeekDay[], changesByDate as Map<string, WeekScheduleChange>);
     if (!isSwimSlot(resolved.scheduled)) continue;

@@ -1,22 +1,15 @@
 import assert from "node:assert/strict";
-import test, { mock } from "node:test";
-import { buildHomeWeek } from "../app/personal-data.ts";
+import test from "node:test";
+import { buildHomeWeek, buildProgramWeek } from "../app/personal-data.ts";
 import {
   buildWeekSchedule, resolvePlanForDate, weekRangeContaining, isoWeekdayOf, changesByDateMap,
   type WeekScheduleChange,
 } from "../app/week-schedule-model.ts";
 
-function withNow(iso: string, fn: () => void) {
-  mock.timers.enable({ apis: ["Date"], now: new Date(`${iso}T12:00:00`) });
-  try { fn() } finally { mock.timers.reset() }
-}
-
 const homeWeek = buildHomeWeek(); // неделя 1: без бассейна (Пн/Ср/Пт — гантели, Вт/Сб — ходьба, Чт — восстановление, Вс — отдых)
 
 function poolHomeWeek() {
-  let plan: ReturnType<typeof buildHomeWeek> = [] as any;
-  withNow("2026-06-01", () => { plan = buildHomeWeek("2026-05-01") }); // программа стартовала месяц назад -> бассейн активен
-  return plan;
+  return buildProgramWeek(4);
 }
 
 const change = (over: Partial<WeekScheduleChange> & Pick<WeekScheduleChange, "date" | "action">): WeekScheduleChange => ({
@@ -47,13 +40,13 @@ test("неделя без изменений полностью совпадае
   assert.equal(week[6].original.type, "Отдых");
 });
 
-test("замена: гантели в понедельник заменяются бассейном (вторник в фазе бассейна)", () => {
+test("замена: Monday bundle заменяется Swim-днём среды в Plan v2", () => {
   const pool = poolHomeWeek();
-  const changes = [change({ date: "2026-06-01", action: "replace", assignedSourceDay: 2 })]; // день 2 = Бассейн
+  const changes = [change({ date: "2026-06-01", action: "replace", assignedSourceDay: 3 })];
   const resolved = resolvePlanForDate("2026-06-01", pool, changesByDateMap(changes));
   assert.equal(resolved.changed, true);
-  assert.equal(resolved.original.title, "Гантели по кругу");
-  assert.equal(resolved.scheduled.title, "Бассейн");
+  assert.equal(resolved.original.title, "Strength A");
+  assert.equal(resolved.scheduled.title, "Swim — Main aerobic session");
   // День/подпись дня остаются календарными (понедельник), а не "унаследованными" от вторника.
   assert.equal(resolved.scheduled.day, 1);
   assert.equal(resolved.scheduled.d, "Понедельник");

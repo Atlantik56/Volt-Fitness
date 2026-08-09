@@ -154,7 +154,7 @@ export type SwimProgramProgress = {
   currentWeekIndex: number | null;
   nextWorkout: SwimWorkoutProgress | null;
   workouts: SwimWorkoutProgress[];
-  // Разрешённый календарь всей программы (6 недель × 7 дней, начиная с
+  // Разрешённый календарь всей программы (8 недель × 7 дней, начиная с
   // startedAt) — единственный источник дат/дней недели для UI, клиент по нему
   // больше не считает расписание сам.
   calendarDays: SwimCalendarDay[];
@@ -173,6 +173,10 @@ export type ResolvedSwimSlot =
       isToday: boolean;
       programId: string;
       workoutId: string;
+      // Полное определение назначенной тренировки из программы VOLT Swim.
+      // Поверхности общего VOLT используют его для превью без собственной
+      // копии состава тренировки и без второго клиентского resolver-а.
+      workout: SwimWorkoutDef;
       status: SwimWorkoutProgressStatus;
       draftId: number | null;
       scheduleChangeId: number | null;

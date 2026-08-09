@@ -10,13 +10,11 @@ const { getProgramProgress, getNextSwimWorkout } = await import("@/lib/swim/serv
 const { getSwimHomeData } = await import("@/lib/swim-data.ts");
 const { localIso } = await import("@/app/week-schedule-model.ts");
 
-// program_start достаточно в прошлом, чтобы фаза бассейна (currentProgramWeek
-// > 1, см. app/personal-data.ts) точно наступила независимо от того, когда
-// реально запускаются тесты.
+// Давний program_start гарантирует Plan v2 (Week 4+) независимо от даты запуска.
 db.prepare("UPDATE profile SET program_start=? WHERE id=1").run("2020-01-06"); // понедельник
 db.prepare("UPDATE profile SET swim_plan_started_at=? WHERE id=1").run(localIso(new Date()));
 
-test("расписание Foundation в /api/swim/programs назначает плавание на реальные Вт/Чт основного плана, а не Пн/Ср", () => {
+test("расписание Foundation использует единые Swim-слоты Plan v2: Пн/Ср/Пт", () => {
   const progress = getProgramProgress("foundation")!;
   assert.ok(progress);
   assert.equal(progress.startedAt, localIso(new Date()));
@@ -24,12 +22,12 @@ test("расписание Foundation в /api/swim/programs назначает �
   const swimWorkouts = progress.workouts.filter((w) => w.calendar);
   assert.ok(swimWorkouts.length > 0);
   for (const w of swimWorkouts) {
-    assert.ok([2, 4].includes(w.calendar!.weekday), `тренировка ${w.workout.id} назначена на weekday=${w.calendar!.weekday}, ожидались 2 (Вт) или 4 (Чт)`);
+    assert.ok([1, 3, 5].includes(w.calendar!.weekday), `тренировка ${w.workout.id} назначена на weekday=${w.calendar!.weekday}, ожидались Пн/Ср/Пт`);
   }
-  // calendarDays тоже должен считать Swim-слотами именно Вт/Чт этой фазы.
+  // calendarDays использует тот же общий недельный источник.
   const swimDays = progress.calendarDays.filter((d) => d.isSwimSlot);
   assert.ok(swimDays.length > 0);
-  for (const d of swimDays) assert.ok([2, 4].includes(d.weekday));
+  for (const d of swimDays) assert.ok([1, 3, 5].includes(d.weekday));
 });
 
 test("Главная и План возвращают одну и ту же следующую тренировку и дату", () => {

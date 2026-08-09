@@ -16,7 +16,7 @@ const workout = (id: string, title: string, goal: string, estimatedMinutes: numb
 const day = (dayIndex: number, value: SwimWorkoutDef | null): SwimDay => ({ dayIndex, workout: value });
 const week = (weekIndex: number, title: string, plannedDistanceMeters: number, workouts: SwimWorkoutDef[]): SwimWeekDef => ({
   weekIndex, title, plannedDistanceMeters,
-  days: [day(1, workouts[0]), day(2, null), day(3, workouts[1]), day(4, null), day(5, null), day(6, null), day(7, null)],
+  days: [day(1, workouts[0]), day(2, null), day(3, workouts[1]), day(4, null), day(5, workouts[2] ?? null), day(6, null), day(7, null)],
 });
 
 // VOLT Swim Foundation v2. Источник: Swim-Training-plan.md пользователя.
@@ -69,50 +69,107 @@ const FOUNDATION_WEEKS: SwimWeekDef[] = [
       ["cooldown", "easy-swim", 200, 1, null, "Спокойно"],
     ]),
   ]),
-  week(4, "Разгрузочная", 2000, [
+  week(4, "Переход и разгрузка", 2400, [
     workout("w4d1", "Скольжение", "Вернуть лёгкость движений и сохранить технику", 38, [
       ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
-      ["technique", "drill", 50, 8, 20, "25 м упражнение на скольжение + 25 м полный кроль"],
-      ["drill", "kick", 50, 4, 20, "На спине, руки вдоль тела"],
-      ["cooldown", "easy-swim", 200, 1, null, "Расслабленно"],
+      ["technique", "catch-up", 50, 4, 20, "Длинный гребок, ноги работают минимально"],
+      ["main_set", "freestyle", 50, 4, 20, "Лёгкий кроль, техника важнее скорости"],
+      ["recovery", "backstroke", 100, 1, null, "Расслабленно на спине"],
+      ["cooldown", "easy-swim", 100, 1, null, "Очень спокойно"],
     ]),
-    workout("w4d3", "500 м без остановок", "Проплыть 20 длин непрерывно и максимально расслабленно", 40, [
+    workout("w4d3", "Аэробный переход", "Удерживать ровное дыхание на спокойных сотнях", 40, [
       ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 4, 30, "Ровный разговорный темп, открытые развороты"],
+      ["recovery", "backstroke", 100, 1, null, "Расслабленно на спине"],
+      ["cooldown", "easy-swim", 100, 1, null, "Очень спокойно"],
+    ]),
+    workout("w4d5", "500 м без остановок", "Проплыть основной блок непрерывно и максимально расслабленно", 42, [
+      ["warmup", "easy-swim", 100, 1, null, "Спокойно"],
       ["main_set", "freestyle", 500, 1, null, "Без остановок, открытые развороты"],
-      ["cooldown", "easy-swim", 300, 1, null, "Чередовать кроль и спину"],
+      ["recovery", "backstroke", 100, 1, null, "Расслабленно на спине"],
+      ["cooldown", "easy-swim", 100, 1, null, "Очень спокойно"],
     ]),
   ]),
-  week(5, "Рост объёма", 2900, [
-    workout("w5d1", "Стабильные сотни", "Удерживать одинаковое время на каждой сотне", 45, [
-      ["warmup", "easy-swim", 300, 1, null, "Спокойно"],
-      ["main_set", "freestyle", 100, 8, 30, "Одинаковое время и техника"],
-      ["drill", "kick", 50, 2, 20, "Двухударная работа ног"],
+  week(5, "Рост объёма", 2950, [
+    workout("w5d1", "Техника на объёме", "Сохранить длинный спокойный гребок", 42, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["technique", "fingertip-drag", 50, 6, 20, "Мягкий пронос, ноги работают минимально"],
+      ["main_set", "freestyle", 100, 3, 30, "Ровная техника"],
       ["cooldown", "easy-swim", 100, 1, null, "Расслабленно"],
     ]),
-    workout("w5d3", "Два по 400", "Сохранить технику на двух длинных заплывах", 55, [
+    workout("w5d3", "Стабильные сотни", "Удерживать одинаковый спокойный ритм на каждой сотне", 48, [
       ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 6, 30, "Одинаковая техника без ускорений"],
+      ["recovery", "backstroke", 100, 1, null, "Расслабленно на спине"],
+      ["cooldown", "easy-swim", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w5d5", "Два по 400", "Сохранить технику на двух длинных заплывах", 55, [
+      ["warmup", "easy-swim", 150, 1, null, "Спокойно"],
       ["main_set", "freestyle", 400, 2, 60, "16 длин, ровное дыхание"],
-      ["recovery", "backstroke", 100, 4, 30, "Кроль на спине"],
-      ["cooldown", "easy-swim", 200, 1, null, "Расслабленно"],
-    ]),
-  ]),
-  week(6, "Контрольный цикл", 3200, [
-    workout("w6d1", "10 стабильных сотен", "Не сбивать дыхание и удерживать одинаковую технику", 50, [
-      ["warmup", "easy-swim", 300, 1, null, "Спокойно"],
-      ["main_set", "freestyle", 100, 10, 20, "Не сбивать дыхание", 30],
       ["cooldown", "easy-swim", 100, 1, null, "Расслабленно"],
     ]),
-    workout("w6d3", "Контрольные 1000 м", "Проплыть 40 длин без остановок и без ускорений", 60, [
+  ]),
+  week(6, "Построение объёма", 3150, [
+    workout("w6d1", "Техника и ритм", "Сохранить экономичный гребок при плавном росте объёма", 44, [
       ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
-      ["main_set", "freestyle", 1000, 1, null, "Не ставить рекорд: последние 200 м почти как первые"],
-      ["recovery", "backstroke", 100, 4, 30, "Кроль на спине"],
-      ["cooldown", "easy-swim", 200, 1, null, "Лёгкое расслабленное плавание"],
+      ["technique", "catch-up", 50, 6, 20, "Длинный гребок без агрессивной работы ног"],
+      ["main_set", "freestyle", 100, 4, 30, "Ровная техника"],
+      ["cooldown", "backstroke", 50, 1, null, "Расслабленно"],
+    ]),
+    workout("w6d3", "Семь стабильных сотен", "Удерживать одинаковое дыхание и технику", 50, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 7, 30, "Стабильно, без ускорений"],
+      ["recovery", "backstroke", 50, 1, null, "Расслабленно на спине"],
+      ["cooldown", "easy-swim", 100, 1, null, "Лёгкое плавание"],
+    ]),
+    workout("w6d5", "Длинные четвёрки", "Удерживать спокойную технику на длинных интервалах", 58, [
+      ["warmup", "easy-swim", 150, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 400, 2, 60, "Ровное дыхание, открытые развороты"],
+      ["recovery", "backstroke", 100, 1, null, "Расслабленно на спине"],
+      ["cooldown", "easy-swim", 100, 1, null, "Лёгкое плавание"],
+    ]),
+  ]),
+  week(7, "Рост выносливости", 3300, [
+    workout("w7d1", "Техника под нагрузкой", "Сохранить спокойный длинный гребок", 46, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["technique", "fingertip-drag", 50, 6, 20, "Мягкий пронос без спешки"],
+      ["main_set", "freestyle", 100, 4, 30, "Ровная техника"],
+      ["cooldown", "easy-swim", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w7d3", "Восемь аэробных сотен", "Сохранить ровный разговорный темп", 54, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 8, 30, "Одинаковое усилие, техника важнее скорости"],
+      ["cooldown", "backstroke", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w7d5", "Длинная аэробная работа", "Уверенно удерживать технику на длинных отрезках", 62, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 400, 2, 60, "Ровное дыхание, открытые развороты"],
+      ["recovery", "backstroke", 100, 1, null, "Расслабленно на спине"],
+      ["cooldown", "easy-swim", 100, 1, null, "Лёгкое плавание"],
+    ]),
+  ]),
+  week(8, "Разгрузка и контроль", 2950, [
+    workout("w8d1", "Лёгкая техника", "Вернуть лёгкость и чистоту гребка", 40, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["technique", "catch-up", 50, 5, 20, "Длинный гребок, минимальная работа ног"],
+      ["main_set", "freestyle", 100, 3, 30, "Ровная техника"],
+      ["cooldown", "backstroke", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w8d3", "Спокойные сотни", "Сохранить аэробный ритм без накопления усталости", 44, [
+      ["warmup", "easy-swim", 200, 1, null, "Спокойно"],
+      ["main_set", "freestyle", 100, 6, 30, "Комфортно, без ускорений"],
+      ["cooldown", "backstroke", 100, 1, null, "Расслабленно"],
+    ]),
+    workout("w8d5", "Контрольные 1000 м", "Проплыть непрерывно с ровной техникой — это не гонка и не тест максимальной скорости", 60, [
+      ["warmup", "easy-swim", 100, 1, null, "Очень спокойно"],
+      ["main_set", "freestyle", 1000, 1, null, "Контролируемое усилие: последние 200 м почти как первые, открытые развороты"],
+      ["cooldown", "backstroke", 100, 1, null, "Расслабленно"],
     ]),
   ]),
 ];
 
 const PROGRAMS: readonly SwimProgramDef[] = [
-  { id: "foundation", name: "Foundation", description: "6 недель: техника, двухударный кроль и спокойный рост непрерывной дистанции до 1000 м.", level: "beginner", status: "available", version: 2, weeks: FOUNDATION_WEEKS },
+  { id: "foundation", name: "Foundation", description: "8 недель: техника, спокойная аэробная работа и плавный рост непрерывной дистанции до 1000 м.", level: "beginner", status: "available", version: 2, weeks: FOUNDATION_WEEKS },
   { id: "endurance", name: "Выносливость", description: "Следующий этап развития объёма.", level: "intermediate", status: "coming_soon", version: 1, weeks: [] },
 ];
 

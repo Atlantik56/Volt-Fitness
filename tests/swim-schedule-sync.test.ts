@@ -19,6 +19,15 @@ const POOL_WEEK: HomeWeekDay[] = [
   day(6, "Суббота", "Кардио", "Ходьба или велосипед"),
   day(7, "Воскресенье", "Отдых", "Полный отдых"),
 ];
+const PLAN_V2_WEEK: HomeWeekDay[] = [
+  {...day(1,"Понедельник","Силовая","Strength A"),sessions:[day(1,"Понедельник","Силовая","Strength A"),{...day(1,"Понедельник","Кардио","Swim — Technique"),id:"swim-technique"}]},
+  day(2,"Вторник","Кардио","Bike / Indoor Cycling"),
+  {...day(3,"Среда","Кардио","Swim — Main aerobic session"),id:"swim-aerobic"},
+  day(4,"Четверг","Силовая","Strength B"),
+  {...day(5,"Пятница","Кардио","Swim — Endurance"),id:"swim-endurance"},
+  day(6,"Суббота","Отдых","Полный отдых"),
+  day(7,"Воскресенье","Отдых","Полный отдых"),
+];
 
 function noChanges(): Map<string, WeekScheduleChange> {
   return new Map();
@@ -35,6 +44,17 @@ test("isSwimSlot: распознаёт только Кардио/Бассейн 
   assert.equal(isSwimSlot({ type: "Кардио", title: "Ходьба или велосипед" }), false);
   assert.equal(isSwimSlot({ type: "Силовая", title: "Гантели по кругу" }), false);
   assert.equal(isSwimSlot({ type: "Отдых", title: "Полный отдых" }), false);
+});
+
+test("Plan v2: Monday bundle распознаётся как Swim-слот, календарь идёт Пн/Ср/Пт", () => {
+ assert.equal(isSwimSlot(PLAN_V2_WEEK[0]),true);
+ const result=assignSwimCalendar({workouts:pending("w1","w2","w3"),homeWeek:PLAN_V2_WEEK,changesByDate:noChanges(),todayIso:"2026-08-03"});
+ assert.deepEqual([result.get("w1")?.weekday,result.get("w2")?.weekday,result.get("w3")?.weekday],[1,3,5]);
+});
+
+test("Plan v2: новый pending не заполняет свободный Swim-слот прошлой недели", () => {
+ const result=assignSwimCalendar({workouts:pending("w4"),homeWeek:PLAN_V2_WEEK,changesByDate:noChanges(),scheduleStartIso:"2026-07-20",todayIso:"2026-08-05"});
+ assert.equal(result.get("w4")?.date,"2026-08-05");
 });
 
 test("базовое расписание назначает Swim на реальные дни основного плана (Вт/Чт), а не Пн/Ср", () => {
