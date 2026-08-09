@@ -9,12 +9,14 @@ export function WorkoutSummaryForm({
   durationSeconds,
   intervalCount,
   busy,
+  onCancel,
   onSubmit,
 }: {
   distanceMeters: number;
   durationSeconds: number;
   intervalCount: number;
   busy: boolean;
+  onCancel: () => void;
   onSubmit: (effort: (typeof EFFORT_VALUES)[number], painAfter: number, notes: string) => void;
 }) {
   const [effort, setEffort] = useState<(typeof EFFORT_VALUES)[number]>("Нормально");
@@ -96,9 +98,12 @@ export function WorkoutSummaryForm({
           />
         </label>
 
-        <button type="submit" className="swim-btn primary" disabled={busy}>
-          {busy ? "Сохраняем…" : "Подтвердить тренировку"}
-        </button>
+        <div className="swim-confirm-actions">
+          <button type="submit" className="swim-btn primary" disabled={busy}>
+            {busy ? "Сохраняем…" : "Подтвердить тренировку"}
+          </button>
+          <button type="button" className="swim-btn danger" disabled={busy} onClick={onCancel}>Отменить тренировку</button>
+        </div>
       </form>
     </section>
   );

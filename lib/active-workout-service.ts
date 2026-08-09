@@ -98,10 +98,20 @@ function transition(body:any,from:DraftStatus,to:DraftStatus,column:string):Acti
  return {ok:true,draft:to==="awaiting_confirmation"?withConfirmation(draft):draft};
 }
 export const finishWorkoutDraft=(body:any)=>transition(body,"active","awaiting_confirmation","finished_at");
-export function cancelWorkoutDraft(body:any){
+export function cancelWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft}{
  const status=body?.expectedStatus;
  if(status!=="active"&&status!=="awaiting_confirmation")return {ok:false,error:"Некорректный или устаревший запрос",status:400} as ActionResult;
- return transition(body,status,"cancelled","cancelled_at");
+ const cancelled=transition(body,status,"cancelled","cancelled_at");
+ if(cancelled.ok||cancelled.status!==409)return cancelled;
+ // Отмена — идемпотентное terminal action. Это важно для повторного клика или
+ // retry после потерянного ответа: уже отменённый draft остаётся отменённым и
+ // не превращается в workout_log. Completed и любые другие состояния по-
+ // прежнему дают conflict и никогда не затрагиваются.
+ const id=Number(body?.id);
+ const row=Number.isSafeInteger(id)&&id>0?db.prepare(`${selectDraft} WHERE id=?`).get(id):null;
+ if(!row)return cancelled;
+ const draft=rowToDraft(row);
+ return draft.status==="cancelled"?{ok:true,draft}:cancelled;
 }
 
 export type ConfirmedExerciseSummary={name:string;source:WorkoutDetailSource;setCount:number};

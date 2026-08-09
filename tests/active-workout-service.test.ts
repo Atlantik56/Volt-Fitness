@@ -55,14 +55,35 @@ test("active → awaiting_confirmation не создаёт фактически�
  assert.equal((db.prepare("SELECT COUNT(*) n FROM strength_logs WHERE date=?").get(draft.date) as any).n,0);
 });
 
-test("отмена сохраняет историческую строку и не создаёт факт",()=>{
+test("active → cancel идемпотентен, не создаёт факт и освобождает план для нового старта",()=>{
  const draft=start("2026-07-05");
- const result=service.cancelWorkoutDraft({id:draft.id,expectedStatus:"active"});
- assert.equal(result.ok,true);
+ const first=service.cancelWorkoutDraft({id:draft.id,expectedStatus:"active"});
+ const repeat=service.cancelWorkoutDraft({id:draft.id,expectedStatus:"active"});
+ assert.equal(first.ok,true);
+ assert.equal(repeat.ok,true);
+ assert.equal(repeat.draft?.id,draft.id);
  const row=db.prepare("SELECT status,cancelled_at cancelledAt FROM workout_drafts WHERE id=?").get(draft.id) as any;
  assert.equal(row.status,"cancelled");
  assert.ok(row.cancelledAt);
  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs WHERE date=?").get(draft.date) as any).n,0);
+ assert.equal(service.listOpenWorkoutDrafts().some(item=>item.id===draft.id),false);
+ const restarted=start(draft.date,draft.snapshot);
+ assert.notEqual(restarted.id,draft.id);
+ assert.equal(restarted.status,"active");
+});
+
+test("awaiting_confirmation → cancel идемпотентен и не создаёт history/progress факт",()=>{
+ const draft=start("2026-07-10");
+ const awaiting=service.finishWorkoutDraft({id:draft.id,expectedStatus:"active"});
+ assert.equal(awaiting.ok,true);
+ const first=service.cancelWorkoutDraft({id:draft.id,expectedStatus:"awaiting_confirmation"});
+ const repeat=service.cancelWorkoutDraft({id:draft.id,expectedStatus:"awaiting_confirmation"});
+ assert.equal(first.ok,true);
+ assert.equal(repeat.ok,true);
+ assert.equal(repeat.draft?.status,"cancelled");
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs WHERE date=?").get(draft.date) as any).n,0);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM strength_logs WHERE date=?").get(draft.date) as any).n,0);
+ assert.equal(service.listOpenWorkoutDrafts().some(item=>item.id===draft.id),false);
 });
 
 test("явное подтверждение атомарно создаёт один workout, strength logs и completed draft",()=>{
@@ -74,6 +95,10 @@ test("явное подтверждение атомарно создаёт од
  assert.ok(confirmed.draft?.workoutId);
  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs WHERE date=?").get(draft.date) as any).n,1);
  assert.equal((db.prepare("SELECT COUNT(*) n FROM strength_logs WHERE workout_id=?").get(confirmed.draft?.workoutId) as any).n,2);
+ const cancelCompleted=service.cancelWorkoutDraft({id:draft.id,expectedStatus:"awaiting_confirmation"});
+ assert.equal(cancelCompleted.ok,false);
+ if(!cancelCompleted.ok)assert.equal(cancelCompleted.status,409);
+ assert.equal((db.prepare("SELECT status FROM workout_drafts WHERE id=?").get(draft.id) as any).status,"completed");
 });
 
 test("повторное подтверждение и устаревшие переходы не создают дублей",()=>{

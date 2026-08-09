@@ -278,6 +278,16 @@
   color: var(--swim-text-muted);
   border: 1px solid transparent;
 }
+.swim-btn.danger {
+  background: transparent;
+  color: #ff9d9d;
+  border: 1px solid rgba(255, 112, 126, 0.34);
+  box-shadow: none;
+}
+.swim-btn.danger:hover {
+  background: rgba(255, 82, 103, 0.08);
+  border-color: rgba(255, 126, 138, 0.52);
+}
 .swim-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -1105,6 +1115,11 @@
 .swim-plan-start-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:22px}
 .swim-plan-start-actions button{padding:0 18px}
 .swim-plan-start-actions button:disabled,.swim-plan-start-close:disabled{opacity:.55;cursor:wait}
+.swim-confirm-actions{display:grid;gap:10px}
+.swim-confirm-actions .swim-btn{width:100%;justify-content:center}
+.swim-confirm-actions .swim-btn.danger{justify-self:start;width:auto;padding-inline:12px;font-size:12px}
+.swim-cancel-dialog{width:min(100%,480px)}
+.swim-cancel-dialog .swim-plan-start-actions .swim-btn.danger{height:46px;padding:0 18px}
 
 @media(max-width:820px){
   .swim-shell:has(.swim-home) .swim-global-sidebar,.swim-shell:has(.swim-plan) .swim-global-sidebar{display:none}
@@ -1253,6 +1268,7 @@
   .swim-plan-start-dialog{padding:24px 18px}
   .swim-plan-start-actions{display:grid;grid-template-columns:1fr}
   .swim-plan-start-actions .swim-plan-primary-action{grid-row:1}
+  .swim-cancel-dialog .swim-plan-start-actions .swim-btn{width:100%;justify-content:center}
 }
 
 @media(prefers-reduced-motion:reduce){

@@ -89,6 +89,23 @@ test("связанный FIT задаёт метрики, остаётся св�
  assert.equal((db.prepare("SELECT draft_id draftId FROM workout_imports WHERE fingerprint=?").get(fingerprint) as any).draftId,draft.id);
 });
 
+test("отмена Swim draft со связанным FIT не создаёт completed workout даже при повторном confirm",()=>{
+ const draft=awaiting("2026-08-20","swim-fit-cancel");
+ const fingerprint="c".repeat(64);
+ db.prepare(`INSERT INTO workout_imports(source,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,metadata,draft_id)
+  VALUES('garmin_fit',?,'2026-08-20T10:00:00Z',1800,'swim',118,146,240,'{"distanceMeters":800}',?)`).run(fingerprint,draft.id);
+ const before=(db.prepare("SELECT COUNT(*) n FROM workout_logs WHERE date=?").get(draft.date) as any).n;
+ const cancelled=service.cancelWorkoutDraft({id:draft.id,expectedStatus:"awaiting_confirmation"});
+ assert.equal(cancelled.ok,true);
+ const staleConfirm=confirm(draft);
+ assert.equal(staleConfirm.ok,false);
+ if(!staleConfirm.ok)assert.equal(staleConfirm.status,409);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs WHERE date=?").get(draft.date) as any).n,before);
+ assert.equal((db.prepare("SELECT status,workout_id workoutId FROM workout_drafts WHERE id=?").get(draft.id) as any).status,"cancelled");
+ assert.equal((db.prepare("SELECT workout_id workoutId FROM workout_drafts WHERE id=?").get(draft.id) as any).workoutId,null);
+ assert.equal((db.prepare("SELECT draft_id draftId FROM workout_imports WHERE fingerprint=?").get(fingerprint) as any).draftId,draft.id);
+});
+
 test("повторное подтверждение не создаёт дублей",()=>{
  const draft=awaiting("2026-08-06","repeat"),first=confirm(draft);
  assert.equal(first.ok,true);

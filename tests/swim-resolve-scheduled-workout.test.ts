@@ -14,7 +14,7 @@ const { resolveScheduledSwimWorkout, getProgramProgress } = await import("@/lib/
 const { getSwimHomeData } = await import("@/lib/swim-data.ts");
 const { applyReplace, applyRest, applySwap } = await import("@/lib/week-schedule-service.ts");
 const { weekRangeContaining, localIso } = await import("@/app/week-schedule-model.ts");
-const { startWorkoutDraft, finishWorkoutDraft, confirmWorkoutDraft } = await import("@/lib/active-workout-service.ts");
+const { startWorkoutDraft, finishWorkoutDraft, cancelWorkoutDraft, confirmWorkoutDraft } = await import("@/lib/active-workout-service.ts");
 const { swimWorkoutPlanKey } = await import("@/lib/swim/workout-plan-key.ts");
 const { getProgram } = await import("@/lib/swim/program-engine.ts");
 const { buildSwimSnapshot, buildConfirmationExercises, totalDistanceMeters } = await import("@/lib/swim/workout-engine.ts");
@@ -111,6 +111,27 @@ test("повторный запуск того же plan key не создаёт
   assert.equal(again.draft!.id, activeDraftId);
   const count = (db.prepare("SELECT COUNT(*) n FROM workout_drafts WHERE date=? AND plan_key=?").get(nextWeekWednesday, again.draft!.planKey) as any).n;
   assert.equal(count, 1);
+});
+
+test("cancel возвращает плановую Swim-тренировку в not_started и разрешает нормальный перезапуск", () => {
+  const date = addDays(thisWeekFriday, 7);
+  const before = resolveScheduledSwimWorkout(date);
+  assert.equal(before?.kind, "workout");
+  assert.equal((before as any).status, "not_started");
+  const program = getProgram("foundation")!;
+  const workoutId = (before as any).workoutId;
+  const workout = program.weeks.flatMap((week) => week.days).find((day) => day.workout?.id === workoutId)!.workout!;
+  const started = startWorkoutDraft({ date, snapshot: buildSwimSnapshot(program, workout)! });
+  assert.equal(started.ok, true);
+  const finished = finishWorkoutDraft({ id: started.draft!.id, expectedStatus: "active" });
+  assert.equal(finished.ok, true);
+  const cancelled = cancelWorkoutDraft({ id: started.draft!.id, expectedStatus: "awaiting_confirmation" });
+  assert.equal(cancelled.ok, true);
+  assert.equal((resolveScheduledSwimWorkout(date) as any)?.status, "not_started");
+  const restarted = startWorkoutDraft({ date, snapshot: buildSwimSnapshot(program, workout)! });
+  assert.equal(restarted.ok, true);
+  assert.notEqual(restarted.draft!.id, started.draft!.id);
+  assert.equal(cancelWorkoutDraft({ id: restarted.draft!.id, expectedStatus: "active" }).ok, true);
 });
 
 test("awaiting_confirmation и completed сохраняют дату/результат", () => {

@@ -5,6 +5,7 @@ import { Activity, Bell, CalendarDays, CheckCircle2, ChevronLeft, Clock3, Footpr
 import { SwimNavigation } from "../../../swim-navigation";
 import { GlassPanel } from "../../../components/glass-panel";
 import { WorkoutSummaryForm } from "../../../components/workout-summary-form";
+import { WorkoutCancelDialog } from "../../../components/workout-cancel-dialog";
 import { GarminMatchPanel } from "../../../components/garmin-match-panel";
 import { SwimPlanStartAction } from "../../../components/swim-plan-start-action";
 import { buildConfirmationExercises, buildSwimSnapshot, intervalTotalMeters, totalDistanceMeters } from "@/lib/swim/workout-engine";
@@ -88,6 +89,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
   const [completedMeters, setCompletedMeters] = useState(0);
   const [paused, setPaused] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   // Заполняется после подтверждения тренировки данными из Garmin/FIT
   // (см. GarminMatchPanel) — фактические метры/время подтверждаются
@@ -196,6 +198,33 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
       setDraft(json.draft);
       localStorage.removeItem(`volt-swim-session:${programId}:${workoutId}`);
       setPhase("completed");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const cancel = async () => {
+    if (!draft || (draft.status !== "active" && draft.status !== "awaiting_confirmation")) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const res = await fetch("/api/fitness", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "cancelWorkoutDraft", id: draft.id, expectedStatus: draft.status }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) return setActionError(json.error || "Не удалось отменить тренировку");
+      setDraft(null);
+      setStatus("not_started");
+      setBlockIndex(0);
+      setCompletedMeters(0);
+      setPaused(false);
+      setGarminMeters(null);
+      setGarminSeconds(null);
+      localStorage.removeItem(`volt-swim-session:${programId}:${workoutId}`);
+      setCancelOpen(false);
+      setPhase("preview");
     } finally {
       setBusy(false);
     }
@@ -389,6 +418,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
               <div className="swim-session-actions">
                 <button type="button" className="swim-btn primary" onClick={() => setPaused(false)}>Продолжить</button>
                 <button type="button" className="swim-btn ghost" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
+                <button type="button" className="swim-btn danger" onClick={() => setCancelOpen(true)} disabled={busy}>Отменить тренировку</button>
               </div>
             </GlassPanel>
           ) : (
@@ -415,6 +445,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
                 <div className="swim-session-actions">
                   <button type="button" className="swim-btn secondary" onClick={() => setPaused(true)} disabled={busy}><Pause size={14} /> Пауза</button>
                   <button type="button" className="swim-btn primary" onClick={() => void finish(completedMeters)} disabled={busy}>Завершить раньше</button>
+                  <button type="button" className="swim-btn danger" onClick={() => setCancelOpen(true)} disabled={busy}>Отменить тренировку</button>
                 </div>
 
                 {/* Необязательное ручное управление блоками — для тренировок
@@ -464,7 +495,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
         <div className="swim-detail">
           <div className="swim-detail-main">
             <GarminMatchPanel draftId={draft.id} workout={workout} onApply={(meters, seconds) => { setGarminMeters(meters); setGarminSeconds(seconds); }} />
-            <WorkoutSummaryForm distanceMeters={garminMeters ?? (completedMeters || totalDistanceMeters(workout))} durationSeconds={garminSeconds ?? elapsedSeconds(draft)} intervalCount={totalIntervalCount} busy={busy} onSubmit={confirm} />
+            <WorkoutSummaryForm distanceMeters={garminMeters ?? (completedMeters || totalDistanceMeters(workout))} durationSeconds={garminSeconds ?? elapsedSeconds(draft)} intervalCount={totalIntervalCount} busy={busy} onCancel={() => setCancelOpen(true)} onSubmit={confirm} />
           </div>
         </div>
       )}
@@ -485,6 +516,8 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
           </GlassPanel>
         </div>
       )}
+
+      <WorkoutCancelDialog open={cancelOpen} busy={busy} onClose={() => setCancelOpen(false)} onConfirm={() => void cancel()} />
     </>
   );
 }
