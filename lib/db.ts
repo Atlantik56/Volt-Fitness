@@ -486,6 +486,52 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   CREATE INDEX IF NOT EXISTS idx_training_plan_cycles_dates
    ON training_plan_cycles(program_id,program_version,started_at,ended_at);
  `},
+ // VOLT Health Bridge Sprint 1 — отдельный, provider-neutral ingestion layer.
+ // Health Connect records не становятся workout_logs автоматически: сначала
+ // сохраняются как диагностические импорты и ждут отдельного mapping layer.
+ {version:32,sql:`
+  CREATE TABLE IF NOT EXISTS health_bridge_pairings (
+   token_hash TEXT PRIMARY KEY,
+   username TEXT NOT NULL,
+   expires_at INTEGER NOT NULL,
+   used_at INTEGER,
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE TABLE IF NOT EXISTS health_bridge_devices (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   username TEXT NOT NULL,
+   name TEXT NOT NULL,
+   token_hash TEXT NOT NULL UNIQUE,
+   platform TEXT NOT NULL DEFAULT 'android',
+   diagnostics TEXT NOT NULL DEFAULT '{}',
+   last_sync_at TEXT,
+   last_seen_at TEXT,
+   revoked_at TEXT,
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_health_bridge_devices_user
+   ON health_bridge_devices(username,revoked_at);
+  CREATE TABLE IF NOT EXISTS health_connect_records (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   username TEXT NOT NULL,
+   device_id INTEGER NOT NULL REFERENCES health_bridge_devices(id) ON DELETE CASCADE,
+   source TEXT NOT NULL DEFAULT 'health_connect' CHECK(source='health_connect'),
+   source_origin TEXT NOT NULL,
+   source_origin_name TEXT NOT NULL DEFAULT '',
+   external_record_id TEXT NOT NULL,
+   record_type TEXT NOT NULL CHECK(record_type IN ('exercise','sleep','heart_rate','resting_heart_rate','heart_rate_variability','weight','steps','total_calories','active_calories')),
+   start_time TEXT NOT NULL,
+   end_time TEXT NOT NULL,
+   metrics TEXT NOT NULL,
+   source_modified_at TEXT,
+   synced_at TEXT NOT NULL,
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   UNIQUE(username,source_origin,external_record_id,record_type)
+  );
+  CREATE INDEX IF NOT EXISTS idx_health_connect_records_time
+   ON health_connect_records(username,record_type,start_time DESC);
+ `},
 ];
 export function applyDatabaseMigrations(database:Database.Database=db):void{
  for(const migration of migrations){
