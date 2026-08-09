@@ -18,7 +18,7 @@ import { CoachCard } from "./coach-card";
 import { AnalyticsCoachPage } from "./analytics-coach-page";
 import { ProfileSettingsPage } from "./profile-settings-page";
 import { ProgressionPanel, type ProgressionProposal } from "./progression-panel";
-import { buildCoachResult, COACH_ACTION_LABELS, type CoachAction } from "../lib/coach";
+import { buildCoachResult, COACH_ACTION_LABELS, COACH_TARGETS, type CoachAction } from "../lib/coach";
 import { WhatsNewGate } from "./whats-new-gate";
 import { EveningProgressCard, EveningProgressPage } from "./evening-progress";
 import { computeEveningWeeklyStats } from "../lib/evening";
@@ -155,6 +155,9 @@ export default function Home() {
   const openDraftToday=(data.workoutDrafts||[]).find((d:any)=>d.date===today&&d.snapshot?.title===todayPlan?.title);
   const coach=useMemo(()=>buildCoachResult({date:today,ready:loaded,plan:todayPlan?{title:todayPlan.title,type:todayPlan.type}:null,wellnessLogs:data.wellnessLogs,activity:data.activity,foodLogs:data.foodLogs,workouts:data.workouts,measurements:data.measurements,profile:data.profile}),[data,todayPlan,today,loaded]);
   const coachAction:CoachAction|null=coach.decision?.action??null;
+  const nutritionCalories=coach.summary.nutrition.calories??0;
+  const nutritionCalorieTarget=coach.summary.targets.calories;
+  const activityProgress=Math.round((pct(todayActivity.activeMinutes,75)+pct(todayActivity.steps,10000))/2);
   const goHome=()=>{setNav("Сегодня");setMobileMenu(false);window.scrollTo({top:0,behavior:"smooth"})};
   const goCoach=()=>{setAnalyticsMode("coach");setNav("Аналитика");setMobileMenu(false)};
   const goAnalytics=()=>{setAnalyticsMode("insights");setNav("Аналитика");setMobileMenu(false)};
@@ -290,7 +293,7 @@ export default function Home() {
         </div>
 
         <section className="stat-strip" aria-label="Дневной прогресс">
-          <Metric icon={<Flame size={15}/>} color="orange" label="Калории" value={fmt(todayActivity.calories||0)} unit="/ 900 ккал" pct={pct(todayActivity.calories,900)} />
+          <Metric icon={<Flame size={15}/>} color="orange" label="Калории" value={fmt(nutritionCalories)} unit={`/ ${fmt(nutritionCalorieTarget)} ккал`} pct={pct(nutritionCalories,nutritionCalorieTarget)} />
           <Metric icon={<Clock3 size={15}/>} color="blue" label="Активность" value={fmt(todayActivity.activeMinutes||0)} unit="/ 75 мин" pct={pct(todayActivity.activeMinutes,75)} />
           <Metric icon={<Footprints size={15}/>} color="lime" label="Шаги" value={fmt(todayActivity.steps||0)} unit="/ 10 000" pct={pct(todayActivity.steps,10000)} />
           <Metric icon={<CheckCircle2 size={15}/>} color="violet" label="Тренировки" value={String(todayWorkouts)} unit="/ 1 сегодня" pct={pct(todayWorkouts,1)} />
@@ -309,12 +312,11 @@ export default function Home() {
          <div className="today-mosaic-side">
           <section className="ring-card card" aria-label="Активность сегодня">
             <div className="section-head"><p className="eyebrow">АКТИВНОСТЬ СЕГОДНЯ</p></div>
-            <div className="ring-vis" style={{"--ring-pct":Math.round((pct(todayActivity.calories,900)+pct(todayActivity.activeMinutes,75)+pct(todayActivity.steps,10000))/3)} as any}>
-              <b>{Math.round((pct(todayActivity.calories,900)+pct(todayActivity.activeMinutes,75)+pct(todayActivity.steps,10000))/3)}%</b>
+            <div className="ring-vis" style={{"--ring-pct":activityProgress} as any}>
+              <b>{activityProgress}%</b>
               <span>цели</span>
             </div>
             <ul className="ring-legend">
-              <li><i style={{background:"var(--orange)"}}/>Калории<b>{fmt(todayActivity.calories||0)} / 900 ккал</b></li>
               <li><i style={{background:"var(--blue)"}}/>Активность<b>{fmt(todayActivity.activeMinutes||0)} / 75 мин</b></li>
               <li><i style={{background:"var(--lime)"}}/>Шаги<b>{fmt(todayActivity.steps||0)} / 10 000</b></li>
             </ul>
@@ -327,7 +329,7 @@ export default function Home() {
          </div>
         </div>
 
-        <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Калории<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><label>Сон, ч<input name="sleepHours" type="number" min="0" max="24" step="0.5" defaultValue={todayActivity.sleepHours||0}/></label><button>Сохранить</button></form>
+        <form className="activity-entry card" onSubmit={saveActivity}><div><p className="eyebrow">ДАННЫЕ ЗА СЕГОДНЯ</p><h3>Обновить активность</h3></div><label>Сожжено, ккал<input name="calories" type="number" min="0" defaultValue={todayActivity.calories||0}/></label><label>Активность, мин<input name="activeMinutes" type="number" min="0" defaultValue={todayActivity.activeMinutes||0}/></label><label>Шаги<input name="steps" type="number" min="0" defaultValue={todayActivity.steps||0}/></label><label>Пиво, банки<input name="beers" type="number" min="0" defaultValue={todayActivity.beers||0}/></label><label>Сон, ч<input name="sleepHours" type="number" min="0" max="24" step="0.5" defaultValue={todayActivity.sleepHours||0}/></label><button>Сохранить</button></form>
 
         <ProgressionPanel proposals={progressionProposals} refresh={loadProgression}/>
 
@@ -665,9 +667,10 @@ function NutritionDiary({data,refresh,onAskCoach}:{data:any;refresh:()=>void;onA
  const [draftText,setDraftText]=useState("");
  const [error,setError]=useState(""),[saving,setSaving]=useState(false),[aiBusy,setAiBusy]=useState(false),[aiNote,setAiNote]=useState(""),[aiKeySet,setAiKeySet]=useState<boolean|null>(null);
  const logs=data.foodLogs||[],dayLogs=logs.filter((x:any)=>x.date===viewDate),sum=dayLogs.reduce((t:any,x:any)=>({calories:t.calories+x.calories,protein:t.protein+x.protein,fat:t.fat+x.fat,carbs:t.carbs+x.carbs}),{calories:0,protein:0,fat:0,carbs:0});
- const remaining=Math.round(1700-sum.calories),caloriePct=Math.min(100,Math.round(sum.calories/1700*100));
+ const calorieTarget=COACH_TARGETS.calories;
+ const remaining=Math.round(calorieTarget-sum.calories),caloriePct=Math.min(100,Math.round(sum.calories/calorieTarget*100));
  const activity=(data.activity||[]).find((x:any)=>x.date===viewDate),waterLiters=Number(activity?.waterLiters)||0,waterKnown=Boolean(activity?.waterLogged)||waterLiters>0;
- const coachNote=!dayLogs.length?"Добавь первый приём пищи — рекомендация появится только на реальных данных.":sum.protein<120?`Белка ${Math.round(sum.protein)} г из 150 г. Следующий приём пищи стоит собрать вокруг полноценного источника белка.`:sum.calories>1700?`Ориентир превышен на ${Math.abs(remaining)} ккал. Это факт дня, а не оценка — следующий выбор можно оставить обычным.`:"По записанным данным дневной баланс близок к ориентиру. Сохрани спокойный ритм без компенсаций.";
+ const coachNote=!dayLogs.length?"Добавь первый приём пищи — рекомендация появится только на реальных данных.":sum.protein<120?`Белка ${Math.round(sum.protein)} г из 150 г. Следующий приём пищи стоит собрать вокруг полноценного источника белка.`:sum.calories>calorieTarget?`Ориентир превышен на ${Math.abs(remaining)} ккал. Это факт дня, а не оценка — следующий выбор можно оставить обычным.`:"По записанным данным дневной баланс близок к ориентиру. Сохрани спокойный ритм без компенсаций.";
  const history=useMemo(()=>{
   const byDate=new Map<string,number>();
   for(const x of (data.foodLogs||[]))byDate.set(x.date,(byDate.get(x.date)||0)+(Number(x.calories)||0));
@@ -709,7 +712,7 @@ function NutritionDiary({data,refresh,onAskCoach}:{data:any;refresh:()=>void;onA
    <aside className="nutrition-day-column">
     <section className="nutrition-balance">
      <div className="nutrition-balance-head"><div><p className="eyebrow">СЕГОДНЯШНИЙ БАЛАНС</p><h3>{dayLabel(viewDate,today)}</h3></div><span>{nutritionCount(dayLogs.length,["приём","приёма","приёмов"])}</span></div>
-     <div className="nutrition-calorie-ring" style={{"--nutrition-progress":`${caloriePct}%`} as any}><div><b>{Math.round(sum.calories)}</b><span>ккал из 1700</span></div></div>
+     <div className="nutrition-calorie-ring" style={{"--nutrition-progress":`${caloriePct}%`} as any}><div><b>{Math.round(sum.calories)}</b><span>ккал из {calorieTarget}</span></div></div>
      <div className="nutrition-macros"><Macro label="Белки" value={sum.protein} goal={150} unit="г"/><Macro label="Жиры" value={sum.fat} goal={60} unit="г"/><Macro label="Углеводы" value={sum.carbs} goal={170} unit="г"/></div>
      <div className={`nutrition-remaining${remaining<0?" over":""}`}><span>{remaining>=0?"Осталось":"Сверх ориентира"}</span><b>{Math.abs(remaining)} ккал</b></div>
     </section>
@@ -723,7 +726,7 @@ function NutritionDiary({data,refresh,onAskCoach}:{data:any;refresh:()=>void;onA
    {dayLogs.length?<div className="food-log-list">{dayLogs.map((log:any,index:number)=><article key={log.id} className={`meal-${String(log.mealType).toLowerCase()}`}><span className="nutrition-meal-index">{String(index+1).padStart(2,"0")}</span><div className="nutrition-meal-copy"><header><div><em>{log.mealType}</em><b>{nutritionCount(log.items.length,["блюдо","блюда","блюд"])}</b></div><button onClick={()=>remove(log.id)} aria-label={`Удалить ${log.mealType}`} title="Удалить запись">×</button></header>{log.items.map((x:any)=><p key={x.name}><span>{x.name}</span><b>{x.calories} ккал</b></p>)}{log.note&&<footer className="food-note">{log.note}</footer>}</div><div className="nutrition-meal-total"><b>{Math.round(log.calories)}<small>ккал</small></b><span>Б {Math.round(log.protein)} · Ж {Math.round(log.fat)} · У {Math.round(log.carbs)}</span></div></article>)}</div>:<div className="nutrition-empty"><Utensils size={25}/><div><b>Добавь первый приём пищи</b><p>Баланс и рекомендации появятся только после реальной записи.</p></div></div>}
   </section>
 
-  <details className="nutrition-history"><summary><span><p className="eyebrow">ИСТОРИЯ</p><b>Калории за последние 14 дней</b></span><ChevronDown size={17}/></summary><div className="chart-wrap food-history-chart"><div className="chart-labels"><span>1700</span><span>1275</span><span>850</span><span>425</span><span>0</span></div><div className="bars" aria-label="Калории за последние 14 дней">{history.map(d=><div className="bar-slot" key={d.iso} title={`${d.short}: ${d.hasData?`${Math.round(d.calories)} ккал`:"нет записи"}`}><i style={{height:`${Math.min(100,d.calories/1700*100)}%`}} className={d.iso===viewDate?"today":""}/></div>)}</div></div><div className="nutrition-history-list" aria-label="Последние 7 дней">{history.slice(-7).reverse().map((d,index)=><div className={d.iso===viewDate?"today":""} key={d.iso}><span>{index===0?"Сегодня":d.short}</span><i aria-hidden="true"><b style={{width:`${Math.min(100,d.calories/1700*100)}%`}}/></i><strong>{d.hasData?`${Math.round(d.calories)} ккал`:"нет записи"}</strong></div>)}</div></details>
+  <details className="nutrition-history"><summary><span><p className="eyebrow">ИСТОРИЯ</p><b>Калории за последние 14 дней</b></span><ChevronDown size={17}/></summary><div className="chart-wrap food-history-chart"><div className="chart-labels"><span>{calorieTarget}</span><span>{Math.round(calorieTarget*.75)}</span><span>{Math.round(calorieTarget*.5)}</span><span>{Math.round(calorieTarget*.25)}</span><span>0</span></div><div className="bars" aria-label="Калории за последние 14 дней">{history.map(d=><div className="bar-slot" key={d.iso} title={`${d.short}: ${d.hasData?`${Math.round(d.calories)} ккал`:"нет записи"}`}><i style={{height:`${Math.min(100,d.calories/calorieTarget*100)}%`}} className={d.iso===viewDate?"today":""}/></div>)}</div></div><div className="nutrition-history-list" aria-label="Последние 7 дней">{history.slice(-7).reverse().map((d,index)=><div className={d.iso===viewDate?"today":""} key={d.iso}><span>{index===0?"Сегодня":d.short}</span><i aria-hidden="true"><b style={{width:`${Math.min(100,d.calories/calorieTarget*100)}%`}}/></i><strong>{d.hasData?`${Math.round(d.calories)} ккал`:"нет записи"}</strong></div>)}</div></details>
  </>;
 }
 
