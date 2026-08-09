@@ -173,7 +173,7 @@ export default function Home() {
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});notify(r.ok?"Активность за сегодня обновлена":"Не удалось сохранить активность",r.ok?"good":"warn");load()};
   const startWorkout=async(plan:any,origin:"original"|"scheduled"="original",scheduleChangeId:number|null=null)=>{
-   const snapshot={title:plan.title,type:plan.type,rounds:plan.rounds??1,origin,scheduleChangeId,exercises:plan.exercises.map((exercise:any[])=>({name:exercise[0],target:exercise[2],recommendedWeight:data.progressionOverrides?.[exercise[0]]?.weight??data.strengthLogs?.find((log:any)=>log.exercise===exercise[0])?.weight??0}))};
+   const snapshot={title:plan.title,type:plan.type,rounds:plan.rounds??1,origin,scheduleChangeId,programIdentity:plan.programIdentity,exercises:plan.exercises.map((exercise:any[])=>({name:exercise[0],target:exercise[2],recommendedWeight:data.progressionOverrides?.[exercise[0]]?.weight??data.strengthLogs?.find((log:any)=>log.exercise===exercise[0])?.weight??0}))};
    const response=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"startWorkoutDraft",date:today,snapshot})});
    const json=await response.json().catch(()=>({}));
    if(!response.ok)return notify(json.error||"Не удалось начать тренировку","warn");

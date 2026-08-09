@@ -10,7 +10,8 @@ import type { SwimCalendarOrigin, SwimCalendarSlot } from "@/lib/swim/types";
 
 export function isSwimSlot(day: Pick<HomeWeekDay, "type" | "title"> & Partial<Pick<HomeWeekDay, "sessions">>): boolean {
   return sessionsForDay(day as HomeWeekDay).some((session) =>
-    session.type === "Кардио" && (session.title === "Бассейн" || session.id?.startsWith("swim-") === true),
+    session.discipline === "swim" || session.workoutRef?.kind === "swim"
+      || session.type === "Кардио" && (session.title === "Бассейн" || session.id?.startsWith("swim-") === true),
   );
 }
 
@@ -35,20 +36,19 @@ function addDaysIso(dateIso: string, days: number): string {
 // спроецированный слот.
 export function assignSwimCalendar(params: {
   workouts: readonly SwimScheduleWorkoutInput[];
-  homeWeek: readonly HomeWeekDay[];
   changesByDate: ReadonlyMap<string, WeekScheduleChange>;
   todayIso: string;
-  // Точка старта проекции отделена от todayIso: расписание Foundation должно
-  // оставаться стабильным при смене календарного дня, а isToday — обновляться.
-  scheduleStartIso?: string;
+  scheduleStartIso: string;
+  resolveWeekForDate: (dateIso: string) => readonly HomeWeekDay[];
   horizonDays?: number;
 }): Map<string, SwimCalendarSlot> {
-  const { workouts, homeWeek, changesByDate, todayIso, scheduleStartIso = todayIso, horizonDays = 220 } = params;
+  const { workouts, changesByDate, todayIso, scheduleStartIso, resolveWeekForDate, horizonDays = 220 } = params;
   const result = new Map<string, SwimCalendarSlot>();
   const usedDates = new Set<string>();
 
   for (const w of workouts) {
     if (!w.pinnedDate) continue;
+    const homeWeek = resolveWeekForDate(w.pinnedDate);
     const resolved = resolvePlanForDate(w.pinnedDate, homeWeek as HomeWeekDay[], changesByDate as Map<string, WeekScheduleChange>);
     const origin: SwimCalendarOrigin = w.status === "completed" ? "completed" : "active";
     result.set(w.workoutId, {
@@ -61,29 +61,24 @@ export function assignSwimCalendar(params: {
     usedDates.add(w.pinnedDate);
   }
 
-  const pending = workouts.filter((w) => !w.pinnedDate && w.status === "not_started");
-  if (!pending.length) return result;
+  const pendingById = new Map(workouts.filter((w) => !w.pinnedDate && w.status === "not_started").map((workout) => [workout.workoutId, workout]));
+  if (!pendingById.size) return result;
 
-  let pendingIndex = 0;
-  for (let offset = 0; offset < horizonDays && pendingIndex < pending.length; offset++) {
+  for (let offset = 0; offset < horizonDays && pendingById.size; offset++) {
     const dateIso = addDaysIso(scheduleStartIso, offset);
-    // После перехода с 2 на 3 Swim-слота не заполняем задним числом свободный
-    // слот прошлой недели. Завершённые/активные тренировки уже закреплены выше,
-    // а новый pending может назначаться только на сегодня или будущее.
-    if (dateIso < todayIso) continue;
     if (usedDates.has(dateIso)) continue;
+    const homeWeek = resolveWeekForDate(dateIso);
     const resolved = resolvePlanForDate(dateIso, homeWeek as HomeWeekDay[], changesByDate as Map<string, WeekScheduleChange>);
     if (!isSwimSlot(resolved.scheduled)) continue;
-    const workout = pending[pendingIndex];
-    result.set(workout.workoutId, {
-      date: dateIso,
-      weekday: resolved.weekday,
-      isToday: dateIso === todayIso,
-      origin: "projected",
-      scheduleChangeId: resolved.changeId,
-    });
-    usedDates.add(dateIso);
-    pendingIndex++;
+    const workoutIds = sessionsForDay(resolved.scheduled)
+      .map((session) => session.workoutRef?.kind === "swim" ? session.workoutRef.workoutId : null)
+      .filter((workoutId): workoutId is string => Boolean(workoutId));
+    for (const workoutId of workoutIds) {
+      if (!pendingById.has(workoutId)) continue;
+      result.set(workoutId, { date: dateIso, weekday: resolved.weekday, isToday: dateIso === todayIso, origin: "projected", scheduleChangeId: resolved.changeId });
+      pendingById.delete(workoutId);
+      usedDates.add(dateIso);
+    }
   }
   return result;
 }

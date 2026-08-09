@@ -10,3 +10,14 @@ export function swimWorkoutPlanKey(program: SwimProgramDef, workout: SwimWorkout
   const snapshot = buildSwimSnapshot(program, workout);
   return snapshot ? planKey(snapshot) : null;
 }
+
+export function swimWorkoutPlanKeyCandidates(program: SwimProgramDef, workout: SwimWorkoutDef): string[] {
+  const snapshot = buildSwimSnapshot(program, workout);
+  if (!snapshot) return [];
+  const current = planKey(snapshot);
+  if (!snapshot.programIdentity) return [current];
+  const legacySnapshot = { ...snapshot };
+  delete legacySnapshot.programIdentity;
+  const legacy = planKey(legacySnapshot);
+  return legacy === current ? [current] : [current, legacy];
+}

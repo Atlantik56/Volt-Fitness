@@ -1,3 +1,5 @@
+import type { TrainingDiscipline, TrainingProgramIdentity, TrainingSessionRole, TrainingWorkoutReference } from "@/lib/training-program/types";
+
 // AI-11 — Гибкая неделя. Чистые функции, без обращения к БД: разрешают
 // "актуальный" (scheduled) план на дату из канонической программы (buildHomeWeek)
 // и пользовательских изменений текущей недели (week_schedule_changes). Общий
@@ -17,6 +19,11 @@ export type HomeWeekDay = {
   warmup?: any[];
   optional?: boolean;
   availability?: "planned";
+  discipline?: TrainingDiscipline;
+  role?: TrainingSessionRole;
+  required?: boolean;
+  workoutRef?: TrainingWorkoutReference;
+  programIdentity?: TrainingProgramIdentity;
   sessions?: HomeWeekSession[];
 };
 

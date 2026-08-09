@@ -6,7 +6,9 @@
 // эти же имена — существующие импортёры не меняются.
 export type SnapshotExercise = { name: string; order: number; target: string; recommendedWeight: number; sets: number | null; repMin: number | null; repMax: number | null; unit: string };
 export type WorkoutSnapshotOrigin = "original" | "scheduled";
-export type WorkoutSnapshot = { title: string; type: string; rounds: number; exercises: SnapshotExercise[]; origin: WorkoutSnapshotOrigin; scheduleChangeId: number | null };
+import type { TrainingProgramIdentity } from "@/lib/training-program/types";
+
+export type WorkoutSnapshot = { title: string; type: string; rounds: number; exercises: SnapshotExercise[]; origin: WorkoutSnapshotOrigin; scheduleChangeId: number | null; programIdentity?: TrainingProgramIdentity };
 
 const text = (x: unknown, max = 160) => (typeof x === "string" ? x.trim().slice(0, max) : "");
 const finite = (x: unknown, min: number, max: number) => {
@@ -35,5 +37,10 @@ export function normalizeSnapshot(raw: any): WorkoutSnapshot | null {
   }
   const origin: WorkoutSnapshotOrigin = raw?.origin === "scheduled" ? "scheduled" : "original";
   const scheduleChangeId = Number.isSafeInteger(raw?.scheduleChangeId) && raw.scheduleChangeId > 0 ? raw.scheduleChangeId : null;
-  return { title, type, rounds, exercises, origin, scheduleChangeId };
+  const identity = raw?.programIdentity;
+  const programIdentity = identity && text(identity.programId, 80) && Number.isInteger(identity.programVersion) && identity.programVersion > 0
+    && Number.isInteger(identity.weekIndex) && identity.weekIndex > 0 && text(identity.sessionId, 100)
+    ? { programId: text(identity.programId, 80), programVersion: identity.programVersion, weekIndex: identity.weekIndex, sessionId: text(identity.sessionId, 100) }
+    : null;
+  return programIdentity ? { title, type, rounds, exercises, origin, scheduleChangeId, programIdentity } : { title, type, rounds, exercises, origin, scheduleChangeId };
 }

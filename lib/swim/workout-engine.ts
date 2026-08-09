@@ -15,6 +15,7 @@
 // lib/swim/workout-plan-key.ts, не здесь.
 import { normalizeSnapshot, type WorkoutSnapshot } from "@/lib/workout-snapshot";
 import { exerciseLabelRu, getExerciseById } from "@/lib/swim/exercise-catalog";
+import { trainingProgramRegistry } from "@/lib/training-program/registry";
 import type { SwimInterval, SwimProgramDef, SwimWorkoutDef } from "@/lib/swim/types";
 
 export const SWIM_WORKOUT_TYPE_PREFIX = "Плавание";
@@ -60,10 +61,12 @@ export function swimWorkoutType(program: Pick<SwimProgramDef, "version">): strin
 }
 
 export function buildSwimSnapshot(program: SwimProgramDef, workout: SwimWorkoutDef): WorkoutSnapshot | null {
+  const programIdentity = trainingProgramRegistry.identityForSwimWorkout(program.id, program.version, workout.id) ?? undefined;
   const raw = {
     title: `${program.name} · ${workout.title}`,
     type: swimWorkoutType(program),
     rounds: 1,
+    programIdentity,
     exercises: workout.intervals.map((interval, index) => ({
       name: intervalExerciseLabel(interval, index),
       target: intervalTargetText(interval),

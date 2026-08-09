@@ -59,8 +59,8 @@ export function SwimPlanStartAction({ onStarted, compact = false }: { onStarted:
       <div className={`swim-plan-start-copy${compact ? " compact" : ""}`}>
         <div className="swim-plan-start-icon"><CalendarDays size={compact ? 20 : 26} /></div>
         <div>
-          <h2>Начните Foundation с Week 1</h2>
-          <p>Выберите фактическую дату старта. Общий план VOLT и история тренировок останутся без изменений.</p>
+          <h2>Подключите Foundation к Plan v2</h2>
+          <p>Выберите дату активации. Week 4 и календарь придут из общего плана VOLT; история останется без изменений.</p>
         </div>
         <button type="button" className="swim-plan-primary-action" onClick={() => { setStartedAt(today); setError(null); setOpen(true); }}>
           <Play size={15} fill="currentColor" /> Начать план
@@ -71,13 +71,13 @@ export function SwimPlanStartAction({ onStarted, compact = false }: { onStarted:
         <div className="swim-plan-start-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOpen(false); }}>
           <section className="swim-home-card swim-plan-start-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId}>
             <button type="button" className="swim-plan-start-close" aria-label="Закрыть" onClick={() => setOpen(false)} disabled={busy}><X size={18} /></button>
-            <span className="swim-goal-pill">FOUNDATION · WEEK 1</span>
+            <span className="swim-goal-pill">FOUNDATION · PLAN V2</span>
             <h2 id={titleId}>Начать план плавания?</h2>
-            <p id={descriptionId}>Программа начнётся с Week 1. Выбранная дата станет постоянной точкой отсчёта для всех следующих недель и тренировок Swim.</p>
+            <p id={descriptionId}>Foundation подключится к общей программе с effective Week 4. Выбранная дата активирует Swim, но не создаёт отдельную нумерацию недель.</p>
             <label className="swim-plan-start-date">
               <span>Дата старта</span>
               <input type="date" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} disabled={busy} autoFocus />
-              <small>{startedAt ? `${readableDate(startedAt)} · начало Week 1` : "Выберите дату"}</small>
+              <small>{startedAt ? `${readableDate(startedAt)} · активация Plan v2` : "Выберите дату"}</small>
             </label>
             {error && <p className="swim-plan-start-error" role="alert">{error}</p>}
             <div className="swim-plan-start-actions">

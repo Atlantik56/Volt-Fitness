@@ -22,16 +22,16 @@ test("новая миграция оставляет Swim-план ненача�
   assert.equal(progress.workouts.every((workout) => workout.calendar === null), true);
 });
 
-test("план можно заранее назначить на будущую дату", () => {
+test("Plan v2 можно заранее активировать без отдельного restart от Week 1", () => {
   assert.deepEqual(startSwimPlan("2026-08-20"), { ok: true, startedAt: "2026-08-20" });
   assert.equal(getSwimPlanStartedAt(), "2026-08-20");
   const progress = getProgramProgress("foundation")!;
-  assert.equal(progress.calendarDays[0]?.date, "2026-08-20");
-  assert.equal(progress.currentWeekIndex, 1);
+  assert.equal(progress.calendarDays[0]?.date, "2026-07-20");
+  assert.equal(progress.currentWeekIndex, 4);
   db.prepare("UPDATE profile SET swim_plan_started_at=NULL WHERE id=1").run();
 });
 
-test("7 августа становится началом Swim Week 1 без очистки истории", () => {
+test("активация 7 августа включает effective Week 4 без очистки истории", () => {
   db.prepare("INSERT INTO workout_logs(date,type,title,distance_meters,duration_seconds) VALUES (?,?,?,?,?)")
     .run("2026-08-01", "Плавание", "Существующий заплыв", 500, 900);
   const historyBefore = getSwimHistory();
@@ -42,10 +42,10 @@ test("7 августа становится началом Swim Week 1 без о
   assert.deepEqual(startSwimPlan("2026-08-07"), { ok: true, startedAt: "2026-08-07" });
   const progress = getProgramProgress("foundation")!;
   assert.equal(progress.startedAt, "2026-08-07");
-  assert.equal(progress.currentWeekIndex, 1);
-  assert.equal(progress.calendarDays[0]?.date, "2026-08-07");
-  assert.equal(progress.calendarDays[6]?.date, "2026-08-13");
-  assert.equal(progress.nextWorkout?.weekIndex, 1);
+  assert.equal(progress.currentWeekIndex, 4);
+  assert.equal(progress.calendarDays[0]?.date, "2026-07-20");
+  assert.equal(progress.calendarDays[6]?.date, "2026-07-26");
+  assert.equal(progress.nextWorkout?.weekIndex, 4);
   assert.equal(getSwimPlanStartedAt(), "2026-08-07");
 
   assert.deepEqual(getSwimHistory(), historyBefore);
@@ -61,7 +61,7 @@ test("повторный старт и некорректная дата отк�
   assert.equal(getSwimPlanStartedAt(), "2026-08-07");
 });
 
-test("повторное чтение сохраняет тот же календарь и после семи дней даёт Week 2", () => {
+test("повторное чтение сохраняет единый календарь; legacy helper остаётся совместимым", () => {
   const first = getProgramProgress("foundation")!;
   const reopened = getProgramProgress("foundation")!;
   assert.deepEqual(reopened.calendarDays, first.calendarDays);
@@ -71,5 +71,5 @@ test("повторное чтение сохраняет тот же кален�
   assert.equal(swimWeekIndexForDate("2026-08-07", "2026-08-13", 6), 1);
   assert.equal(swimWeekIndexForDate("2026-08-07", "2026-08-14", 6), 2);
   assert.equal(swimWeekIndexForDate("2026-08-07", "2026-09-30", 6), 6);
-  assert.equal(reopened.calendarDays[7]?.date, "2026-08-14");
+  assert.equal(reopened.calendarDays[7]?.date, "2026-07-27");
 });

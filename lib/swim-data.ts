@@ -4,7 +4,7 @@ import { isSwimActivity } from "@/lib/swim-classify";
 import { computeSwimPeriodMetrics, computeSwimRecords, formatPace100m } from "@/lib/swim-metrics";
 import { getProgramProgress, getSwimPlanStartedAt } from "@/lib/swim/services";
 import { listPrograms } from "@/lib/swim/program-engine";
-import { swimWorkoutPlanKey } from "@/lib/swim/workout-plan-key";
+import { swimWorkoutPlanKeyCandidates } from "@/lib/swim/workout-plan-key";
 import { totalDistanceMeters } from "@/lib/swim/workout-engine";
 import { getSwimInsights } from "@/lib/swim/insight-service";
 import type { SwimAnalyticsData, SwimAnalyticsPeriod, SwimHomeData, SwimLastSwimView, SwimNextWorkoutView, SwimWeeklyActivityView, SwimMetricsView, SwimRecentSessionView, SwimEffortDistribution, SwimHistoryData, SwimHistoryItem, SwimRecordsData } from "@/app/swim/types";
@@ -113,8 +113,7 @@ function swimRouteByPlanKey(): Map<string, { programId: string; workoutId: strin
     for (const week of program.weeks) {
       for (const day of week.days) {
         if (!day.workout) continue;
-        const key = swimWorkoutPlanKey(program, day.workout);
-        if (key) map.set(key, { programId: program.id, workoutId: day.workout.id });
+        for (const key of swimWorkoutPlanKeyCandidates(program, day.workout)) map.set(key, { programId: program.id, workoutId: day.workout.id });
       }
     }
   }

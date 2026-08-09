@@ -36,6 +36,9 @@
   [приложенный макет](design/volt-swim/volt-swim-concept-v17.jpg).
 - [`volt-swim/SPRINTS.md`](volt-swim/SPRINTS.md) — действующие пять спринтов
   VOLT Swim вокруг 8-недельной программы Foundation.
+- [`TRAINING_PROGRAM_ARCHITECTURE.md`](TRAINING_PROGRAM_ARCHITECTURE.md) —
+  canonical program layer, versioning, effective programs и правила добавления
+  Plan v3 без изменения UI и истории.
 - [`volt-swim/ARCHITECTURE.md`](volt-swim/ARCHITECTURE.md) — почему `/swim`
   устроен как отдельные маршруты, как устроены слои `lib/swim/*` и как модуль
   масштабируется в следующих спринтах.

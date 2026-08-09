@@ -8,5 +8,10 @@ import { createHash } from "node:crypto";
 import type { WorkoutSnapshot } from "@/lib/workout-snapshot";
 
 export function planKey(snapshot: WorkoutSnapshot) {
-  return createHash("sha256").update(JSON.stringify({ title: snapshot.title, type: snapshot.type, exercises: snapshot.exercises.map((x) => x.name) })).digest("hex").slice(0, 32);
+  const legacyIdentity = { title: snapshot.title, type: snapshot.type, exercises: snapshot.exercises.map((x) => x.name) };
+  // Старые snapshots не содержат programIdentity и получают буквально прежний
+  // hash payload. Новые program sessions добавляют id/version/week/session,
+  // поэтому будущая версия не может переиспользовать смысл старого plan_key.
+  const identity = snapshot.programIdentity ? { schema: 2, ...legacyIdentity, programIdentity: snapshot.programIdentity } : legacyIdentity;
+  return createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 32);
 }

@@ -2,11 +2,13 @@
 // workout-engine.ts остаются чистыми функциями — здесь они соединяются с
 // реальными workout_drafts.
 import { db } from "@/lib/db";
-import { buildHomeWeek } from "@/app/personal-data";
-import { changesByDateMap, localIso, resolvePlanForDate, weekRangeContaining } from "@/app/week-schedule-model";
+import { buildProgramWeek } from "@/app/personal-data";
+import { changesByDateMap, localIso, resolvePlanForDate, sessionsForDay, weekRangeContaining } from "@/app/week-schedule-model";
 import { listWeekScheduleChanges } from "@/lib/week-schedule-service";
 import { computeProgramProgress, getProgram, listPrograms } from "@/lib/swim/program-engine";
 import { assignSwimCalendar, isSwimSlot, type SwimScheduleWorkoutInput } from "@/lib/swim/schedule-sync";
+import { PLAN_V2_EFFECTIVE_WEEK } from "@/lib/training-program/definitions";
+import { programWeekForDate, programWeekMonday } from "@/lib/training-program/registry";
 import type { ResolvedSwimSlot, SwimCalendarDay, SwimProgramProgress, SwimWorkoutActual, SwimWorkoutProgress } from "@/lib/swim/types";
 
 type OpenDraftStatus = "active" | "awaiting_confirmation";
@@ -65,6 +67,16 @@ export function swimWeekIndexForDate(startedAt: string, dateIso: string, totalWe
   return Math.min(Math.max(1, totalWeeks), Math.floor(elapsedDays / 7) + 1);
 }
 
+export function effectiveSwimWeekIndex(programStart: string, activatedAt: string, dateIso: string, totalWeeks: number): number {
+  const generalWeek = programWeekForDate(programStart, dateIso);
+  // activatedAt is an activation boundary, not an independent Week 1 anchor.
+  // Before the boundary the UI previews the effective week; after it the same
+  // general VOLT week continues, never restarting Foundation from Week 1.
+  const effectiveWeek = Math.max(PLAN_V2_EFFECTIVE_WEEK, generalWeek);
+  void activatedAt;
+  return Math.min(Math.max(1, totalWeeks), effectiveWeek);
+}
+
 // Единственная операция записи старта Swim. Условный UPDATE делает её
 // атомарной и одноразовой даже при двух одновременных запросах.
 export function startSwimPlan(startedAt: string): StartSwimPlanResult {
@@ -91,17 +103,20 @@ function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
   const { programStart, swimPlanStartedAt } = getProfilePlanDates();
   if (!programStart || !swimPlanStartedAt) return { ...progress, startedAt: swimPlanStartedAt ?? null };
   const todayIso = localIso(new Date());
-  const homeWeek = buildHomeWeek(programStart);
-  const { mondayIso: currentMonday, sundayIso: currentSunday } = weekRangeContaining(todayIso);
-  const changes = listWeekScheduleChanges(currentMonday, currentSunday);
+  const scheduleStartIso = programWeekMonday(programStart, 1);
+  const scheduleEndDate = new Date(`${scheduleStartIso}T00:00:00`);
+  scheduleEndDate.setDate(scheduleEndDate.getDate() + progress.program.weeks.length * 7 - 1);
+  const scheduleEndIso = localIso(scheduleEndDate);
+  const changes = listWeekScheduleChanges(scheduleStartIso, scheduleEndIso);
   const changesByDate = changesByDateMap(changes);
+  const resolveWeekForDate = (dateIso: string) => buildProgramWeek(programWeekForDate(programStart, dateIso));
 
   const scheduleInputs: SwimScheduleWorkoutInput[] = progress.workouts.map((w) => ({
     workoutId: w.workout.id,
     status: w.status,
     pinnedDate: w.actual?.date ?? w.draftDate ?? null,
   }));
-  const calendarByWorkoutId = assignSwimCalendar({ workouts: scheduleInputs, homeWeek, changesByDate, todayIso, scheduleStartIso: swimPlanStartedAt });
+  const calendarByWorkoutId = assignSwimCalendar({ workouts: scheduleInputs, changesByDate, todayIso, scheduleStartIso, resolveWeekForDate, horizonDays: progress.program.weeks.length * 7 });
 
   const workouts = progress.workouts.map((w) => ({ ...w, calendar: calendarByWorkoutId.get(w.workout.id) ?? null }));
   const openWorkout = workouts.find((w) => w.status === "in_progress" || w.status === "awaiting_confirmation") ?? null;
@@ -112,7 +127,8 @@ function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
 
   const totalDays = progress.program.weeks.length * 7;
   const calendarDays: SwimCalendarDay[] = Array.from({ length: totalDays }, (_, index) => {
-    const date = addDaysIso(swimPlanStartedAt, index);
+    const date = addDaysIso(scheduleStartIso, index);
+    const homeWeek = resolveWeekForDate(date);
     const resolved = resolvePlanForDate(date, homeWeek, changesByDate);
     return {
       date,
@@ -125,7 +141,9 @@ function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
     };
   });
 
-  const currentWeekIndex = swimWeekIndexForDate(swimPlanStartedAt, todayIso, progress.program.weeks.length);
+  // swim_plan_started_at остаётся activation/transition key. Plan v2 starts
+  // with Foundation Week 4; Weeks 1–3 remain immutable historical definitions.
+  const currentWeekIndex = effectiveSwimWeekIndex(programStart, swimPlanStartedAt, todayIso, progress.program.weeks.length);
   return { ...progress, startedAt: swimPlanStartedAt, workouts, nextWorkout, currentWeekIndex, calendarDays };
 }
 
@@ -165,10 +183,10 @@ export function getNextSwimWorkout(): SwimWorkoutProgress | null {
 export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimSlot | null {
   const { programStart, swimPlanStartedAt } = getProfilePlanDates();
   if (!programStart) return null;
-  const homeWeek = buildHomeWeek(programStart);
+  const homeWeek = buildProgramWeek(programWeekForDate(programStart, calendarDate));
   const todayIso = localIso(new Date());
-  const { mondayIso: currentMonday, sundayIso: currentSunday } = weekRangeContaining(todayIso);
-  const changes = listWeekScheduleChanges(currentMonday, currentSunday);
+  const { mondayIso, sundayIso } = weekRangeContaining(calendarDate);
+  const changes = listWeekScheduleChanges(mondayIso, sundayIso);
   const changesByDate = changesByDateMap(changes);
   const resolved = resolvePlanForDate(calendarDate, homeWeek, changesByDate);
   if (!isSwimSlot(resolved.scheduled)) return null;
@@ -176,9 +194,12 @@ export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimS
   const isToday = calendarDate === todayIso;
   const base = { calendarDate, weekday: resolved.weekday, isToday, scheduleChangeId: resolved.changeId };
 
-  const program = listPrograms().find((p) => p.status === "available");
+  const swimRef = sessionsForDay(resolved.scheduled).map((session) => session.workoutRef).find((ref) => ref?.kind === "swim") ?? null;
+  const program = swimRef?.kind === "swim" ? getProgram(swimRef.programId) : null;
   const progress = program && swimPlanStartedAt ? getProgramProgress(program.id) : null;
-  const match = progress?.workouts.find((w) => w.calendar?.date === calendarDate) ?? null;
+  const match = swimRef?.kind === "swim" && swimRef.workoutId
+    ? progress?.workouts.find((w) => w.workout.id === swimRef.workoutId && w.calendar?.date === calendarDate) ?? null
+    : null;
   if (!program || !progress || !match || !match.calendar) return { kind: "unresolved", ...base };
 
   return {

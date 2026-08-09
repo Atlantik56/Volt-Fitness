@@ -146,8 +146,8 @@ export type SwimWorkoutProgress = {
 
 export type SwimProgramProgress = {
   program: SwimProgramDef;
-  // Отдельный якорь Swim внутри общего плана VOLT. null — Foundation ещё не
-  // запущена; структура программы и общая недельная модель при этом доступны.
+  // Одноразовая дата активации Swim внутри общего плана VOLT. Это не отдельный
+  // Week 1 anchor: effective week и календарь приходят из training program.
   startedAt: string | null;
   completedCount: number;
   totalCount: number;

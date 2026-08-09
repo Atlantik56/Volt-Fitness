@@ -19,7 +19,8 @@ const { swimWorkoutPlanKey } = await import("@/lib/swim/workout-plan-key.ts");
 const { getProgram } = await import("@/lib/swim/program-engine.ts");
 const { buildSwimSnapshot, buildConfirmationExercises, totalDistanceMeters } = await import("@/lib/swim/workout-engine.ts");
 
-db.prepare("UPDATE profile SET program_start=?,swim_plan_started_at=? WHERE id=1").run("2020-01-06", "2026-08-05");
+// program_start Tuesday 14 July makes 3–9 August canonical Week 4.
+db.prepare("UPDATE profile SET program_start=?,swim_plan_started_at=? WHERE id=1").run("2026-07-14", "2026-08-05");
 
 const today = "2026-08-05";
 function addDays(iso: string, n: number): string {
@@ -68,10 +69,10 @@ test("обмен Thursday Strength B ↔ Friday Swim учитывается ед
   assert.equal(resolveScheduledSwimWorkout(thisWeekFriday), null);
 });
 
-test("замена Saturday шаблоном Wednesday создаёт Swim-слот", () => {
+test("дублирование Wednesday на Saturday не создаёт вторую identity той же Swim-сессии", () => {
   const result = applyReplace({ date: thisWeekSaturday, assignedSourceDay: 3, todayIso: today });
   assert.equal(result.ok, true);
-  assert.equal(resolveScheduledSwimWorkout(thisWeekSaturday)?.kind, "workout");
+  assert.equal(resolveScheduledSwimWorkout(thisWeekSaturday)?.kind, "unresolved");
 });
 
 test("замена перенесённого Swim на Strength B удаляет Swim-слот", () => {

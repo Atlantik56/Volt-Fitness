@@ -1,4 +1,5 @@
-import { swimWorkoutPlanKey } from "@/lib/swim/workout-plan-key";
+import { swimWorkoutPlanKey, swimWorkoutPlanKeyCandidates } from "@/lib/swim/workout-plan-key";
+import { resolveTrainingWeek } from "@/lib/training-program/registry";
 import type { SwimDay, SwimInterval, SwimIntervalType, SwimProgramDef, SwimProgramProgress, SwimWeekDef, SwimWorkoutActual, SwimWorkoutDef, SwimWorkoutProgress, SwimWorkoutProgressStatus } from "@/lib/swim/types";
 
 type SetInput = [type: SwimIntervalType, exerciseId: string, distance: number, repeats: number, rest: number | null, description: string, restMax?: number | null];
@@ -16,7 +17,19 @@ const workout = (id: string, title: string, goal: string, estimatedMinutes: numb
 const day = (dayIndex: number, value: SwimWorkoutDef | null): SwimDay => ({ dayIndex, workout: value });
 const week = (weekIndex: number, title: string, plannedDistanceMeters: number, workouts: SwimWorkoutDef[]): SwimWeekDef => ({
   weekIndex, title, plannedDistanceMeters,
-  days: [day(1, workouts[0]), day(2, null), day(3, workouts[1]), day(4, null), day(5, workouts[2] ?? null), day(6, null), day(7, null)],
+  // Weeks 1–3 retain their historical Foundation layout. From effective
+  // Week 4 onward day placement is read from the canonical VOLT program
+  // references, so Swim cannot silently drift to another weekday.
+  days: Array.from({ length: 7 }, (_, offset) => {
+    const dayIndex = offset + 1;
+    if (weekIndex < 4) return day(dayIndex, dayIndex === 1 ? workouts[0] : dayIndex === 3 ? workouts[1] : null);
+    const trainingWeek = resolveTrainingWeek(weekIndex).week;
+    const workoutForDay = workouts.find((workout) => trainingWeek.sessions.some((session) =>
+      session.day === dayIndex && session.workoutRef.kind === "swim" && session.workoutRef.programId === "foundation"
+      && session.workoutRef.programVersion === 2 && session.workoutRef.workoutId === workout.id,
+    )) ?? null;
+    return day(dayIndex, workoutForDay);
+  }),
 });
 
 // VOLT Swim Foundation v2. Источник: Swim-Training-plan.md пользователя.
@@ -179,7 +192,13 @@ export function getWorkout(program: SwimProgramDef, weekIndex: number, workoutId
 export function findWorkoutById(program: SwimProgramDef, workoutId: string) { for (const w of program.weeks) for (const d of w.days) if (d.workout?.id === workoutId) return { workout: d.workout, weekIndex: w.weekIndex, dayIndex: d.dayIndex }; return null; }
 function ordered(program: SwimProgramDef) { return program.weeks.flatMap((week) => week.days.flatMap((day) => day.workout ? [{ workout: day.workout, weekIndex: week.weekIndex, dayIndex: day.dayIndex }] : [])); }
 export function computeProgramProgress(program: SwimProgramDef, completedPlanKeys: ReadonlySet<string>, openDraftsByPlanKey: ReadonlyMap<string, { id: number; status: "active" | "awaiting_confirmation"; date: string }>, actualsByPlanKey: ReadonlyMap<string, SwimWorkoutActual> = new Map()): SwimProgramProgress {
-  const workouts: SwimWorkoutProgress[] = ordered(program).map(({ workout, weekIndex, dayIndex }) => { const key = swimWorkoutPlanKey(program, workout) ?? ""; const open = openDraftsByPlanKey.get(key); const status: SwimWorkoutProgressStatus = completedPlanKeys.has(key) ? "completed" : open?.status === "awaiting_confirmation" ? "awaiting_confirmation" : open?.status === "active" ? "in_progress" : "not_started"; return { workout, weekIndex, dayIndex, status, planKey: key, draftId: open?.id ?? null, draftDate: open?.date ?? null, actual: actualsByPlanKey.get(key) ?? null, calendar: null }; });
+  const workouts: SwimWorkoutProgress[] = ordered(program).map(({ workout, weekIndex, dayIndex }) => {
+    const candidates = swimWorkoutPlanKeyCandidates(program, workout);
+    const key = candidates.find((candidate) => completedPlanKeys.has(candidate) || openDraftsByPlanKey.has(candidate) || actualsByPlanKey.has(candidate)) ?? swimWorkoutPlanKey(program, workout) ?? "";
+    const open = openDraftsByPlanKey.get(key);
+    const status: SwimWorkoutProgressStatus = completedPlanKeys.has(key) ? "completed" : open?.status === "awaiting_confirmation" ? "awaiting_confirmation" : open?.status === "active" ? "in_progress" : "not_started";
+    return { workout, weekIndex, dayIndex, status, planKey: key, draftId: open?.id ?? null, draftDate: open?.date ?? null, actual: actualsByPlanKey.get(key) ?? null, calendar: null };
+  });
   const completedCount = workouts.filter((w) => w.status === "completed").length;
   const nextWorkout = workouts.find((w) => w.status === "in_progress" || w.status === "awaiting_confirmation") ?? workouts.find((w) => w.status === "not_started") ?? null;
   return { program, startedAt: null, completedCount, totalCount: workouts.length, currentWeekIndex: nextWorkout?.weekIndex ?? (workouts.at(-1)?.weekIndex ?? null), nextWorkout, workouts, calendarDays: [] };
