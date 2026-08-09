@@ -7,6 +7,7 @@ import { ActiveWorkout, type ActiveDraft } from "./active-workout";
 import { WeekPlanEditor } from "./week-plan-editor";
 import { buildWeekSchedule, sessionsForDay, weekRangeContaining, type HomeWeekSession, type ResolvedDayPlan } from "./week-schedule-model";
 import { isSwimSlot } from "@/lib/swim/schedule-sync";
+import { isCyclingSlot } from "@/lib/cycling";
 import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
 import { intervalTotalMeters, intervalTypeLabel, totalDistanceMeters } from "@/lib/swim/workout-engine";
 import type { ResolvedSwimSlot, SwimInterval, SwimWorkoutDef } from "@/lib/swim/types";
@@ -26,7 +27,7 @@ import { MoodSection, MoodSummaryCard } from "./mood-section";
 import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner, useMilestones } from "./milestones-section";
 import { useToast } from "./toast";
 import {
-  Apple, Bell, CalendarDays, Camera, ChartColumn, ChartNoAxesCombined, CheckCircle2, ChevronDown, Clock3, Droplets,
+  Apple, Bell, Bike, CalendarDays, Camera, ChartColumn, ChartNoAxesCombined, CheckCircle2, ChevronDown, Clock3, Droplets,
   Dumbbell, Flame, Footprints, Home as HomeIcon, Moon, PenLine, Play, ReceiptText,
   Menu, RefreshCw, Route, Sparkles, UserRound, Utensils, Waves, Zap,
 } from "lucide-react";
@@ -39,8 +40,10 @@ import {
 
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
 const isSwimSession=(session:HomeWeekSession)=>session.type==="Кардио"&&(session.title==="Бассейн"||session.id?.startsWith("swim-")===true);
+const isCyclingSession=(session:HomeWeekSession)=>isCyclingSlot(session);
 const sessionCompleted=(session:HomeWeekSession,date:string,workouts:any[])=>isSwimSession(session)
  ?workouts.some(workout=>workout.date===date&&String(workout.type||"").startsWith("Плавание"))
+ :isCyclingSession(session)?workouts.some(workout=>workout.date===date&&isCyclingSlot(workout))
  :workouts.some(workout=>workout.date===date&&workout.title===session.title);
 const NAV_ITEMS = [
   {id:"Сегодня",label:"Сегодня",mobilePlacement:"primary"},
@@ -80,14 +83,19 @@ export default function Home() {
   // автоматически открываться в универсальном <ActiveWorkout/> — их
   // активное/awaiting_confirmation состояние восстанавливает сама страница
   // /swim/workouts/[programId]/[workoutId].
-  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true);const open=(d.workoutDrafts||[]).find((draft:any)=>(draft.status==="active"||draft.status==="awaiting_confirmation")&&!String(draft.snapshot?.type||"").startsWith("Плавание"));if(open)setActiveWorkout(current=>current??open)}).catch(()=>{});
+  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true);const open=(d.workoutDrafts||[]).find((draft:any)=>(draft.status==="active"||draft.status==="awaiting_confirmation")&&!String(draft.snapshot?.type||"").startsWith("Плавание")&&!isCyclingSlot(draft.snapshot));if(open)setActiveWorkout(current=>current??open)}).catch(()=>{});
   // Общий resolver "какая тренировка Swim назначена сегодня" (lib/swim/services.ts:
   // resolveScheduledSwimWorkout) — та же функция, что использует /swim и /swim/workouts,
   // чтобы «Начать тренировку» на Главной открывало ровно ту же тренировку.
   const [swimToday,setSwimToday]=useState<ResolvedSwimSlot|null>(null);
   const loadSwimToday=()=>fetch("/api/swim/today").then(r=>r.ok?r.json():null).then(d=>setSwimToday(d?.slot??null)).catch(()=>setSwimToday(null));
   const router=useRouter();
-  useEffect(()=>{load();loadProgression();loadSwimToday()},[]);
+  useEffect(()=>{
+   load();loadProgression();loadSwimToday();
+   const query=new URLSearchParams(window.location.search),section=query.get("section");
+   const id=window.setTimeout(()=>{if(section&&NAV_ITEMS.some(item=>item.id===section)){setNav(section);if(section==="Аналитика"&&query.get("mode")==="coach")setAnalyticsMode("coach")}},0);
+   return()=>window.clearTimeout(id);
+  },[]);
   // Сброс во время рендера (а не в эффекте) — рекомендованный React-паттерн для
   // производного состояния при смене nav, без каскадного лишнего рендера.
   const [prevNav,setPrevNav]=useState(nav);
@@ -137,6 +145,7 @@ export default function Home() {
   const selectedPlan=selectedSessions.find(session=>session.id===selectedPlanSessionId)??selectedSessions[0];
   const isSelectedToday=selectedResolved.date===today;
   const isSelectedSwim=isSwimSession(selectedPlan);
+  const isSelectedCycling=isCyclingSession(selectedPlan);
   const selectedPlanCompleted=sessionCompleted(selectedPlan,selectedResolved.date,data.workouts||[]);
   const selectPlanDate=(date:string)=>{setSelectedPlanDate(date);setSelectedPlanSessionId(null)};
   // Для любого выбранного Swim-дня запрашиваем тот же календарный resolver,
@@ -187,6 +196,7 @@ export default function Home() {
   // расписанию бассейн, ведём через resolveScheduledSwimWorkout на тот же
   // /swim/workouts/[programId]/[workoutId], что открывают /swim и План Swim.
   const isTodaySwim=isSwimSession(todayPlan);
+  const isTodayCycling=isCyclingSession(todayPlan);
   const startTodayWorkout=()=>{
    if(todayPlan.type==="Отдых"){
     setSelectedPlanDate(today);
@@ -195,6 +205,7 @@ export default function Home() {
     window.scrollTo({top:0,behavior:"smooth"});
     return;
    }
+   if(isTodayCycling){router.push(`/cycling?date=${encodeURIComponent(todayResolved.date)}`);return}
    if(!isTodaySwim)return void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId);
    if(!swimToday){notify("Не удалось определить тренировку Swim на сегодня","warn");return}
    if(swimToday.kind==="unresolved"){notify("Сегодня запланирован бассейн, но тренировка Foundation не определена","warn");return}
@@ -204,6 +215,7 @@ export default function Home() {
   // Foundation. Для остальных выбранных дней сохраняется прежний универсальный
   // движок; его черновик по-прежнему создаётся датой «сегодня».
   const startSelectedWorkout=()=>{
+   if(isSelectedCycling){router.push(`/cycling?date=${encodeURIComponent(selectedResolved.date)}`);return}
    if(isSelectedSwim){
     if(!selectedSwim){notify("Не удалось определить тренировку Swim на выбранный день","warn");return}
     if(selectedSwim.kind==="unresolved"){notify("На этот день запланирован бассейн, но тренировка Foundation не определена","warn");return}
@@ -227,6 +239,7 @@ export default function Home() {
           )})}
           <span className="side-nav-divider">Мои модули</span>
           <Link href="/swim"><span aria-hidden="true"><Waves size={18} strokeWidth={2}/></span>VOLT Swim</Link>
+          <Link href="/cycling"><span aria-hidden="true"><Bike size={18} strokeWidth={2}/></span>VOLT Cycling</Link>
         </nav>
         <div className="side-bottom">
           <div className="streak"><span aria-hidden="true"><Zap size={20}/></span><div><b>{streak} {daysLabel(streak)}</b><small>серия активности</small></div></div>
@@ -273,11 +286,13 @@ export default function Home() {
             {todaySessions.length>1&&<div className="today-session-list" aria-label="Сессии на сегодня">{todaySessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} onClick={()=>{setSelectedPlanDate(today);setSelectedPlanSessionId(session.id??null);setNav("План")}}><span>{sessionCompleted(session,today,data.workouts||[])?"✓":String(index+1).padStart(2,"0")}</span><b>{session.title}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
             <div className="next-workout-meta">
               <span><Clock3 size={14}/>{todayPlan.time}</span>
-              <span><Dumbbell size={14}/>{todayPlan.exercises.length} упражнений</span>
+              <span>{isTodayCycling?<Bike size={14}/>:<Dumbbell size={14}/>} {todayPlan.exercises.length} {isTodayCycling?"этапа":"упражнений"}</span>
               {todayPlan.rounds>1&&<span><RefreshCw size={14}/>{todayPlan.rounds} круга</span>}
             </div>
             <div className="next-workout-actions">
-             {isTodaySwim
+             {isTodayCycling
+              ?<button className={todayPlanCompleted?"repeat-btn":"start-btn"} onClick={startTodayWorkout}><span aria-hidden="true">{todayPlanCompleted?<CheckCircle2 size={13}/>:<Bike size={13}/>}</span>{todayPlanCompleted?"Тренировка выполнена":openDraftToday?.status==="awaiting_confirmation"?"Подтвердить результат":openDraftToday?"Продолжить тренировку":"Открыть Cycling"}</button>
+              :isTodaySwim
               ?<button className={swimToday?.kind==="workout"&&swimToday.status==="completed"?"repeat-btn":"start-btn"} onClick={startTodayWorkout}><span aria-hidden="true">{swimToday?.kind==="workout"&&swimToday.status==="completed"?<CheckCircle2 size={13}/>:<Play size={12} fill="currentColor"/>}</span>{swimToday?.kind==="workout"?(swimToday.status==="completed"?"Тренировка выполнена":swimToday.status==="in_progress"?"Продолжить тренировку":swimToday.status==="awaiting_confirmation"?"Подтвердить результат":"Начать тренировку"):"Начать тренировку"}</button>
               :todayPlanCompleted?<button className="repeat-btn" onClick={startTodayWorkout}><span aria-hidden="true">↻</span>{todayPlan.type==="Отдых"?"Открыть план дня ещё раз":"Повторить тренировку"}</button>
               :openDraftToday?<button className="start-btn" onClick={startTodayWorkout}><span aria-hidden="true"><Play size={12} fill="currentColor"/></span>{todayPlan.type==="Отдых"?"Продолжить план дня":"Продолжить тренировку"}</button>
@@ -397,6 +412,7 @@ export default function Home() {
         {MOBILE_PRIMARY_ITEMS.map(({id,label})=>{const Icon=MOBILE_ICONS[id];return <button key={id} data-tour-id={id==="Аналитика"?"nav-analytics-mobile":undefined} className={nav===id?"active":""} onClick={()=>{if(id==="Аналитика")setAnalyticsMode("insights");setNav(id);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={20} strokeWidth={2}/></span>{label}</button>})}
         <button type="button" data-tour-id="mobile-nav-more" className={NAV_ITEMS.some(item=>item.mobilePlacement==="secondary"&&item.id===nav)?"active":""} aria-label="Открыть остальные разделы" aria-expanded={mobileMenu} onClick={()=>setMobileMenu(true)}><span aria-hidden="true"><Menu size={20} strokeWidth={2}/></span>Ещё</button>
         <Link className="mobile-nav-module" href="/swim"><span aria-hidden="true"><Waves size={20} strokeWidth={2}/></span>Swim</Link>
+        <Link className="mobile-nav-module" href="/cycling"><span aria-hidden="true"><Bike size={20} strokeWidth={2}/></span>Cycling</Link>
       </nav>
     </main></AuthGate>
   );
@@ -427,11 +443,12 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
  const nextResolved=nextEntry?.day??selectedResolved;
  const nextSession=nextEntry?.session??selectedPlan;
  const isSwim=isSwimSession(selectedPlan);
+ const isCycling=isCyclingSession(selectedPlan);
  const isRest=selectedPlan.type==="Отдых";
  const resolvedSwim=selectedSwim?.kind==="workout"?selectedSwim:null;
  const swimWorkout=resolvedSwim?.workout??null;
  const focusTitle=isSwim?(swimWorkout?.title??(selectedSwimLoading?"Загрузка тренировки…":"Тренировка не определена")):(selectedPlan.type==="Отдых"?"Отдых":selectedPlan.title);
- const focusType=isSwim?"VOLT Swim · Foundation":isRest?"День восстановления":selectedPlan.type;
+ const focusType=isSwim?"VOLT Swim · Foundation":isCycling?"VOLT Cycling · общий Plan":isRest?"День восстановления":selectedPlan.type;
  const actionMeta=isSwim?{
   label:selectedSwimLoading?"Загрузка…":resolvedSwim?.status==="completed"?"Тренировка выполнена":resolvedSwim?.status==="in_progress"?"Продолжить тренировку":resolvedSwim?.status==="awaiting_confirmation"?"Подтвердить результат":resolvedSwim?"Открыть тренировку":"Тренировка недоступна",
   cls:resolvedSwim?.status==="completed"?"repeat-btn":"start-btn",
@@ -459,12 +476,12 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
     {weekPlan.map(d=>{
      const state=d.locked?.completed?"done":d.date===today?"today":d.date<today?"past":"future";
      const sessions=sessionsForDay(d.scheduled);
-     const kind=d.scheduled.type==="Отдых"?"rest":sessions.length>1?"mixed":isSwimSlot(d.scheduled)?"swim":d.scheduled.type==="Силовая"?"strength":"cardio";
-     const DayIcon=kind==="swim"?Waves:kind==="strength"?Dumbbell:kind==="rest"?Moon:kind==="mixed"?Zap:Footprints;
+     const kind=d.scheduled.type==="Отдых"?"rest":sessions.length>1?"mixed":sessions.some(isCyclingSession)?"cycling":isSwimSlot(d.scheduled)?"swim":d.scheduled.type==="Силовая"?"strength":"cardio";
+     const DayIcon=kind==="swim"?Waves:kind==="cycling"?Bike:kind==="strength"?Dumbbell:kind==="rest"?Moon:kind==="mixed"?Zap:Footprints;
      return <button key={d.date} type="button" aria-pressed={d.date===selectedResolved.date} className={`plan-day ${state} ${kind}${d.date===selectedResolved.date?" selected":""}`} onClick={()=>onSelectDate(d.date)}>
       <span className="plan-day-date"><small>{d.original.d.slice(0,2).toUpperCase()}</small><b>{Number(d.date.slice(8,10))}</b></span>
       <span className="plan-day-symbol" aria-hidden="true"><DayIcon size={15}/></span>
-      <span className="plan-day-kind">{d.scheduled.type==="Отдых"?"Отдых":sessions.length>1?`${sessions.length} сессии`:isSwimSlot(d.scheduled)?"Swim":d.scheduled.optional?"Опционально":d.scheduled.type}</span>
+      <span className="plan-day-kind">{d.scheduled.type==="Отдых"?"Отдых":sessions.length>1?`${sessions.length} сессии`:kind==="cycling"?"Cycling":isSwimSlot(d.scheduled)?"Swim":d.scheduled.optional?"Опционально":d.scheduled.type}</span>
       <span className="plan-day-state">{d.locked?.completed?<><CheckCircle2 size={10}/>Готово</>:d.date===today?"Сегодня":d.changed?"Изменён":""}</span>
      </button>;
     })}
@@ -487,7 +504,7 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
      <div className="next-workout-meta">
       <span><Clock3 size={14}/>{swimWorkout?`~${swimWorkout.estimatedMinutes} мин`:isRest?"Без нагрузки":selectedPlan.time}</span>
       {swimWorkout?<><span><Waves size={14}/>{totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м</span><span><RefreshCw size={14}/>{swimWorkout.intervals.length} интервалов</span></>:isRest?<span><Moon size={14}/>Восстановление</span>:<>
-       <span><Dumbbell size={14}/>{selectedPlan.exercises.length} упражнений</span>
+       <span>{isCycling?<Bike size={14}/>:<Dumbbell size={14}/>} {selectedPlan.exercises.length} {isCycling?"этапа":"упражнений"}</span>
        {selectedPlan.rounds>1&&<span><RefreshCw size={14}/>{selectedPlan.rounds} круга</span>}
       </>}
      </div>
@@ -501,20 +518,20 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
      <p className="eyebrow">NEXT · ДАЛЬШЕ</p>
      <span className="plan-next-date">{dayLabel(nextResolved.date,today)}</span>
      <h3>{nextSession.title}</h3>
-     <p>{isSwimSession(nextSession)?"VOLT Swim":nextSession.type} · {nextSession.time}</p>
+     <p>{isSwimSession(nextSession)?"VOLT Swim":isCyclingSession(nextSession)?"VOLT Cycling":nextSession.type} · {nextSession.time}</p>
     </div>
     <button type="button" className="ghost-btn" onClick={()=>{onSelectDate(nextResolved.date);onSelectSession(nextSession.id??null)}}>Посмотреть день <span aria-hidden="true">→</span></button>
    </aside>
   </section>
 
   <section className="plan-day-exercises" id="plan-workout-composition">
-   <div className="section-head plan-section-heading"><div><p className="eyebrow">WORKOUT DETAILS</p><h3>{isSwim?(swimWorkout?.title??"VOLT Swim"):isRest?"Восстановление":selectedPlan.title}</h3></div><span>{swimWorkout?`${totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м · ${swimWorkout.intervals.length} интервалов`:isRest?"Спокойный день":`${selectedPlan.exercises.length} упражнений`}</span></div>
+   <div className="section-head plan-section-heading"><div><p className="eyebrow">WORKOUT DETAILS</p><h3>{isSwim?(swimWorkout?.title??"VOLT Swim"):isRest?"Восстановление":selectedPlan.title}</h3></div><span>{swimWorkout?`${totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м · ${swimWorkout.intervals.length} интервалов`:isRest?"Спокойный день":`${selectedPlan.exercises.length} ${isCycling?"этапа":"упражнений"}`}</span></div>
    {isSwim?(
     selectedSwimLoading?<div className="plan-swim-empty" aria-busy="true">Загружаем назначенную тренировку VOLT Swim…</div>:
     swimWorkout?<PlanSwimIntervals workout={swimWorkout}/>:<div className="plan-swim-empty">VOLT Swim не смог назначить тренировку Foundation на этот день. Измените день плана или откройте модуль Swim.</div>
    ):isRest?<div className="plan-rest-note"><span aria-hidden="true"><Moon size={22}/></span><div><b>Сегодня без тренировки</b><p>Восстановись и сохрани ритм недели. Следующее занятие уже отмечено выше.</p></div></div>:<>
     {selectedPlan.warmup&&<section className="plan-exercise-block"><header><div><span>01</span><div><p className="eyebrow">ПОДГОТОВКА</p><h4>Разминка</h4></div></div><small>{selectedPlan.warmup.length} упражнения</small></header><PlanExercises items={selectedPlan.warmup}/></section>}
-    <section className="plan-exercise-block"><header><div><span>{selectedPlan.warmup?"02":"01"}</span><div><p className="eyebrow">РАБОЧИЙ БЛОК</p><h4>Основная часть</h4></div></div><small>{selectedPlan.exercises.length} упражнений{selectedPlan.rounds>1?` · ${selectedPlan.rounds} круга`:""}</small></header><PlanExercises items={selectedPlan.exercises}/></section>
+    <section className="plan-exercise-block"><header><div><span>{selectedPlan.warmup?"02":"01"}</span><div><p className="eyebrow">РАБОЧИЙ БЛОК</p><h4>Основная часть</h4></div></div><small>{selectedPlan.exercises.length} {isCycling?"этапа":"упражнений"}{selectedPlan.rounds>1?` · ${selectedPlan.rounds} круга`:""}</small></header><PlanExercises items={selectedPlan.exercises}/></section>
    </>}
   </section>
 
@@ -533,8 +550,8 @@ function PlanProgramPhase({number,period,title,note,days}:{number:string;period:
  return <section className="plan-program-phase">
   <header><span>{number}</span><div><p className="eyebrow">{period}</p><h4>{title}</h4><p>{note}</p></div></header>
   <div className="plan-phase-rhythm">{days.map((day:any)=>{
-   const kind=day.type==="Отдых"?"rest":day.title==="Бассейн"||day.title?.includes("Плавание")?"swim":day.type==="Силовая"?"strength":"cardio";
-   const DayIcon=kind==="swim"?Waves:kind==="strength"?Dumbbell:kind==="rest"?Moon:Footprints;
+   const kind=day.type==="Отдых"?"rest":day.title==="Бассейн"||day.title?.includes("Плавание")?"swim":isCyclingSlot(day)?"cycling":day.type==="Силовая"?"strength":"cardio";
+   const DayIcon=kind==="swim"?Waves:kind==="cycling"?Bike:kind==="strength"?Dumbbell:kind==="rest"?Moon:Footprints;
    return <details key={`${day.day}-${day.title}`} className={`plan-phase-day ${kind}`}>
     <summary><span className="plan-phase-marker" aria-hidden="true"><DayIcon size={14}/></span><div><small>{day.day}</small><h5>{day.title}</h5><p>{day.type} · {day.time}</p></div><span className="plan-phase-open" aria-hidden="true">＋</span></summary>
     <div className="plan-phase-details">{day.warmup&&<><p className="plan-block-title">Разминка</p><PlanExercises items={day.warmup}/></>}<p className="plan-block-title">{day.type==="Отдых"?"План дня":"Основная часть"}</p><PlanExercises items={day.exercises}/></div>

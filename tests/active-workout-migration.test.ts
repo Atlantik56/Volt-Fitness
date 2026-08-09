@@ -29,6 +29,13 @@ test("миграция v16 (metrics_source) аддитивна: старые wor
  assert.equal(historical.metricsSource,"manual");
 });
 
+test("миграция v20 добавляет общий enum load_feedback, не переписывая историю",()=>{
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=20").get());
+ const historical=db.prepare("SELECT load_feedback loadFeedback FROM workout_logs WHERE title='Историческая'").get() as any;
+ assert.equal(historical.loadFeedback,"");
+ assert.throws(()=>db.prepare("UPDATE workout_logs SET load_feedback='diagnosis' WHERE title='Историческая'").run());
+});
+
 test("частичный unique index разрешает повтор после completed, но не два открытых черновика",()=>{
  const snapshot='{"title":"A","type":"Силовая","rounds":1,"exercises":[]}';
  db.prepare("INSERT INTO workout_drafts(date,plan_key,status,snapshot) VALUES (?,?,?,?)").run("2026-06-02","key","active",snapshot);

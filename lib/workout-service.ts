@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { buildCoachSummary, decideCoach, type CoachAction } from "@/lib/coach";
 import { buildExerciseProgression, shouldSuppressRepeat, type ProgressionAction, type ProgressionStatus } from "@/lib/progression-engine";
 import { targetMaxRepsFor } from "@/app/exercise-catalog";
+import { CYCLING_LOAD_FEEDBACK_VALUES, type CyclingLoadFeedback } from "@/lib/cycling";
 
 const dateOk = (x: any) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x);
 const num = (x: any, min = 0, max = 100000) => { const n = Number(x); return Number.isFinite(n) && n >= min && n <= max ? n : null };
@@ -128,7 +129,8 @@ function generateProgressionProposals(params: {
 
 export function saveWorkout(b: any): ActionResult {
  const duration = num(b.durationSeconds, 0, 86400), rest = num(b.restSeconds, 0, 86400), minHr = num(b.minHeartRate, 0, 250), avgHr = num(b.avgHeartRate, 0, 250), maxHr = num(b.maxHeartRate, 0, 250), calories = num(b.calories, 0, 10000), distance = num(b.distanceMeters, 0, 1000000), speed = num(b.avgSpeed, 0, 200), details = parseDetails(b.details);
- if (!dateOk(b.date) || !text(b.title) || !Array.isArray(b.completed) || duration === null || rest === null) return { ok: false, error: "Некорректная тренировка", status: 400 };
+ const loadFeedback:CyclingLoadFeedback = typeof b.loadFeedback === "string" ? b.loadFeedback : "";
+ if (!dateOk(b.date) || !text(b.title) || !Array.isArray(b.completed) || duration === null || rest === null || !(CYCLING_LOAD_FEEDBACK_VALUES as readonly string[]).includes(loadFeedback)) return { ok: false, error: "Некорректная тренировка", status: 400 };
  const workoutType = text(b.type, 40), painAfter = num(b.painAfter, 0, 10) || 0, effort = ["Легко", "Нормально", "Тяжело", "Боль"].includes(b.effort) ? b.effort : "";
  const metricsSource:MetricsSource = (METRICS_SOURCES as readonly string[]).includes(b.metricsSource) ? b.metricsSource : "manual";
  const notes = text(b.notes, 600);
@@ -136,7 +138,7 @@ export function saveWorkout(b: any): ActionResult {
  db.transaction(() => {
   const workout = db.prepare("INSERT INTO workout_logs (date,type,title,completed,rounds,duration_seconds,rest_seconds,details) VALUES (?,?,?,?,?,?,?,?)").run(b.date, workoutType, text(b.title), JSON.stringify(b.completed.slice(0, 200)), num(b.rounds, 1, 20) || 1, duration, rest, JSON.stringify(details));
   workoutId = Number(workout.lastInsertRowid);
-  db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=?,metrics_source=?,notes=? WHERE id=?").run(minHr || 0, avgHr || 0, maxHr || 0, calories || 0, distance || 0, speed || 0, effort, painAfter, metricsSource, notes, workoutId);
+  db.prepare("UPDATE workout_logs SET min_heart_rate=?,avg_heart_rate=?,max_heart_rate=?,calories=?,distance_meters=?,avg_speed=?,effort=?,pain_after=?,metrics_source=?,notes=?,load_feedback=? WHERE id=?").run(minHr || 0, avgHr || 0, maxHr || 0, calories || 0, distance || 0, speed || 0, effort, painAfter, metricsSource, notes, loadFeedback, workoutId);
   if (workoutType === "Силовая") {
    const grouped = groupStrengthDetails(details);
    const insert = db.prepare("INSERT INTO strength_logs (date,exercise,weight,reps,difficulty,workout_id) VALUES (?,?,?,?,?,?)");

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { Decoder, Stream } from "@garmin/fitsdk";
 import type { FileIdMesg, LapMesg, SessionMesg } from "@garmin/fitsdk";
 import { db } from "@/lib/db";
+import { isCyclingSlot } from "@/lib/cycling";
 
 export const MAX_FIT_FILE_SIZE=10_000_000;
 export type ImportSource="garmin_fit";
@@ -110,7 +111,7 @@ const dbDate=(value:string|null)=>value?asDate(value.includes("T")?value:`${valu
 const draftFamily=(type:string,title:string):ActivityFamily=>{
  const value=`${type} ${title}`.toLowerCase();
  if(value.includes("плав"))return "swim";
- if(value.includes("вел"))return "bike";
+ if(isCyclingSlot({type,title}))return "bike";
  if(value.includes("сил"))return "strength";
  if(value.includes("восстанов")||value.includes("отдых"))return "recovery";
  return "cardio";

@@ -1,3 +1,5 @@
+import { isCyclingSlot } from "@/lib/cycling";
+
 export const DEFAULT_EXERCISE_REST_SECONDS=45;
 export const WORKOUT_DRAFT_STORAGE_KEY="volt-active-workout";
 export const WORKOUT_DRAFT_VERSION=5;
@@ -46,7 +48,7 @@ export type WorkoutDraft={
 export function activityKindOf(plan:Pick<WorkoutPlan,"type"|"title">):ActivityKind {
   if(/отдых|восстановлен/i.test(plan.type))return "recovery";
   if(/плав|бассейн/i.test(plan.title))return "swim";
-  if(/велосип/i.test(plan.title))return "bike";
+  if(isCyclingSlot(plan))return "bike";
   return "strength";
 }
 

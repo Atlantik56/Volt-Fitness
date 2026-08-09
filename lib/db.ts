@@ -253,6 +253,10 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
  // определяется program_start, а поле только включает Swim flow. Схема и
  // записанное значение сохраняются для обратной совместимости.
  {version:19,sql:`ALTER TABLE profile ADD COLUMN swim_plan_started_at TEXT;`},
+ // VOLT Cycling — общий, а не discipline-specific, сигнал переносимости
+ // нагрузки. Пустая строка означает, что пользователь ещё не оставил feedback.
+ // Forward-only enum не меняет семантику отдельного числового pain_after.
+ {version:20,sql:`ALTER TABLE workout_logs ADD COLUMN load_feedback TEXT NOT NULL DEFAULT '' CHECK(load_feedback IN ('','calm','discomfort','pain'));`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { saveWorkout, WORKOUT_DETAIL_SOURCES, type ActionResult, type WorkoutDetailSource } from "@/lib/workout-service";
 import { normalizeSnapshot, type SnapshotExercise, type WorkoutSnapshot, type WorkoutSnapshotOrigin } from "@/lib/workout-snapshot";
 import { planKey } from "@/lib/plan-key";
+import { CYCLING_LOAD_FEEDBACK_VALUES, type CyclingLoadFeedback } from "@/lib/cycling";
 
 // normalizeSnapshot/planKey и связанные типы теперь определены в
 // lib/workout-snapshot.ts (pure) и lib/plan-key.ts (node:crypto) — см. их
@@ -19,6 +20,7 @@ export type DraftStatus="planned"|"active"|"awaiting_confirmation"|"completed"|"
 export type ExerciseResultSet={weight:number;reps:number};
 export type DraftConfirmation={
  source:"Garmin"|"Manual";duration:number;averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;
+ distanceMeters:number|null;averageSpeed:number|null;
  lastResults:Record<string,ExerciseResultSet[]>;
 };
 export type WorkoutDraft={id:number;date:string;planKey:string;status:DraftStatus;snapshot:WorkoutSnapshot;startedAt:string|null;finishedAt:string|null;confirmedAt:string|null;cancelledAt:string|null;workoutId:number|null;confirmation?:DraftConfirmation};
@@ -55,16 +57,21 @@ function lastResultsFor(draft:WorkoutDraft){
  return found;
 }
 function withConfirmation(draft:WorkoutDraft):WorkoutDraft{
- const imported=db.prepare(`SELECT duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories
+ const imported=db.prepare(`SELECT duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,metadata
   FROM workout_imports WHERE draft_id=? ORDER BY id DESC LIMIT 1`).get(draft.id) as any;
+ const importedMetadata=parseMetadata(imported?.metadata);
  const manualDuration=draft.startedAt&&draft.finishedAt?Math.max(0,Math.round((dbDate(draft.finishedAt)-dbDate(draft.startedAt))/1000)):0;
+ const importedDistance=finite(importedMetadata.distanceMeters,0,1000000);
+ const averageSpeed=importedDistance!==null&&Number(imported?.duration)>0?(importedDistance/1000)/(Number(imported.duration)/3600):null;
  return {...draft,confirmation:{
   source:imported?"Garmin":"Manual",duration:imported?.duration??manualDuration,
   averageHeartRate:imported?.averageHeartRate??null,maxHeartRate:imported?.maxHeartRate??null,calories:imported?.calories??null,
+  distanceMeters:importedDistance,averageSpeed,
   lastResults:lastResultsFor(draft),
  }};
 }
 const dbDate=(value:string)=>new Date(`${value.replace(" ","T")}Z`).getTime();
+const parseMetadata=(value:unknown):Record<string,any>=>{try{const parsed=JSON.parse(String(value??"{}"));return parsed&&typeof parsed==="object"?parsed:{}}catch{return {}}};
 
 export function startWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft}{
  if(!dateOk(body?.date))return {ok:false,error:"Некорректная дата",status:400};
@@ -116,9 +123,9 @@ export function cancelWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft}{
 
 export type ConfirmedExerciseSummary={name:string;source:WorkoutDetailSource;setCount:number};
 export type ConfirmationSummary={
- workoutId:number;duration:number;effort:string;painAfter:number;
+ workoutId:number;duration:number;effort:string;painAfter:number;loadFeedback:CyclingLoadFeedback;
  metricsSource:"manual"|"imported_metric";confirmationSource:"Garmin"|"Manual";
- averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;
+ averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;distanceMeters:number|null;averageSpeed:number|null;
  exercises:ConfirmedExerciseSummary[];
 };
 
@@ -130,18 +137,24 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;
  // граница боли 0–10, а не произвольный ввод без проверки.
  if(body?.effort!==undefined&&!EFFORT_VALUES.includes(body.effort))return {ok:false,error:"Некорректная оценка сложности",status:400};
  if(body?.painAfter!==undefined&&finite(body.painAfter,0,10)===null)return {ok:false,error:"Некорректное значение боли",status:400};
+ if(body?.loadFeedback!==undefined&&!(CYCLING_LOAD_FEEDBACK_VALUES as readonly string[]).includes(body.loadFeedback))return {ok:false,error:"Некорректная оценка переносимости нагрузки",status:400};
  // VOLT Swim Sprint 2 — плановая дистанция приходит из программы (не из FIT,
  // см. lib/swim/workout-engine.ts), поэтому подтверждается вместе с формой, а
  // не выводится задним числом. distanceMeters опционален — силовые/прочие
  // тренировки его не передают и получают прежнее distance_meters=0.
  if(body?.distanceMeters!==undefined&&finite(body.distanceMeters,0,1000000)===null)return {ok:false,error:"Некорректная дистанция",status:400};
+ if(body?.avgHeartRate!==undefined&&finite(body.avgHeartRate,20,250)===null)return {ok:false,error:"Некорректный средний пульс",status:400};
+ if(body?.maxHeartRate!==undefined&&finite(body.maxHeartRate,20,250)===null)return {ok:false,error:"Некорректный максимальный пульс",status:400};
+ if(body?.calories!==undefined&&finite(body.calories,0,10000)===null)return {ok:false,error:"Некорректные калории",status:400};
+ if(body?.avgSpeed!==undefined&&finite(body.avgSpeed,0,200)===null)return {ok:false,error:"Некорректная средняя скорость",status:400};
  if(body?.notes!==undefined&&typeof body.notes!=="string")return {ok:false,error:"Некорректная заметка",status:400};
  let result:ActionResult&{draft?:WorkoutDraft;summary?:ConfirmationSummary}={ok:false,error:"Черновик не найден или уже изменён",status:409};
  db.transaction(()=>{
   const raw=db.prepare(`${selectDraft} WHERE id=? AND status='awaiting_confirmation'`).get(id);
   if(!raw)return;
   const draft=rowToDraft(raw);
-  const imported=db.prepare("SELECT duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories FROM workout_imports WHERE draft_id=? ORDER BY id DESC LIMIT 1").get(id) as any;
+  const imported=db.prepare("SELECT duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,metadata FROM workout_imports WHERE draft_id=? ORDER BY id DESC LIMIT 1").get(id) as any;
+  const importedMetadata=parseMetadata(imported?.metadata);
   const duration=finite(imported?.duration??body?.durationSeconds,0,86400);
   if(duration===null){result={ok:false,error:"Некорректная длительность",status:400};return}
   const submitted=Array.isArray(body?.exercises)?body.exercises:draft.snapshot.exercises.map(exercise=>({name:exercise.name,sets:Array.from({length:exercise.sets??1},()=>({weight:exercise.recommendedWeight,reps:exercise.repMin??0})),skipped:false,added:false,source:"confirmed_as_planned" as const}));
@@ -175,18 +188,23 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;
   const metricsSource=imported?"imported_metric":"manual";
   const effort=EFFORT_VALUES.includes(body?.effort)?body.effort:"Нормально";
   const painAfter=finite(body?.painAfter,0,10)??0;
-  const distanceMeters=finite(body?.distanceMeters,0,1000000)??0;
+  const loadFeedback:CyclingLoadFeedback=(CYCLING_LOAD_FEEDBACK_VALUES as readonly string[]).includes(body?.loadFeedback)?body.loadFeedback:"";
+  const averageHeartRate=finite(imported?.averageHeartRate??body?.avgHeartRate,20,250);
+  const maxHeartRate=finite(imported?.maxHeartRate??body?.maxHeartRate,20,250);
+  const calories=finite(imported?.calories??body?.calories,0,10000);
+  const distanceMeters=finite(importedMetadata.distanceMeters??body?.distanceMeters,0,1000000);
+  const averageSpeed=finite(body?.avgSpeed,0,200)??(distanceMeters!==null&&duration>0?(distanceMeters/1000)/(duration/3600):null);
   const notes=typeof body?.notes==="string"?body.notes:"";
   const saved=saveWorkout({date:draft.date,title:draft.snapshot.title,type:draft.snapshot.type,rounds:draft.snapshot.rounds,
    completed:details.filter(x=>!x.skipped).map(x=>x.key),details,durationSeconds:duration,restSeconds:0,effort,painAfter,
-   avgHeartRate:imported?.averageHeartRate,maxHeartRate:imported?.maxHeartRate,calories:imported?.calories,metricsSource,
-   distanceMeters,notes});
+   avgHeartRate:averageHeartRate,maxHeartRate,calories,metricsSource,
+   distanceMeters,avgSpeed:averageSpeed,notes,loadFeedback});
   if(!saved.ok){result=saved;return}
   const workoutId=saved.workoutId!;
   db.prepare("UPDATE workout_drafts SET status='completed',confirmed_at=CURRENT_TIMESTAMP,workout_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_confirmation'").run(workoutId,id);
   result={ok:true,draft:rowToDraft(db.prepare(`${selectDraft} WHERE id=?`).get(id)),summary:{
-   workoutId,duration,effort,painAfter,metricsSource,confirmationSource:imported?"Garmin":"Manual",
-   averageHeartRate:imported?.averageHeartRate??null,maxHeartRate:imported?.maxHeartRate??null,calories:imported?.calories??null,
+   workoutId,duration,effort,painAfter,loadFeedback,metricsSource,confirmationSource:imported?"Garmin":"Manual",
+   averageHeartRate,maxHeartRate,calories,distanceMeters,averageSpeed,
    exercises:exerciseSummaries,
   }};
  })();
