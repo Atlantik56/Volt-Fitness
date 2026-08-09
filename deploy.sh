@@ -12,6 +12,7 @@ old_sha="$(git rev-parse HEAD)"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 backup_name="volt-${timestamp}-${old_sha:0:8}.sqlite"
 install -d -m 700 "$BACKUP_DIR"
+find "$BACKUP_DIR" -type f -name 'volt-*.sqlite' -exec chmod 600 {} +
 
 # SQLite online backup: consistent even while the current container is serving traffic.
 container_id="$(docker compose ps -q volt)"
