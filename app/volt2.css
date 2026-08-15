@@ -92,6 +92,14 @@ body:has(.auth-screen),body:has(.volt-widget-page){
     radial-gradient(125% 88% at 58% 4%,rgba(6,8,10,.2) 0%,rgba(6,8,10,.54) 44%,rgba(6,8,10,.84) 100%),
     linear-gradient(180deg,rgba(6,8,10,.24) 0%,rgba(6,8,10,.5) 52%,rgba(6,8,10,.7) 100%);
 }
+/* Home использует фон как полноэкранную сцену, как отдельные спортивные
+   модули: справа зал остаётся открытым, затемнение концентрируется под текстом
+   и внизу, где начинаются данные. Изображение по-прежнему одно на всю страницу. */
+.app-shell:not(.swim-shell):has(.hero)::after{
+  background:
+    linear-gradient(90deg,rgba(5,8,9,.78) 0%,rgba(5,8,9,.42) 35%,rgba(5,8,9,.08) 64%,rgba(5,8,9,.25) 100%),
+    linear-gradient(0deg,rgba(5,8,9,.82) 0%,rgba(5,8,9,.28) 48%,rgba(5,8,9,.12) 100%);
+}
 @media(max-width:760px){
   .app-shell:not(.swim-shell)::before{background-position:68% center}
   body:has(.auth-screen),body:has(.volt-widget-page){background-position:68% center}
@@ -99,6 +107,11 @@ body:has(.auth-screen),body:has(.volt-widget-page){
     background:
       radial-gradient(150% 78% at 58% 2%,rgba(6,8,10,.3) 0%,rgba(6,8,10,.66) 46%,rgba(6,8,10,.9) 100%),
       linear-gradient(180deg,rgba(6,8,10,.38) 0%,rgba(6,8,10,.64) 52%,rgba(6,8,10,.8) 100%);
+  }
+  .app-shell:not(.swim-shell):has(.hero)::after{
+    background:
+      linear-gradient(90deg,rgba(5,8,9,.42),rgba(5,8,9,.08) 62%,rgba(5,8,9,.3)),
+      linear-gradient(0deg,rgba(5,8,9,.78) 0%,rgba(5,8,9,.3) 52%,rgba(5,8,9,.16) 100%);
   }
 }
 
@@ -153,28 +166,28 @@ body:has(.auth-screen),body:has(.volt-widget-page){
    сильнее всего просматривается общий фон зала, за счёт чего Hero остаётся
    главным визуальным элементом, не присваивая себе изображение. */
 .hero{
-  position:relative;height:auto;min-height:clamp(300px,36vh,382px);
+  position:relative;height:auto;min-height:clamp(440px,57vh,590px);
   display:flex;align-items:center;
-  margin-bottom:var(--v2-section-gap);
-  padding:clamp(26px,3vw,44px);
-  border:1px solid var(--v2-border);border-radius:var(--v2-radius-lg);overflow:hidden;
-  background:var(--v2-glass-hero);
-  backdrop-filter:blur(22px) saturate(1.15);
-  box-shadow:var(--v2-inset),var(--v2-shadow);
+  margin-bottom:0;
+  padding:clamp(34px,4vw,58px) clamp(6px,1vw,16px) clamp(150px,18vh,190px);
+  border:0;border-radius:0;overflow:visible;
+  background:transparent;
+  backdrop-filter:none;
+  box-shadow:none;
 }
 /* Локальное затемнение под текстом — единственный дополнительный слой, и
    только под левой третью, где живёт заголовок. Фон должен мягко пройти
    сквозь стекло, а не исчезнуть под второй непрозрачной панелью. */
 .hero-shade{position:absolute;inset:0;pointer-events:none;background:
-  linear-gradient(100deg,rgba(6,8,10,.48) 0%,rgba(6,8,10,.2) 42%,rgba(6,8,10,0) 74%)}
+  radial-gradient(ellipse 54% 66% at 16% 46%,rgba(4,7,8,.64),rgba(4,7,8,.2) 58%,transparent 100%)}
 /* inset:auto обязателен: в globals.css у .hero-content заданы абсолютные
    смещения (в т.ч. bottom:78px на мобильной ширине). На position:relative
    они сдвигали бы блок и обрезали верх заголовка. */
-.hero-content{position:relative;z-index:1;inset:auto;margin:0;padding:0;width:100%;max-width:none;background:none;border:0;box-shadow:none;backdrop-filter:none}
+.hero-content{position:relative;z-index:1;inset:auto;margin:0;padding:0;width:100%;max-width:600px;background:none;border:0;box-shadow:none;backdrop-filter:none;text-shadow:0 3px 28px rgba(0,0,0,.95)}
 .hero-content .eyebrow{color:#8d959c;letter-spacing:.18em;margin:0 0 16px}
 /* Заголовок ограничен по ширине в символах — переносы получаются
    естественными на любой длине мотивационной строки. */
-.hero h2{max-width:19ch;margin:0 0 16px;font-size:clamp(23px,2.3vw,31px);font-weight:600;font-style:normal;line-height:1.24;letter-spacing:-.024em;color:#fff}
+.hero h2{max-width:18ch;margin:0 0 18px;font-size:clamp(34px,4.1vw,56px);font-weight:620;font-style:normal;line-height:1.06;letter-spacing:-.045em;color:#fff}
 .hero h2 em{font-style:normal;-webkit-text-stroke:0;color:var(--lime)}
 .hero-sub{margin:0 0 clamp(22px,2.4vw,30px);color:#a8b0b6;font-size:13.5px;line-height:1.65;max-width:34ch}
 .hero-actions{gap:12px}
@@ -184,15 +197,15 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .hero .start-btn span{width:25px;height:25px;background:rgba(9,12,6,.2);color:#0b0e07}
 .hero-content .pill,.hero .coach-note{display:none}
 @media(max-width:760px){
-  /* Высота по содержимому + скромный минимум: иначе под CTA остаётся
-     крупная пустая зона из одной фотографии. */
-  .hero{min-height:0;padding:22px;border-radius:var(--v2-radius-md)}
+  /* На mobile сохраняем полноценную атмосферную сцену: поверх неё находятся
+     только главный смысл и CTA, а данные входят снизу отдельным стеклом. */
+  .hero{min-height:500px;align-items:flex-start;padding:44px 0 150px;border-radius:0}
   /* Mobile допускает более плотное локальное затемнение (05-glass-system.md),
      здесь текст занимает всю ширину поверх кадрированного фона. */
-  .hero-shade{background:linear-gradient(0deg,rgba(6,8,10,.66) 0%,rgba(6,8,10,.36) 58%,rgba(6,8,10,.16) 100%)}
-  .hero h2{max-width:none;font-size:clamp(21px,5.6vw,26px)}
-  .hero-sub{max-width:none;font-size:13px;margin-bottom:20px}
-  .hero .start-btn{width:100%;justify-content:center}
+  .hero-shade{inset:-20px -16px 0;background:radial-gradient(ellipse 105% 54% at 8% 20%,rgba(4,7,8,.62),rgba(4,7,8,.16) 64%,transparent 100%)}
+  .hero h2{max-width:12ch;font-size:clamp(34px,10.6vw,44px)}
+  .hero-sub{max-width:28ch;font-size:13px;margin-bottom:22px}
+  .hero .start-btn{width:auto;min-width:236px;justify-content:center}
   /* Заголовок получает всю ширину, действия уходят на свою строку —
      иначе «Добрый вечер, Илья» зажимается чипом Coach. */
   .topbar{flex-direction:column;align-items:stretch;gap:12px}
@@ -222,6 +235,8 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 
 /* ---------- Сегодняшняя тренировка: поддерживает Hero, не спорит с ним ---------- */
 .today-focus{display:grid;grid-template-columns:1.75fr 1fr;gap:var(--v2-gap);margin-bottom:var(--v2-section-gap)}
+.content:has(> .hero) .topbar{margin-bottom:0}
+.content:has(> .hero) .today-focus{position:relative;z-index:2;margin-top:clamp(-176px,-17vh,-138px)}
 /* Второй по значимости элемент после Hero — компактнее прежнего: меньше
    внутренних отступов и вертикальных зазоров между заголовком/мета/CTA. */
 /* justify-content:center — .today-focus стретчит обе колонки под высоту
