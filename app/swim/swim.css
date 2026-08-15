@@ -1280,3 +1280,122 @@
   }
   .swim-shell :is(a,button,summary):active,.swim-home-card:hover,.swim-kpi-card:hover,.swim-history-entry.interactive:hover,.swim-records-card:hover{transform:none!important}
 }
+
+/* Swim Home — atmospheric pool composition, 2026-08-15.
+   The existing pool image becomes the product scene. This section only changes
+   the Home composition; every value and action still comes from the established
+   /api/swim data and workout routes. */
+.swim-shell:has(.swim-home){
+  background:#01070c;
+}
+.swim-shell:has(.swim-home)::before{
+  background:
+    linear-gradient(90deg,rgba(0,6,11,.88) 0%,rgba(0,8,15,.6) 30%,rgba(0,10,18,.17) 63%,rgba(0,6,12,.5) 100%),
+    linear-gradient(180deg,rgba(0,5,10,.24) 0%,rgba(0,7,13,.08) 42%,rgba(0,7,13,.48) 76%,rgba(0,7,13,.64) 100%),
+    url('/swim/pool-background-v1.png') center center/cover no-repeat;
+}
+.swim-content:has(.swim-home){padding:0 32px 64px}
+.swim-home{max-width:1420px;margin:0 auto}
+.swim-home-stage{min-height:100svh;padding:28px 0 26px;display:flex;flex-direction:column}
+.swim-home .swim-home-header{position:relative;z-index:2;align-items:flex-start;margin-bottom:18px}
+.swim-home .swim-home-header h1{margin:0;font-size:clamp(48px,5.3vw,78px);line-height:.88;letter-spacing:-.07em;text-shadow:0 5px 34px rgba(0,0,0,.9)}
+.swim-home .swim-home-header h1 span{font-weight:860}
+.swim-home .swim-home-header h1 em{color:#21cfff;font-style:normal;font-weight:860;text-shadow:0 0 28px rgba(33,207,255,.22)}
+.swim-home .swim-home-header>div>p:last-child{margin-top:13px;color:rgba(232,245,250,.72);font-size:15px;letter-spacing:.01em;text-shadow:0 2px 18px rgba(0,0,0,.9)}
+.swim-home .swim-breadcrumb{color:rgba(230,242,248,.62);letter-spacing:.07em;text-shadow:0 2px 15px rgba(0,0,0,.9)}
+.swim-home .swim-header-tools button,.swim-home .swim-header-tools>span{border-color:rgba(127,221,255,.18);background:rgba(1,12,20,.42);box-shadow:inset 0 1px rgba(255,255,255,.05);backdrop-filter:blur(16px) saturate(112%)}
+.swim-home .swim-local-nav{position:relative;z-index:2;margin-bottom:0;border-color:rgba(114,211,246,.18);background:rgba(1,12,20,.36);box-shadow:0 14px 36px rgba(0,0,0,.16);backdrop-filter:blur(16px) saturate(112%)}
+.swim-home .swim-local-nav a.active{color:#dcfaff;background:rgba(10,127,174,.26);border:1px solid rgba(83,219,255,.22);box-shadow:inset 0 0 20px rgba(33,207,255,.08)}
+
+.swim-home-hero{flex:1;min-height:390px;display:grid;grid-template-columns:minmax(420px,540px) minmax(280px,1fr);grid-template-rows:1fr;gap:clamp(34px,6vw,94px);align-items:end;padding:clamp(40px,7vh,78px) 0 24px}
+.swim-home-hero-copy{grid-column:2;align-self:start;justify-self:end;max-width:440px;padding-top:18px;text-align:right;text-shadow:0 3px 24px rgba(0,0,0,.95)}
+.swim-home-hero-copy p{margin:0 0 13px;color:rgba(116,225,255,.88);font-size:10px;font-weight:800;letter-spacing:.2em}
+.swim-home-hero-copy strong{display:block;font-size:clamp(29px,3.5vw,49px);line-height:1.02;letter-spacing:-.045em}
+.swim-home-hero-copy span{display:block;margin-top:13px;color:rgba(224,240,247,.68);font-size:14px;line-height:1.5}
+.swim-home .swim-next-card{grid-column:1;grid-row:1;align-self:end;width:100%;min-height:0;padding:28px 30px 30px;border-radius:24px;border-color:rgba(111,220,255,.32);background:linear-gradient(145deg,rgba(5,30,44,.61),rgba(1,13,22,.42));box-shadow:inset 0 1px rgba(226,249,255,.14),inset 0 -45px 85px rgba(0,94,139,.04),0 30px 78px rgba(0,0,0,.38);backdrop-filter:blur(15px) saturate(118%)}
+.swim-home .swim-next-card:hover{box-shadow:inset 0 1px rgba(226,249,255,.18),inset 0 -45px 85px rgba(0,116,164,.07),0 34px 82px rgba(0,0,0,.44)}
+.swim-home .swim-next-top{align-items:center;color:#f1f8fb;font-size:11px;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.swim-home .swim-next-top span{padding:6px 9px;border:1px solid rgba(57,220,255,.22);border-radius:999px;color:#8eeaff;background:rgba(14,141,184,.1);font-size:10px;letter-spacing:.02em;text-transform:none}
+.swim-home .swim-next-time{justify-content:flex-start;margin:20px 0 8px;color:rgba(206,227,236,.6)}
+.swim-home .swim-next-card h2{margin:0 0 12px;font-size:clamp(32px,3.7vw,48px);line-height:1;letter-spacing:-.05em}
+.swim-home .swim-goal-pill{color:#9deeff;background:rgba(6,119,162,.2);border:1px solid rgba(73,208,255,.16)}
+.swim-home .swim-next-goal{max-width:48ch;margin:13px 0;color:rgba(225,239,245,.72);font-size:13px;line-height:1.55}
+.swim-home .swim-next-meta{margin:18px 0 22px;color:#eef8fb;font-size:14px}
+.swim-home .swim-primary-action{min-height:48px;padding-inline:21px;border-radius:11px;background:linear-gradient(135deg,#32d7ff,#078eee 55%,#0867dd);box-shadow:0 13px 34px rgba(0,132,231,.3),inset 0 1px rgba(255,255,255,.3)}
+.swim-home .swim-secondary-action{min-height:48px;border-radius:11px;background:rgba(4,22,32,.38);border-color:rgba(137,218,246,.16);backdrop-filter:blur(10px)}
+
+.swim-home-stage>.swim-kpi-grid{margin:0;padding:7px;gap:0;border:1px solid rgba(103,203,239,.22);border-radius:18px;background:rgba(1,12,20,.42);box-shadow:inset 0 1px rgba(238,252,255,.07),0 24px 62px rgba(0,0,0,.28);backdrop-filter:blur(18px) saturate(112%)}
+.swim-home-stage>.swim-kpi-grid .swim-kpi-card{height:100px;padding:14px 17px;border:0;border-left:1px solid rgba(118,207,237,.12);border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}
+.swim-home-stage>.swim-kpi-grid .swim-kpi-card:first-child{border-left:0}
+.swim-home-stage>.swim-kpi-grid .swim-kpi-card:hover{transform:none;border-color:rgba(118,207,237,.12);box-shadow:none}
+.swim-home-stage>.swim-kpi-grid .swim-kpi-head span{background:transparent}
+.swim-home-stage>.swim-kpi-grid .swim-kpi-card p{margin-top:9px;font-size:24px}
+.swim-home-stage>.swim-kpi-grid .swim-kpi-card::after{display:none}
+
+.swim-home-data{position:relative;margin:0 -32px -64px;padding:70px 32px 84px;background:linear-gradient(180deg,rgba(1,7,12,.18),rgba(1,7,12,.38) 190px,rgba(1,7,12,.5))}
+.swim-home-data::before{content:"";position:absolute;inset:0 32px auto;height:1px;background:linear-gradient(90deg,transparent,rgba(82,206,248,.35),transparent)}
+.swim-home-data-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin:0 0 22px}
+.swim-home-data-heading p{margin:0 0 8px;color:#21cfff;font-size:10px;font-weight:850;letter-spacing:.18em}
+.swim-home-data-heading h2{margin:0;font-size:clamp(29px,3vw,42px);letter-spacing:-.045em}
+.swim-home-data-heading>span{padding-bottom:6px;color:#82939d;font-size:11px}
+.swim-home-data .swim-home-grid{gap:14px}
+.swim-home-data .swim-week-volume{grid-column:span 6;min-height:315px;padding:22px}
+.swim-home-data .swim-ai-card,.swim-home-data .swim-last-card{grid-column:span 3;min-height:315px;padding:22px}
+.swim-home-data .swim-quick-card,.swim-home-data .swim-balance-card,.swim-home-data .swim-record-card{grid-column:span 4;min-height:220px;padding:20px}
+.swim-home-data .swim-recent-card{margin-top:4px}
+
+@media(prefers-reduced-transparency:reduce){
+  .swim-home .swim-next-card,.swim-home-stage>.swim-kpi-grid,.swim-home .swim-local-nav,.swim-home .swim-header-tools button,.swim-home .swim-header-tools>span{background:#061722;backdrop-filter:none}
+}
+
+@media(max-width:1100px){
+  .swim-home-hero{grid-template-columns:minmax(380px,500px) 1fr;gap:30px}
+  .swim-home-data .swim-week-volume{grid-column:span 7}
+  .swim-home-data .swim-ai-card{grid-column:span 5}
+  .swim-home-data .swim-last-card,.swim-home-data .swim-quick-card,.swim-home-data .swim-balance-card,.swim-home-data .swim-record-card{grid-column:span 6}
+}
+
+@media(max-width:820px){
+  .swim-shell:has(.swim-home)::before{background:linear-gradient(180deg,rgba(0,6,11,.24) 0%,rgba(0,7,13,.34) 33%,rgba(0,7,13,.58) 66%,rgba(0,7,13,.68) 100%),url('/swim/pool-background-v1.png') center center/cover no-repeat}
+  .swim-content:has(.swim-home){padding:0 0 100px}
+  .swim-home-stage{min-height:auto;padding:18px 16px 26px}
+  .swim-home .swim-home-header{gap:14px;margin-bottom:14px}
+  .swim-home .swim-home-header h1{font-size:clamp(44px,13vw,64px)}
+  .swim-home .swim-header-tools{width:auto;justify-content:flex-start}
+  .swim-home .swim-header-tools>span{flex:0 1 auto}
+  .swim-home .swim-local-nav{width:100%;border:1px solid rgba(114,211,246,.18);padding:4px;background:rgba(1,12,20,.42)}
+  .swim-home .swim-local-nav a{padding-inline:12px}
+  .swim-home-hero{min-height:560px;display:flex;flex-direction:column;justify-content:space-between;gap:36px;padding:36px 0 18px}
+  .swim-home-hero-copy{align-self:flex-end;max-width:330px;padding:0;text-align:right}
+  .swim-home-hero-copy strong{font-size:34px}
+  .swim-home .swim-next-card{width:min(100%,540px);padding:24px;align-self:flex-start}
+  .swim-home-stage>.swim-kpi-grid{display:grid;grid-template-columns:repeat(5,minmax(144px,1fr));overflow-x:auto;scroll-snap-type:x proximity;overscroll-behavior-inline:contain;scrollbar-width:none}
+  .swim-home-stage>.swim-kpi-grid::-webkit-scrollbar{display:none}
+  .swim-home-stage>.swim-kpi-grid .swim-kpi-card{min-width:144px;scroll-snap-align:start}
+  .swim-home-data{margin:0;padding:56px 16px 48px}
+  .swim-home-data::before{inset-inline:16px}
+  .swim-home-data .swim-home-grid{grid-template-columns:1fr}
+  .swim-home-data .swim-home-grid>.swim-home-card{grid-column:1/-1;min-height:0}
+  .swim-home-data .swim-week-volume{min-height:315px}
+}
+
+@media(max-width:520px){
+  .swim-home-stage{padding-inline:14px}
+  .swim-home .swim-home-header{display:grid;grid-template-columns:1fr auto}
+  .swim-home .swim-home-header h1{font-size:48px}
+  .swim-home .swim-home-header>div>p:last-child{font-size:13px}
+  .swim-home .swim-header-tools{grid-column:2;grid-row:1;align-self:start}
+  .swim-home .swim-header-tools>span,.swim-home .swim-header-tools button:first-child{display:none}
+  .swim-home .swim-home-hero{min-height:548px;padding-top:28px}
+  .swim-home-hero-copy{max-width:270px}
+  .swim-home-hero-copy p{font-size:8px}
+  .swim-home-hero-copy strong{font-size:30px}
+  .swim-home-hero-copy span{font-size:12px}
+  .swim-home .swim-next-card{padding:22px 19px;border-radius:20px}
+  .swim-home .swim-next-card h2{font-size:34px}
+  .swim-home .swim-next-goal{font-size:12px}
+  .swim-home .swim-next-meta{flex-wrap:wrap;gap:7px;font-size:12px}
+  .swim-home .swim-next-actions{display:grid;grid-template-columns:1fr}
+  .swim-home .swim-primary-action,.swim-home .swim-secondary-action{width:100%}
+  .swim-home-data-heading{align-items:flex-start;flex-direction:column;gap:4px}
+}

@@ -53,32 +53,31 @@ export default function SwimHomePage() {
 
   return (
     <div className="swim-home">
-      <header className="swim-home-header">
-        <div>
-          <p className="swim-breadcrumb">VOLT / Тренировки / <b>Swim</b></p>
-          <h1>VOLT Swim</h1>
-          <p>Плавай умнее. Становись сильнее.</p>
-        </div>
-        <div className="swim-header-tools" aria-label="Состояние синхронизации">
-          <button type="button" aria-label="Календарь"><CalendarDays size={19} /></button>
-          <span><RefreshCw size={14} /> Синхронизировано <i /></span>
-          <button type="button" aria-label="Уведомления"><Bell size={18} /><i /></button>
-        </div>
-      </header>
+      <section className="swim-home-stage" aria-labelledby="swim-home-title">
+        <header className="swim-home-header">
+          <div>
+            <p className="swim-breadcrumb">VOLT / Тренировки / <b>Swim</b></p>
+            <h1 id="swim-home-title"><span>VOLT</span> <em>SWIM</em></h1>
+            <p>Плавай умнее. Становись сильнее.</p>
+          </div>
+          <div className="swim-header-tools" aria-label="Состояние синхронизации">
+            <button type="button" aria-label="Календарь"><CalendarDays size={19} /></button>
+            <span><RefreshCw size={14} /> Синхронизировано <i /></span>
+            <button type="button" aria-label="Уведомления"><Bell size={18} /><i /></button>
+          </div>
+        </header>
 
-      <SwimNavigation />
+        <SwimNavigation />
 
-      {error && <div className="swim-home-error" role="alert">Не удалось загрузить данные. <button onClick={load}>Повторить</button></div>}
+        {error && <div className="swim-home-error" role="alert">Не удалось загрузить данные. <button onClick={load}>Повторить</button></div>}
 
-      <section className="swim-kpi-grid" aria-label="Показатели за неделю">
-        <KpiCard icon={<Waves />} label="Объём (7 дней)" value={data.weeklyActivity.totalDistanceMeters || null} kind="distance" loading={loading} accent="cyan" />
-        <KpiCard icon={<CalendarDays />} label="Тренировки" value={data.weeklyActivity.swimCount || null} kind="integer" sub={data.weeklyActivity.swimCount ? "подтверждено" : "Нет заплывов"} loading={loading} accent="blue" />
-        <KpiCard icon={<Clock3 />} label="Время" value={data.weeklyActivity.totalDurationSeconds || null} kind="duration" loading={loading} accent="blue" />
-        <KpiCard icon={<Flame />} label="Калории" value={data.weeklyActivity.totalCalories || null} kind="calories" loading={loading} accent="orange" />
-        <KpiCard icon={<Heart />} label="Ср. пульс" value={data.weeklyActivity.avgHeartRate} kind="heart" loading={loading} accent="red" />
-      </section>
+        <div className="swim-home-hero">
+          <div className="swim-home-hero-copy">
+            <p>POOL TRAINING SYSTEM · FOUNDATION</p>
+            <strong>Глубина держит ритм.</strong>
+            <span>Спокойная техника. Чистое движение. Своя дистанция.</span>
+          </div>
 
-      <section className="swim-home-grid">
         <article className="swim-home-card swim-next-card">
           <div className="swim-next-top"><b>Следующая тренировка</b><span>{nextWorkoutBadge(next)}</span></div>
           {!data.planStartedAt ? (
@@ -95,6 +94,24 @@ export default function SwimHomePage() {
             </div>
           </> : <div className="swim-card-empty"><h2>План завершён</h2><p>Следующей тренировки Foundation сейчас нет.</p><Link href="/swim/workouts">Открыть план</Link></div>}
         </article>
+        </div>
+
+        <section className="swim-kpi-grid" aria-label="Показатели за неделю">
+          <KpiCard icon={<Waves />} label="Объём (7 дней)" value={data.weeklyActivity.totalDistanceMeters || null} kind="distance" loading={loading} accent="cyan" />
+          <KpiCard icon={<CalendarDays />} label="Тренировки" value={data.weeklyActivity.swimCount || null} kind="integer" sub={data.weeklyActivity.swimCount ? "подтверждено" : "Нет заплывов"} loading={loading} accent="blue" />
+          <KpiCard icon={<Clock3 />} label="Время" value={data.weeklyActivity.totalDurationSeconds || null} kind="duration" loading={loading} accent="blue" />
+          <KpiCard icon={<Flame />} label="Калории" value={data.weeklyActivity.totalCalories || null} kind="calories" loading={loading} accent="orange" />
+          <KpiCard icon={<Heart />} label="Ср. пульс" value={data.weeklyActivity.avgHeartRate} kind="heart" loading={loading} accent="red" />
+        </section>
+      </section>
+
+      <section className="swim-home-data" aria-labelledby="swim-home-data-title">
+        <header className="swim-home-data-heading">
+          <div><p>ПОСЛЕ РАЗВОРОТА</p><h2 id="swim-home-data-title">Ритм недели</h2></div>
+          <span>Только подтверждённые данные</span>
+        </header>
+
+        <div className="swim-home-grid">
 
         <article className="swim-home-card swim-week-volume">
           <CardTitle title="Объём за неделю" icon={<Activity size={18} />} />
@@ -136,6 +153,7 @@ export default function SwimHomePage() {
           <CardTitle title="Недавние тренировки" action="Смотреть все" />
           {data.recentSwims.length ? <div className="swim-recent-table">{data.recentSwims.map((session) => <div key={session.id}><time>{shortDate(session.date)}</time><b>{session.title}</b><span>{formatMeters(session.distanceMeters ?? 0) ?? "—"}</span><span>{formatDuration(session.durationSeconds ?? 0) ?? "—"}</span><span>{session.paceLabel ? `${session.paceLabel}/100м` : "—"}</span><span><Heart size={13} /> {session.avgHeartRate ?? "—"}</span><em>{session.effort ?? "Без оценки"}</em></div>)}</div> : <div className="swim-card-empty compact"><Waves size={30} /><b>Тренировок пока нет</b><p>Завершённые и подтверждённые заплывы появятся здесь.</p></div>}
         </article>
+        </div>
       </section>
     </div>
   );
