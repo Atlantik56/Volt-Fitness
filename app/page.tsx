@@ -26,12 +26,12 @@ import { computeEveningWeeklyStats } from "../lib/evening";
 import { MoodSection, MoodSummaryCard } from "./mood-section";
 import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner, useMilestones } from "./milestones-section";
 import { useToast } from "./toast";
+import { VOLT_NAV_ITEMS, VoltGlobalNavigation, type VoltSection } from "./volt-global-navigation";
 import {
-  Apple, Bell, Bike, CalendarDays, Camera, ChartColumn, ChartNoAxesCombined, CheckCircle2, ChevronDown, Clock3, Droplets,
-  Dumbbell, Flame, Footprints, Home as HomeIcon, Moon, PenLine, Play, ReceiptText,
-  Menu, RefreshCw, Route, Sparkles, UserRound, Utensils, Waves, Zap,
+  Bell, Bike, CalendarDays, Camera, ChartColumn, CheckCircle2, ChevronDown, Clock3, Droplets,
+  Dumbbell, Flame, Footprints, Moon, PenLine, Play, ReceiptText,
+  RefreshCw, Route, Sparkles, Utensils, Waves, Zap,
 } from "lucide-react";
-import Link from "next/link";
 import {
   MEASUREMENT_KEYS, METRIC_LABELS, METRIC_UNITS, PERIODS, PERIOD_LABELS,
   buildHistory, computeMetricCards, computeMetricStats, computeProgressSummary, computeTrendPoints, filterHistoryByPeriod, groupHistoryByMonth,
@@ -45,31 +45,9 @@ const sessionCompleted=(session:HomeWeekSession,date:string,workouts:any[])=>isS
  ?workouts.some(workout=>workout.date===date&&String(workout.type||"").startsWith("Плавание"))
  :isCyclingSession(session)?workouts.some(workout=>workout.date===date&&isCyclingSlot(workout))
  :workouts.some(workout=>workout.date===date&&workout.title===session.title);
-const NAV_ITEMS = [
-  {id:"Сегодня",label:"Сегодня",mobilePlacement:"primary"},
-  {id:"План",label:"План",mobilePlacement:"primary"},
-  {id:"Дорожная карта",label:"Дорожная карта",mobilePlacement:"secondary"},
-  {id:"Питание",label:"Nutrition Hub",mobilePlacement:"primary"},
-  {id:"Аналитика",label:"Аналитика",mobilePlacement:"primary"},
-  {id:"Вечерний прогресс",label:"Вечерний прогресс",mobilePlacement:"secondary"},
-  {id:"Моя история",label:"Мой путь",mobilePlacement:"secondary"},
-  {id:"Профиль и настройки",label:"Профиль и настройки",mobilePlacement:"primary"},
-] as const;
-const MOBILE_PRIMARY_ITEMS=NAV_ITEMS.filter(item=>item.mobilePlacement==="primary");
-const MOBILE_ICONS={
-  "Сегодня":HomeIcon,
-  "План":CalendarDays,
-  "Дорожная карта":Route,
-  "Питание":Apple,
-  "Аналитика":ChartNoAxesCombined,
-  "Вечерний прогресс":Moon,
-  "Моя история":ChartColumn,
-  "Профиль и настройки":UserRound,
-} as const;
-
 export default function Home() {
   const notify = useToast();
-  const [nav, setNav] = useState("Сегодня");
+  const [nav, setNav] = useState<VoltSection>("Сегодня");
   const [progressTab,setProgressTab]=useState<string|null>(null);
   const [mobileMenu,setMobileMenu]=useState(false);
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
@@ -93,7 +71,7 @@ export default function Home() {
   useEffect(()=>{
    load();loadProgression();loadSwimToday();
    const query=new URLSearchParams(window.location.search),section=query.get("section");
-   const id=window.setTimeout(()=>{if(section&&NAV_ITEMS.some(item=>item.id===section)){setNav(section);if(section==="Аналитика"&&query.get("mode")==="coach")setAnalyticsMode("coach")}},0);
+   const id=window.setTimeout(()=>{if(section&&VOLT_NAV_ITEMS.some(item=>item.id===section)){setNav(section as VoltSection);if(section==="Аналитика"&&query.get("mode")==="coach")setAnalyticsMode("coach")}},0);
    return()=>window.clearTimeout(id);
   },[]);
   // Сброс во время рендера (а не в эффекте) — рекомендованный React-паттерн для
@@ -176,7 +154,6 @@ export default function Home() {
   const nutritionCalories=coach.summary.nutrition.calories??0;
   const nutritionCalorieTarget=coach.summary.targets.calories;
   const activityProgress=Math.round((pct(todayActivity.activeMinutes,75)+pct(todayActivity.steps,10000))/2);
-  const goHome=()=>{setNav("Сегодня");setMobileMenu(false);window.scrollTo({top:0,behavior:"smooth"})};
   const goCoach=()=>{setAnalyticsMode("coach");setNav("Аналитика");setMobileMenu(false)};
   const goAnalytics=()=>{setAnalyticsMode("insights");setNav("Аналитика");setMobileMenu(false)};
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
@@ -228,23 +205,14 @@ export default function Home() {
 
   return (
     <AuthGate><main className="app-shell">
-      <button className={`mobile-sidebar-backdrop${mobileMenu?" visible":""}`} aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}/>
-      <aside className={`sidebar${mobileMenu?" mobile-open":""}`}>
-        <a className="brand" href="#top" aria-label="VOLT — на главную" onClick={event=>{event.preventDefault();goHome()}}><span className="brand-mark">V</span><b>VOLT</b></a>
-        <p className="brand-sub">ФИТНЕС-ТРЕКЕР</p>
-        <button className="mobile-sidebar-close" aria-label="Закрыть меню профиля" onClick={()=>setMobileMenu(false)}>×</button>
-        <nav className="side-nav" aria-label="Основная навигация">
-          {NAV_ITEMS.map(({id,label}) => {const Icon=MOBILE_ICONS[id]; return (
-            <button key={id} data-tour-id={id==="Моя история"?"nav-progress":id==="Аналитика"?"nav-analytics":undefined} className={nav === id ? "active" : ""} onClick={() => {if(id==="Аналитика")setAnalyticsMode("insights");setNav(id);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={18} strokeWidth={2}/></span>{label}</button>
-          )})}
-          <span className="side-nav-divider">Мои модули</span>
-          <Link href="/swim"><span aria-hidden="true"><Waves size={18} strokeWidth={2}/></span>VOLT Swim</Link>
-          <Link href="/cycling"><span aria-hidden="true"><Bike size={18} strokeWidth={2}/></span>VOLT Cycling</Link>
-        </nav>
-        <div className="side-bottom">
-          <div className="streak"><span aria-hidden="true"><Zap size={20}/></span><div><b>{streak} {daysLabel(streak)}</b><small>серия активности</small></div></div>
-        </div>
-      </aside>
+      <VoltGlobalNavigation
+        environment="volt"
+        activeSection={nav}
+        mobileOpen={mobileMenu}
+        onMobileOpenChange={setMobileMenu}
+        onNavigate={(section)=>{if(section==="Аналитика")setAnalyticsMode("insights");setNav(section)}}
+        footer={<div className="streak"><span aria-hidden="true"><Zap size={20}/></span><div><b>{streak} {daysLabel(streak)}</b><small>серия активности</small></div></div>}
+      />
 
       <section className="content" id="top">
         {nav!=="Аналитика"&&nav!=="Профиль и настройки"&&<header className={`topbar${nav==="Дорожная карта"?" roadmap-topbar":""}${nav==="Моя история"?" journey-topbar":""}`}>
@@ -408,12 +376,6 @@ export default function Home() {
       {editingDay&&<WeekPlanEditor day={editingDay} weekDays={weekPlan} homeWeek={homeWeek} onClose={()=>setEditingDate(null)} refresh={load}/>}
       {loaded&&<WhatsNewGate seenVersion={Number(data.whatsNewSeenVersion)||0} onSeen={async(version)=>{await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"markWhatsNewSeen",version})});load()}}/>}
 
-      <nav className="mobile-nav" aria-label="Мобильная навигация">
-        {MOBILE_PRIMARY_ITEMS.map(({id,label})=>{const Icon=MOBILE_ICONS[id];return <button key={id} data-tour-id={id==="Аналитика"?"nav-analytics-mobile":undefined} className={nav===id?"active":""} onClick={()=>{if(id==="Аналитика")setAnalyticsMode("insights");setNav(id);setMobileMenu(false)}}><span aria-hidden="true"><Icon size={20} strokeWidth={2}/></span>{label}</button>})}
-        <button type="button" data-tour-id="mobile-nav-more" className={NAV_ITEMS.some(item=>item.mobilePlacement==="secondary"&&item.id===nav)?"active":""} aria-label="Открыть остальные разделы" aria-expanded={mobileMenu} onClick={()=>setMobileMenu(true)}><span aria-hidden="true"><Menu size={20} strokeWidth={2}/></span>Ещё</button>
-        <Link className="mobile-nav-module" href="/swim"><span aria-hidden="true"><Waves size={20} strokeWidth={2}/></span>Swim</Link>
-        <Link className="mobile-nav-module" href="/cycling"><span aria-hidden="true"><Bike size={20} strokeWidth={2}/></span>Cycling</Link>
-      </nav>
     </main></AuthGate>
   );
 }

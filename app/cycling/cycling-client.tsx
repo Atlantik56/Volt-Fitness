@@ -17,7 +17,6 @@ import {
   Route,
   ShieldCheck,
   TimerReset,
-  Waves,
 } from "lucide-react";
 import AuthGate from "@/app/auth-gate";
 import { createSubmissionGuard } from "@/app/submission-guard";
@@ -31,6 +30,7 @@ import {
 } from "@/app/cycling-model";
 import { CYCLING_LOAD_FEEDBACK_LABELS, type CyclingLoadFeedback } from "@/lib/cycling";
 import { useToast } from "@/app/toast";
+import { VoltGlobalNavigation } from "@/app/volt-global-navigation";
 
 type FitnessData = {
   profile?: { programStart?: string };
@@ -197,16 +197,7 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
 
   return <AuthGate><main className="cycling-shell" style={shellStyle}>
     <div className="cycling-page-shade" aria-hidden="true" />
-    <header className="cycling-global-nav">
-      <Link className="cycling-brand-link" href="/"><span>V</span><b>VOLT</b></Link>
-      <nav aria-label="Глобальная навигация VOLT">
-        <Link href="/">Главная</Link>
-        <Link href="/?section=План">План</Link>
-        <Link href="/?section=Аналитика">Аналитика</Link>
-        <Link href="/swim"><Waves size={15} />Swim</Link>
-        <span className="active"><Bike size={15} />Cycling</span>
-      </nav>
-    </header>
+    <VoltGlobalNavigation environment="cycling" />
 
     <div className="cycling-content">
       {!loaded ? <CyclingLoading /> : error ? <CyclingError message={error} onRetry={load} /> : !resolution || !summary

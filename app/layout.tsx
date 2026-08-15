@@ -9,6 +9,7 @@ import "./mobile-shell.css";
 // он переопределяет визуал поверх всех предыдущих таблиц стилей, не меняя
 // их саму разметку и логику (см. шапку файла).
 import "./volt2.css";
+import "./volt-navigation.css";
 import PwaRegister from "./pwa-register";
 import { ToastProvider } from "./toast";
 
