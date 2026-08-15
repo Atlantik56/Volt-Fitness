@@ -1,0 +1,86 @@
+/* Shared ecosystem navigation. The information architecture stays neutral;
+   only the current module marker inherits the environment accent. */
+.volt-global-sidebar{
+  --volt-nav-accent:var(--lime);
+  --volt-nav-active-bg:rgba(255,255,255,.055);
+  z-index:40;
+}
+.volt-global-sidebar--swim{
+  --volt-nav-accent:#39dcff;
+  --volt-nav-active-bg:rgba(28,190,235,.1);
+  background:
+    radial-gradient(100% 48% at 10% 0,rgba(23,180,225,.08),transparent 66%),
+    linear-gradient(180deg,rgba(8,17,23,.76),rgba(5,12,17,.66));
+  border-right-color:rgba(71,191,226,.13);
+}
+.volt-global-sidebar--cycling{
+  --volt-nav-accent:#ff9d45;
+  --volt-nav-active-bg:rgba(255,122,26,.09);
+  background:
+    radial-gradient(100% 48% at 10% 0,rgba(255,122,26,.07),transparent 66%),
+    linear-gradient(180deg,rgba(24,18,15,.75),rgba(13,11,10,.68));
+  border-right-color:rgba(255,157,69,.12);
+}
+.volt-global-sidebar .side-nav a.active{
+  background:var(--volt-nav-active-bg);
+  color:#fff;
+  box-shadow:none;
+  font-weight:650;
+}
+.volt-global-sidebar .side-nav a.active span{color:var(--volt-nav-accent);opacity:1}
+.volt-global-sidebar .side-nav a.active::after{background:var(--volt-nav-accent)}
+.volt-global-sidebar .side-nav a.module-active{letter-spacing:.005em}
+.volt-global-sidebar--swim .brand-mark{background:#39dcff;color:#031016}
+.volt-global-sidebar--cycling .brand-mark{background:#ff8a2d;color:#170b04}
+
+@media(max-height:780px) and (min-width:761px){
+  .volt-global-sidebar{padding-top:20px;padding-bottom:14px}
+  .volt-global-sidebar .side-nav{margin-top:20px}
+  .volt-global-sidebar .side-nav a{padding-block:9px}
+  .volt-global-sidebar .side-nav-divider{margin-top:10px;padding-top:10px}
+}
+
+@media(max-width:760px){
+  .volt-global-sidebar{
+    display:flex;
+    width:min(308px,88vw);
+    z-index:60;
+    transform:translateX(-104%);
+    transition:transform 240ms cubic-bezier(.2,.8,.2,1);
+  }
+  .volt-global-sidebar.mobile-open{display:flex;transform:translateX(0)}
+  .app-shell:not(.swim-shell)>.volt-mobile-nav,
+  .swim-shell>.volt-mobile-nav,
+  .cycling-shell>.volt-mobile-nav{
+    grid-template-columns:repeat(5,minmax(0,1fr))!important;
+    z-index:42;
+  }
+  .volt-mobile-nav>a,.volt-mobile-nav>button{
+    min-width:0;
+    min-height:48px;
+    padding:4px 2px;
+    overflow:visible;
+    white-space:normal;
+    line-height:1.05;
+  }
+  .volt-mobile-nav--swim .module-active{color:#39dcff!important}
+  .volt-mobile-nav--cycling .module-active{color:#ff9d45!important}
+  .swim-shell>.volt-mobile-nav--swim .module-active svg{
+    background:rgba(57,220,255,.08)!important;
+    box-shadow:inset 0 0 14px rgba(57,220,255,.05)!important;
+    filter:drop-shadow(0 0 7px rgba(57,220,255,.2))!important;
+  }
+  .cycling-shell>.volt-mobile-nav--cycling .module-active svg{
+    filter:drop-shadow(0 0 7px rgba(255,157,69,.2));
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .volt-global-sidebar{transition:none}
+}
+
+@media(prefers-reduced-transparency:reduce){
+  .volt-global-sidebar{background:#101315;backdrop-filter:none}
+  .volt-global-sidebar--swim{background:#07131a}
+  .volt-global-sidebar--cycling{background:#17120f}
+}

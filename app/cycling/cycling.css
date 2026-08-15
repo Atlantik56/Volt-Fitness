@@ -97,8 +97,8 @@
 .cycling-global-nav nav .active { color: var(--cycling-primary-light); background: rgba(255, 122, 26, .1); }
 
 .cycling-content {
-  width: min(1160px, calc(100% - 44px));
-  margin: 0 auto;
+  width: min(1160px, calc(100% - 280px));
+  margin: 0 auto 0 max(258px, calc((100% - 1160px + 236px) / 2));
   padding: clamp(46px, 7vw, 92px) 0 80px;
 }
 
@@ -248,6 +248,10 @@
   .cycling-lower-grid { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 760px) {
+  .cycling-content { width: min(100% - 28px, 1160px); margin: 0 auto; padding-bottom: 112px; }
+}
+
 @media (max-width: 560px) {
   .cycling-shell::before { background-position: 64% center; }
   .cycling-page-shade { background: linear-gradient(0deg, rgba(9, 6, 4, .98) 0%, rgba(10, 7, 5, .82) 58%, rgba(10, 7, 5, .36) 100%); }
@@ -257,7 +261,7 @@
   .cycling-global-nav nav { max-width: calc(100vw - 82px); }
   .cycling-global-nav nav a { display: none; }
   .cycling-global-nav nav a:first-child,.cycling-global-nav nav a[href="/swim"],.cycling-global-nav nav .active { display: inline-flex; }
-  .cycling-content { width: min(100% - 28px, 1160px); padding: 42px 0 50px; }
+  .cycling-content { width: min(100% - 28px, 1160px); margin: 0 auto; padding: 42px 0 112px; }
   .cycling-hero-copy { min-height: 330px; display: flex; flex-direction: column; justify-content: flex-start; }
   .cycling-hero-copy h1 { font-size: 48px; }
   .cycling-hero-copy h2 { margin-top: 19px; font-size: 20px; }
