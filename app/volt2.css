@@ -1230,9 +1230,8 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 
 /* "Смотреть технику" — secondary/ghost действие, не primary (02-colors.md:
    лайм только для primary CTA, активного пункта навигации и мелких
-   индикаторов). Переопределяется только внутри Workout Flow — та же
-   ExerciseVideo используется на Home и в training-session.tsx и там
-   сохраняет исходный стиль. */
+   индикаторов). Переопределяется только внутри Workout Flow; на остальных
+   экранах ExerciseVideo сохраняет исходный стиль. */
 .active-workout-mode .exercise-video button{
   margin-left:-8px;color:#c6cdd2;border-color:transparent;background:transparent;
 }

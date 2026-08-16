@@ -132,9 +132,8 @@ export type ConfirmationSummary={
 export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;summary?:ConfirmationSummary}{
  const id=Number(body?.id);
  if(!Number.isSafeInteger(id)||id<1||body?.expectedStatus!=="awaiting_confirmation")return {ok:false,error:"Некорректный или устаревший запрос",status:400};
- // Effort/painAfter — те же safety-правила, что и у обычной формы завершения
- // тренировки (app/training-session.tsx): валидный набор значений сложности и
- // граница боли 0–10, а не произвольный ввод без проверки.
+ // Effort/painAfter проверяются сервером по единому контракту подтверждения:
+ // валидный набор значений сложности и граница боли 0–10.
  if(body?.effort!==undefined&&!EFFORT_VALUES.includes(body.effort))return {ok:false,error:"Некорректная оценка сложности",status:400};
  if(body?.painAfter!==undefined&&finite(body.painAfter,0,10)===null)return {ok:false,error:"Некорректное значение боли",status:400};
  if(body?.loadFeedback!==undefined&&!(CYCLING_LOAD_FEEDBACK_VALUES as readonly string[]).includes(body.loadFeedback))return {ok:false,error:"Некорректная оценка переносимости нагрузки",status:400};

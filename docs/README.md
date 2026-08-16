@@ -26,9 +26,10 @@
 
 ## Другие действующие документы
 
+- [`design-system/README.md`](design-system/README.md) — точка входа в
+  действующий VOLT 2.0 design system, его контракты, foundations и правила.
 - [`design/VOLT_BACKGROUND.md`](design/VOLT_BACKGROUND.md) — канонический
-  визуальный контракт и утверждённые ассеты фона для будущего редизайна
-  VOLT 2.0; ассеты пока не подключены к приложению.
+  визуальный контракт и утверждённые фоновые ассеты действующего VOLT 2.0.
 - [`design/VOLT_SWIM.md`](design/VOLT_SWIM.md) — обязательный визуальный и UX
   контракт VOLT Swim; рядом находятся
   [`COMPONENTS.md`](design/COMPONENTS.md),
@@ -42,6 +43,8 @@
 - [`volt-swim/ARCHITECTURE.md`](volt-swim/ARCHITECTURE.md) — почему `/swim`
   устроен как отдельные маршруты, как устроены слои `lib/swim/*` и как модуль
   масштабируется в следующих спринтах.
+- [`volt-cycling/VOLT_CYCLING_DESIGN_CONTRACT.md`](volt-cycling/VOLT_CYCLING_DESIGN_CONTRACT.md) —
+  действующий контракт минимального Cycling-модуля, его состояний и FIT flow.
 - [`VOLT_ROADMAP.md`](VOLT_ROADMAP.md) — исторический продуктовый roadmap и
   журнал реализованных Sprint 1–8; новые AI-работы ведутся только в
   `ROADMAP_AI.md`.
@@ -55,6 +58,11 @@
 Завершённые и исторические спринтовые документы перенесены в
 [`archive/sprints/`](archive/sprints/README.md). Архив не удаляется и не
 переписывается под текущую архитектуру.
+
+- [`archive/prompts/`](archive/prompts/) — исторические handoff-промты, не
+  являющиеся текущим заданием для реализации.
+- [`archive/legacy-ui/README.md`](archive/legacy-ui/README.md) — inventory
+  удалённых legacy UI-flow с последним Git SHA и актуальной заменой.
 
 ## Рабочий протокол Claude Code
 

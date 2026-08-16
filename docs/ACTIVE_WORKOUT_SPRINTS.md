@@ -371,8 +371,8 @@ QA:
   сервером автоматически по факту связанного `workout_imports`, не
   клиентом. FIT по-прежнему не источник веса/повторов/факта выполнения —
   только длительности/пульса/калорий.
-- **Effort/painAfter**: `ConfirmationForm` получила те же поля и ту же шкалу,
-  что и обычная форма завершения тренировки (`app/training-session.tsx`) —
+- **Effort/painAfter**: `ConfirmationForm` сохраняет поля и шкалу прежнего
+  legacy flow (см. [`archive/legacy-ui/README.md`](archive/legacy-ui/README.md)) —
   выбор «Легко/Нормально/Тяжело/Боль» и боль 0–10. `confirmWorkoutDraft`
   валидирует оба значения (400 при недопустимых) вместо тихой подстановки.
 - **Быстрый ввод подходов**: `lib/quick-set-parser.ts` — чистая

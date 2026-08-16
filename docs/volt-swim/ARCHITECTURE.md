@@ -10,9 +10,10 @@
 - `/swim/coach` — сфокусированный Coach-брифинг.
 
 Все маршруты используют `app/swim/layout.tsx` → `SwimShell`, общий sidebar и
-`SwimNavigation`. Общие поверхности и заголовки: `GlassPanel`, `SectionHeader`,
-`EmptyState`; специализированные экраны находятся в `app/swim/components`.
-Визуальные правила централизованы в `app/swim/swim.css`.
+`SwimNavigation`. Общие поверхности и заголовки: `GlassPanel` и
+`SectionHeader`; empty states реализованы непосредственно в актуальных
+страницах и специализированных компонентах. Визуальные правила централизованы
+в `app/swim/swim.css`.
 
 ## Данные
 

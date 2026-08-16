@@ -44,9 +44,8 @@ function ConfirmationForm({draft,duration,pending,onConfirm,onCancel}:{draft:Act
  const context=draft.confirmation,last=context?.lastResults??{};
  const [items,setItems]=useState<ConfirmExercise[]>(()=>draft.snapshot.exercises.map(plan=>({name:plan.name,plan,sets:planSets(plan),skipped:false,added:false,editing:false,mode:"plan",quickText:"",quickError:null})));
  const [newName,setNewName]=useState("");
- // Общая сложность и боль после тренировки — те же значения и та же шкала, что
- // у обычной формы завершения (app/training-session.tsx), пользователь видит
- // и подтверждает их до сохранения (AI-9 доработка, п.3.2).
+ // Общая сложность и боль после тренировки подтверждаются до сохранения по
+ // единому контракту workout draft lifecycle (AI-9 доработка, п.3.2).
  const [effort,setEffort]=useState<string>("Нормально");
  const [painAfter,setPainAfter]=useState("0");
  const update=(index:number,patch:Partial<ConfirmExercise>)=>setItems(current=>current.map((item,i)=>i===index?{...item,...patch}:item));

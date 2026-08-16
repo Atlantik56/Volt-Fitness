@@ -165,10 +165,8 @@ export function listProgramsWithProgress(): SwimProgramProgress[] {
   );
 }
 
-// Источник для SwimHero (главная страница /swim) — ближайшая незавершённая
-// тренировка единственной доступной программы, либо null для честного empty
-// state. Программ несколько станет в Sprint 3+ — тогда здесь появится выбор
-// "активной" программы пользователя, а не первой доступной.
+// Источник ближайшей тренировки для главной /swim: первая незавершённая
+// тренировка доступной программы либо null для честного empty state.
 export function getNextSwimWorkout(): SwimWorkoutProgress | null {
   const program = listPrograms().find((p) => p.status === "available");
   if (!program) return null;
