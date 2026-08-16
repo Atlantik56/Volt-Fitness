@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
+
+// Среда Week 4 (относительно program_start=2026-07-21): фиксируем "сегодня",
+// чтобы currentWeekIndex не зависел от реальной календарной даты запуска тестов.
+mock.timers.enable({ apis: ["Date"], now: new Date("2026-08-12T12:00:00") });
+test.after(() => mock.timers.reset());
 
 process.env.DATA_DIR = mkdtempSync(path.join(tmpdir(), "volt-swim-plan-start-"));
 const { db } = await import("@/lib/db.ts");
@@ -23,12 +28,17 @@ test("новая миграция оставляет Swim-план ненача�
 });
 
 test("Plan v2 можно заранее активировать без отдельного restart от Week 1", () => {
-  assert.deepEqual(startSwimPlan("2026-08-20"), { ok: true, startedAt: "2026-08-20" });
-  assert.equal(getSwimPlanStartedAt(), "2026-08-20");
-  const progress = getProgramProgress("foundation")!;
-  assert.equal(progress.calendarDays[0]?.date, "2026-07-20");
-  assert.equal(progress.currentWeekIndex, 4);
-  db.prepare("UPDATE profile SET swim_plan_started_at=NULL WHERE id=1").run();
+  try {
+    assert.deepEqual(startSwimPlan("2026-08-20"), { ok: true, startedAt: "2026-08-20" });
+    assert.equal(getSwimPlanStartedAt(), "2026-08-20");
+    const progress = getProgramProgress("foundation")!;
+    assert.equal(progress.calendarDays[0]?.date, "2026-07-20");
+    assert.equal(progress.currentWeekIndex, 4);
+  } finally {
+    // Гарантируем сброс тестового состояния даже при падении assert выше —
+    // иначе следующие тесты каскадно падают на "План плавания уже начат".
+    db.prepare("UPDATE profile SET swim_plan_started_at=NULL WHERE id=1").run();
+  }
 });
 
 test("активация 7 августа включает effective Week 4 без очистки истории", () => {
