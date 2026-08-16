@@ -218,6 +218,12 @@ navigation, not a new section navigation system. The global shell keeps the
 normal VOLT destinations and module entry points available without introducing
 a Cycling-specific sidebar or bottom navigation.
 
+`Result` reuses the shared provider-independent Garmin/FIT import pipeline. A
+user may attach a bicycle `.fit` file to the awaiting-confirmation draft; the
+import supplies objective metrics but does not confirm the workout by itself.
+Both `Active` and `Result` must provide a destructive, clearly labelled way to
+cancel the open draft before it is saved to the shared workout history.
+
 The last ride and weekly metrics on Cycling Home are concise summaries derived
 from confirmed shared `workout_logs`. They are not separate Cycling History or
 Analytics products and must not imply a second source of truth.
@@ -260,6 +266,10 @@ Analytics products and must not imply a second source of truth.
 - [ ] The global VOLT shell is retained without a Cycling-specific navigation system.
 - [ ] Plan, History, Analytics, Records and Coach remain owned by main VOLT.
 - [ ] Weekly metrics and last ride are summaries from confirmed shared `workout_logs`.
+- [ ] A bike FIT can be linked from `Result`; imported objective metrics remain
+      read-only and the workout is saved only after explicit confirmation.
+- [ ] Both `Active` and `Result` can cancel their open draft without creating a
+      workout-log fact.
 - [ ] Load feedback is clearly training feedback, not medical diagnosis.
 - [ ] Metrics and telemetry are real or represented by honest states.
 - [ ] Ordinary VOLT and VOLT Swim remain visually and functionally untouched.

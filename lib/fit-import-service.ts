@@ -29,6 +29,7 @@ export type StoredImport={id:number;workout:ImportedWorkout;draftId:number|null;
 export type ImportFailure={ok:false;error:string;status:number};
 export type ImportSuccess={ok:true;result:StoredImport};
 export type ImportResponse=ImportFailure|ImportSuccess;
+export type TargetedImportRequest={expectedActivityType:unknown;draftId:unknown;expectedDraftStatus:unknown};
 
 const finite=(value:unknown,min:number,max:number)=>{
  const n=Number(value);return Number.isFinite(n)&&n>=min&&n<=max?n:null;
@@ -171,6 +172,65 @@ export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
 export function importFit(bytes:Uint8Array):ImportResponse{
  const parsed=parseFit(bytes);
  return parsed.ok?storeImportedWorkout(parsed.workout):parsed;
+}
+
+export function importFitForDraft(bytes:Uint8Array,target:TargetedImportRequest):ImportResponse{
+ const did=Number(target.draftId);
+ const expectedActivityType=String(target.expectedActivityType??"");
+ const expectedDraftStatus=String(target.expectedDraftStatus??"");
+ if(!Number.isSafeInteger(did)||did<1||!(["strength","swim","bike","cardio","recovery"] as string[]).includes(expectedActivityType)){
+  return {ok:false,error:"Некорректный тип активности или черновик",status:400};
+ }
+ if(expectedDraftStatus!=="awaiting_confirmation"){
+  return {ok:false,error:"Поддерживается только черновик, ожидающий подтверждения",status:400};
+ }
+ const parsed=parseFit(bytes);
+ if(!parsed.ok)return parsed;
+ if(parsed.workout.activityType!==expectedActivityType){
+  return {ok:false,error:`FIT имеет тип ${parsed.workout.activityType}, ожидался ${expectedActivityType}`,status:422};
+ }
+
+ let response:ImportResponse={ok:false,error:"Черновик не найден",status:404};
+ db.transaction(()=>{
+  const draft=db.prepare("SELECT id,date,status,snapshot,started_at startedAt,finished_at finishedAt FROM workout_drafts WHERE id=?").get(did) as (DraftRow&{status:string})|undefined;
+  if(!draft)return;
+  if(draft.status!==expectedDraftStatus){
+   response={ok:false,error:"Статус черновика изменился; обновите экран",status:409};
+   return;
+  }
+  let snapshot:any={};try{snapshot=JSON.parse(draft.snapshot)}catch{}
+  if(draftFamily(String(snapshot.type??""),String(snapshot.title??""))!==expectedActivityType){
+   response={ok:false,error:"Тип черновика не соответствует FIT",status:409};
+   return;
+  }
+
+  const workout=parsed.workout;
+  const candidate=rankDrafts(workout,[draft]);
+  const duplicate=db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint) as any;
+  if(duplicate){
+   if(duplicate.draftId!==null&&duplicate.draftId!==did){
+    response={ok:false,error:"Импорт уже связан с другим черновиком",status:409};
+    return;
+   }
+   if(duplicate.draftId===null){
+    const linked=db.prepare("UPDATE workout_imports SET draft_id=? WHERE id=? AND draft_id IS NULL").run(did,duplicate.id);
+    if(linked.changes!==1){
+     response={ok:false,error:"Импорт уже связан с другим черновиком",status:409};
+     return;
+    }
+   }
+   response={ok:true,result:{id:duplicate.id,workout:workoutFromRow(duplicate),draftId:did,duplicate:true,autoLinked:false,candidates:candidate}};
+   return;
+  }
+
+  const inserted=db.prepare(`INSERT INTO workout_imports
+   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
+   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
+    workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
+    JSON.stringify({fitSport:workout.metadata.fitSport,distanceMeters:workout.metadata.distanceMeters,laps:workout.metadata.laps}),did);
+  response={ok:true,result:{id:Number(inserted.lastInsertRowid),workout,draftId:did,duplicate:false,autoLinked:false,candidates:candidate}};
+ })();
+ return response;
 }
 
 export function linkImport(importId:unknown,draftId:unknown):ImportFailure|{ok:true;draftId:number}{

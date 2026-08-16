@@ -73,6 +73,43 @@ test("отсутствующие Cycling метрики остаются отс�
   assert.deepEqual(metrics, { hr: 0, distance: 0, speed: 0, calories: 0 });
 });
 
+test("Cycling awaiting_confirmation отменяется без workout log", () => {
+  const started = service.startWorkoutDraft({ date: "2026-08-16", snapshot: snapshot() });
+  service.finishWorkoutDraft({ id: started.draft!.id, expectedStatus: "active" });
+  const cancelled = service.cancelWorkoutDraft({ id: started.draft!.id, expectedStatus: "awaiting_confirmation" });
+  assert.equal(cancelled.ok, true);
+  assert.equal(cancelled.draft?.status, "cancelled");
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs WHERE date=?").get("2026-08-16") as any).n, 0);
+});
+
+test("связанный bike FIT задаёт Cycling-метрики, но не подтверждает draft сам", () => {
+  const started = service.startWorkoutDraft({ date: "2026-08-17", snapshot: snapshot() });
+  service.finishWorkoutDraft({ id: started.draft!.id, expectedStatus: "active" });
+  db.prepare(`INSERT INTO workout_imports(
+    source,external_id,fingerprint,started_at,duration_seconds,activity_type,
+    average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id
+  ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    "Garmin FIT", "cycling-fit-1", "cycling-fit-fingerprint-1", "2026-08-17T08:00:00.000Z", 1800, "bike",
+    126, 151, 275, 82, 2.4, JSON.stringify({ distanceMeters: 12_000, laps: [] }), started.draft!.id,
+  );
+  assert.equal((db.prepare("SELECT status FROM workout_drafts WHERE id=?").get(started.draft!.id) as any).status, "awaiting_confirmation");
+  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs WHERE date=?").get("2026-08-17") as any).n, 0);
+
+  const confirmed = service.confirmWorkoutDraft({
+    id: started.draft!.id,
+    expectedStatus: "awaiting_confirmation",
+    durationSeconds: 600,
+    loadFeedback: "calm",
+  });
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.summary?.metricsSource, "imported_metric");
+  assert.equal(confirmed.summary?.confirmationSource, "Garmin");
+  assert.equal(confirmed.summary?.duration, 1800);
+  assert.equal(confirmed.summary?.distanceMeters, 12_000);
+  assert.equal(confirmed.summary?.averageHeartRate, 126);
+  assert.equal(confirmed.summary?.averageSpeed, 24);
+});
+
 test("невалидный load feedback отклоняется и не создаёт workout log", () => {
   const started = service.startWorkoutDraft({ date: "2026-08-14", snapshot: snapshot() });
   service.finishWorkoutDraft({ id: started.draft!.id, expectedStatus: "active" });
