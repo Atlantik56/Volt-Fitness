@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { mock } from "node:test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 process.env.DATA_DIR = mkdtempSync(path.join(tmpdir(), "volt-swim-plan-start-"));
+mock.timers.enable({ apis: ["Date"], now: new Date("2026-08-09T12:00:00") });
+test.after(() => mock.timers.reset());
 const { db } = await import("@/lib/db.ts");
 const { getProgramProgress, getSwimPlanStartedAt, startSwimPlan, swimWeekIndexForDate } = await import("@/lib/swim/services.ts");
 const { getSwimAnalytics, getSwimHistory, getSwimRecords } = await import("@/lib/swim-data.ts");
