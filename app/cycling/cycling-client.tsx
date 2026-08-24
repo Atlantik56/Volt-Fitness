@@ -33,7 +33,7 @@ import { useToast } from "@/app/toast";
 import { VoltGlobalNavigation } from "@/app/volt-global-navigation";
 
 type FitnessData = {
-  profile?: { programStart?: string };
+  profile?: { programStart?: string; trainingPlanV3StartedAt?: string | null };
   workouts?: CyclingWorkoutRecord[];
   workoutDrafts?: CyclingDraftRecord[];
   weekScheduleChanges?: any[];
@@ -110,6 +110,7 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
     : (data.workoutDrafts ?? []), [data.workoutDrafts, draftOverride]);
   const resolution = useMemo(() => resolveCyclingAssignment({
     programStart: data.profile?.programStart,
+    trainingPlanV3StartedAt: data.profile?.trainingPlanV3StartedAt,
     today,
     selectedDate: initialDate,
     weekScheduleChanges: data.weekScheduleChanges,

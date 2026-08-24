@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildHomeWeek, buildProgramWeek, currentProgramWeek, meals, safety, week } from "./personal-data";
+import { buildHomeWeek, currentProgramWeek, meals, planV3WeekCatalog, safety, week } from "./personal-data";
 import { ExerciseVideo } from "./exercise-video";
 import { ActiveWorkout, type ActiveDraft } from "./active-workout";
 import { WeekPlanEditor } from "./week-plan-editor";
@@ -19,6 +19,7 @@ import { BodyMap, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
 import { AnalyticsCoachPage } from "./analytics-coach-page";
 import { ProfileSettingsPage } from "./profile-settings-page";
+import { TrainingPlanStartAction } from "./training-plan-start-action";
 import { ProgressionPanel, type ProgressionProposal } from "./progression-panel";
 import { buildCoachResult, COACH_ACTION_LABELS, COACH_TARGETS, type CoachAction } from "../lib/coach";
 import { WhatsNewGate } from "./whats-new-gate";
@@ -38,6 +39,7 @@ import {
   buildHistory, computeMetricCards, computeMetricStats, computeProgressSummary, computeTrendPoints, filterHistoryByPeriod, groupHistoryByMonth,
   type HistoryEntry, type Measurement, type MetricCardData, type MetricKey, type MetricPoint, type MetricStats, type Period, type ProgressSummary,
 } from "./progress-model";
+import { activatedPlanPosition } from "@/lib/training-program/registry";
 
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
 const isSwimSession=(session:HomeWeekSession)=>session.type==="Кардио"&&(session.title==="Бассейн"||session.id?.startsWith("swim-")===true);
@@ -89,14 +91,17 @@ export default function Home() {
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
   const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
-  const programWeek=currentProgramWeek(data.profile?.programStart);
-  const homeWeek=useMemo(()=>buildHomeWeek(data.profile?.programStart),[data.profile?.programStart]);
+  const trainingPlanV3StartedAt=data.profile?.trainingPlanV3StartedAt??null;
+  const activePlanPosition=activatedPlanPosition(trainingPlanV3StartedAt,today);
+  const programWeek=currentProgramWeek(data.profile?.programStart,trainingPlanV3StartedAt);
+  const displayProgramWeek=activePlanPosition?.weekIndex??programWeek;
+  const homeWeek=buildHomeWeek(data.profile?.programStart,trainingPlanV3StartedAt,today);
   // AI-11 — Гибкая неделя: план на дату = каноническая программа (homeWeek) +
   // пользовательские изменения текущей недели (week_schedule_changes). Никогда
   // не переходит на следующую неделю — see app/week-schedule-model.ts.
-  const weekMondayIso=useMemo(()=>weekRangeContaining(today).mondayIso,[today]);
-  const weekPlanRaw=useMemo(()=>buildWeekSchedule(homeWeek,data.weekScheduleChanges||[],weekMondayIso),[homeWeek,data.weekScheduleChanges,weekMondayIso]);
-  const weekPlan:ResolvedDayPlan[]=useMemo(()=>weekPlanRaw.map(d=>{
+  const weekMondayIso=weekRangeContaining(today).mondayIso;
+  const weekPlanRaw=buildWeekSchedule(homeWeek,data.weekScheduleChanges||[],weekMondayIso);
+  const weekPlan:ResolvedDayPlan[]=weekPlanRaw.map(d=>{
    const sessions=sessionsForDay(d.scheduled),required=sessions.filter(session=>session.type!=="Отдых"&&!session.optional);
    const completedRequiredSessions=required.filter(session=>sessionCompleted(session,d.date,data.workouts||[])).length;
    return {...d,locked:{
@@ -105,7 +110,7 @@ export default function Home() {
     openDraft:(data.workoutDrafts||[]).some((w:any)=>w.date===d.date),
     completedRequiredSessions,requiredSessions:required.length,
    }};
-  }),[weekPlanRaw,data.workouts,data.workoutDrafts]);
+  });
   const todayResolved=weekPlan.find(d=>d.date===today)??weekPlan[0];
   const todaySessions=sessionsForDay(todayResolved.scheduled);
   const todayRequiredSessions=todaySessions.filter(session=>session.type!=="Отдых"&&!session.optional);
@@ -357,7 +362,8 @@ export default function Home() {
           isSelectedToday={isSelectedToday} onSelectDate={selectPlanDate} onEditDate={setEditingDate}
           onStartSelected={startSelectedWorkout} planMeta={planActionMeta(selectedResolved,isSelectedToday,selectedPlanCompleted,!!openDraftToday)}
           selectedSwim={selectedSwim} selectedSwimLoading={selectedSwimLoading}
-          programWeek={programWeek}
+          programWeek={displayProgramWeek} planStartedAt={trainingPlanV3StartedAt}
+          onPlanStarted={(startedAt)=>{setData((current:any)=>({...current,profile:{...current.profile,trainingPlanV3StartedAt:startedAt}}));load();loadSwimToday()}}
         /> : nav==="Аналитика" ? <AnalyticsCoachPage
           data={data} coach={coach} today={today} mode={analyticsMode} onModeChange={setAnalyticsMode}
           plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null}
@@ -385,13 +391,13 @@ export default function Home() {
 // выбранная/следующая тренировка, её состав и спокойная справочная программа.
 // Данные и действия остаются прежними: WeekPlanEditor по-прежнему единственная
 // точка replace/swap/rest, а запуск использует существующие обработчики.
-function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessions,selectedSessionId,onSelectSession,isSelectedToday,onSelectDate,onEditDate,onStartSelected,planMeta,selectedSwim,selectedSwimLoading,programWeek}:{
+function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessions,selectedSessionId,onSelectSession,isSelectedToday,onSelectDate,onEditDate,onStartSelected,planMeta,selectedSwim,selectedSwimLoading,programWeek,planStartedAt,onPlanStarted}:{
   today:string;weekPlan:ResolvedDayPlan[];selectedResolved:ResolvedDayPlan;selectedPlan:any;isSelectedToday:boolean;
   selectedSessions:HomeWeekSession[];selectedSessionId:string|null;onSelectSession:(id:string|null)=>void;
   onSelectDate:(date:string)=>void;onEditDate:(date:string)=>void;onStartSelected:()=>void;
   planMeta:{label:string;cls:string;repeat:boolean};
   selectedSwim:ResolvedSwimSlot|null;selectedSwimLoading:boolean;
-  programWeek:number;
+  programWeek:number;planStartedAt:string|null;onPlanStarted:(startedAt:string)=>void;
 }){
  const weekSessions=weekPlan.flatMap(day=>sessionsForDay(day.scheduled).map(session=>({day,session})));
  const strengthDays=weekSessions.filter(({session})=>session.type==="Силовая").length;
@@ -405,6 +411,8 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
  const nextEntry=weekSessions.slice(Math.max(0,selectedEntryIndex)+1).find(({session})=>session.type!=="Отдых")??null;
  const nextResolved=nextEntry?.day??selectedResolved;
  const nextSession=nextEntry?.session??selectedPlan;
+ const todayTitles=weekSessions.filter(({day,session})=>day.date===today&&session.type!=="Отдых"&&!session.optional).map(({session})=>trainingLabelRu(session.title)).join(" + ")||"Восстановление";
+ const upcomingEntry=weekSessions.find(({day,session})=>day.date>today&&session.type!=="Отдых");
  const isSwim=isSwimSession(selectedPlan);
  const isCycling=isCyclingSession(selectedPlan);
  const isRest=selectedPlan.type==="Отдых";
@@ -419,11 +427,12 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
  }:planMeta;
 
  return <div className="plan-screen">
+  <TrainingPlanStartAction startedAt={planStartedAt} today={today} todayTitle={todayTitles} nextTitle={upcomingEntry?trainingLabelRu(upcomingEntry.session.title):null} onStarted={onPlanStarted}/>
   <section className="plan-hero">
    <div className="plan-hero-shade"/>
    <div className="plan-hero-head">
     <div className="plan-hero-copy">
-     <p className="eyebrow">ТЕКУЩАЯ НЕДЕЛЯ · ПЛАН 2.0</p>
+     <p className="eyebrow">ТЕКУЩАЯ НЕДЕЛЯ · {planStartedAt?"НОВЫЙ ПЛАН":"ПЛАН 2.0"}</p>
      <h2>Неделя {programWeek}</h2>
      <p className="plan-hero-summary"><b>{completedDays} из {plannedDays} обязательных сессий</b><span>{strengthDays} силовых</span><span>{swimDays} плавательных</span></p>
      <p className="plan-hero-note">Техника, устойчивый ритм и восстановление без перегруза.</p>
@@ -499,11 +508,10 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
   </section>
 
   <section className="plan-program">
-   <div className="section-head plan-program-head"><div><p className="eyebrow">ПРОГРАММА · ПРОГРЕССИЯ</p><h3>Путь программы</h3></div><p>От уверенной техники дома — к залу и устойчивому кардио.</p></div>
+   <div className="section-head plan-program-head"><div><p className="eyebrow">НОВЫЙ ПЛАН · ПРЕДПРОСМОТР</p><h3>8-недельный цикл</h3></div><p>Дни считаются от фактической даты запуска, а не от понедельника.</p></div>
    <Notice/>
-   <div className="plan-program-phases">
-    <PlanProgramPhase number="01" period="НЕДЕЛИ 1–3" title="Домашняя база" note="2 круга → 3 круга → прибавка веса или повторов" days={buildProgramWeek(1).map((d:any)=>({day:d.d,type:d.type,title:d.title,time:d.time,warmup:d.warmup,exercises:d.exercises}))}/>
-    <PlanProgramPhase number="02" period="С НЕДЕЛИ 4" title="Зал + кардио" note="Силовая прогрессия, бассейн и велосипед" days={week.map((d:any)=>({day:d.d,type:d.t,title:d.n,time:d.time,exercises:d.x}))}/>
+   <div className="plan-program-phases single">
+    <PlanProgramPhase number="01" period="НЕДЕЛИ 1–8 · ДНИ 1–7" title="Зал, плавание и велосипед" note="Тренажёры и блоки, три плавания, велосипед в зоне 2, два дня восстановления" days={planV3WeekCatalog.map((d:any)=>({day:`День ${["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"].indexOf(d.d)+1}`,type:d.t,title:d.n,time:d.time,exercises:d.x}))}/>
    </div>
   </section>
  </div>;
@@ -1224,7 +1232,7 @@ function ProgramStages({stages,refresh}:{stages:Stage[];refresh:()=>void}){
 function StageFields({defaults}:{defaults?:Stage}){
  return <div className="stage-fields">
   <label>Тип<select name="kind" defaultValue={defaults?.kind||"custom"}>{Object.entries(STAGE_KIND_LABELS).map(([k,l])=><option key={k} value={k}>{l}</option>)}</select></label>
-  <label>Название<input name="title" required defaultValue={defaults?.title} placeholder="Например, Дом: гантели"/></label>
+  <label>Название<input name="title" required defaultValue={defaults?.title} placeholder="Например, Зал: блочные тренажёры"/></label>
   <label>Начало<input name="startDate" type="date" required defaultValue={defaults?.startDate}/></label>
   <label>Окончание (пусто — идёт сейчас)<input name="endDate" type="date" defaultValue={defaults?.endDate||""}/></label>
   <label>Цель<input name="goal" defaultValue={defaults?.goal} placeholder="Например, привычка и подготовка к залу"/></label>

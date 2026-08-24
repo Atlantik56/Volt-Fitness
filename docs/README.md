@@ -38,7 +38,9 @@
   VOLT Swim вокруг 8-недельной программы Foundation.
 - [`TRAINING_PROGRAM_ARCHITECTURE.md`](TRAINING_PROGRAM_ARCHITECTURE.md) —
   canonical program layer, versioning, effective programs и правила добавления
-  Plan v3 без изменения UI и истории.
+  следующих версий без изменения истории; текущий 8-недельный Plan v3
+  запускается пользователем и связывает зал, Endurance Swim и велосипед в
+  одном относительном календаре.
 - [`volt-swim/ARCHITECTURE.md`](volt-swim/ARCHITECTURE.md) — почему `/swim`
   устроен как отдельные маршруты, как устроены слои `lib/swim/*` и как модуль
   масштабируется в следующих спринтах.

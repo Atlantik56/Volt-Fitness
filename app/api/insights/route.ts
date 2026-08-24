@@ -22,7 +22,7 @@ type Surface = (typeof SURFACES)[number];
 
 function buildCandidates(surface: Surface, date: string): Insight[] {
   if (surface === "card") {
-    const profile = db.prepare("SELECT program_start programStart, target_weight targetWeight FROM profile WHERE id=1").get() as any;
+    const profile = db.prepare("SELECT program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt, target_weight targetWeight FROM profile WHERE id=1").get() as any;
     const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
     const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
     const workouts = db.prepare("SELECT date,type,title FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 200").all(date) as any[];
@@ -32,7 +32,7 @@ function buildCandidates(surface: Surface, date: string): Insight[] {
     ).all(date, date) as any[];
     const moodLogs = db.prepare("SELECT id,date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
     const activity = db.prepare("SELECT date,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-    const planDays = buildHomeWeek(profile?.programStart).map((d: any) => ({ day: d.day, type: d.type }));
+    const planDays = buildHomeWeek(profile?.programStart,profile?.trainingPlanV3StartedAt,date).map((d: any) => ({ day: d.day, type: d.type }));
     return buildCardInsights({
       date, measurements, workouts, foodLogs, strengthLogs, planDays, scheduleOverrides,
       targets: { calories: COACH_TARGETS.calories, protein: COACH_TARGETS.protein },

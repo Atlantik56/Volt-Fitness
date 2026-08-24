@@ -4,12 +4,31 @@ import { computeProgramProgress, getProgram, listPrograms } from "../lib/swim/pr
 import { swimWorkoutPlanKey } from "../lib/swim/workout-plan-key.ts";
 import { totalDistanceMeters } from "../lib/swim/workout-engine.ts";
 
-test("listPrograms содержит ровно одну доступную программу и остальные — coming_soon", () => {
+test("listPrograms содержит Foundation и новый этап Выносливость", () => {
   const programs = listPrograms();
   const available = programs.filter((p) => p.status === "available");
-  assert.equal(available.length, 1);
-  assert.equal(available[0].id, "foundation");
-  assert.ok(programs.some((p) => p.status === "coming_soon"));
+  assert.deepEqual(available.map((program) => program.id), ["foundation", "endurance"]);
+});
+
+test("Endurance Weeks 9–16 содержит 3 тренировки, точные объёмы и только безопасные стили", () => {
+ const endurance=getProgram("endurance")!;
+ assert.equal(endurance.version,1);
+ assert.deepEqual(endurance.weeks.map((week)=>week.weekIndex),[9,10,11,12,13,14,15,16]);
+ assert.deepEqual(endurance.weeks.map((week)=>week.plannedDistanceMeters),[3000,3200,3400,2900,3500,3700,3900,3200]);
+ assert.deepEqual(endurance.weeks.map((week)=>week.days.filter((day)=>day.workout).map((day)=>day.dayIndex)),Array.from({length:8},()=>[1,3,5]));
+ for(const week of endurance.weeks){
+  const actual=week.days.reduce((sum,day)=>sum+(day.workout?totalDistanceMeters(day.workout):0),0);
+  assert.equal(actual,week.plannedDistanceMeters,`объём недели ${week.weekIndex}`);
+  for(const interval of week.days.flatMap((day)=>day.workout?.intervals??[])){
+   assert.equal(interval.distanceMeters%25,0);
+   assert.ok(["freestyle","backstroke","easy-swim","catch-up","fingertip-drag"].includes(interval.exerciseId),interval.exerciseId);
+   assert.equal(interval.targetPaceSecondsPer100,null);
+   assert.doesNotMatch(interval.description,/SWOLF|брасс|баттерфляй|спринт|агрессив/i);
+  }
+ }
+ const control=endurance.weeks.at(-1)!.days.find((day)=>day.dayIndex===5)!.workout!;
+ assert.equal(control.intervals.find((interval)=>interval.type==="main_set")?.distanceMeters,1100);
+ assert.match(control.goal,/не гонка|не тест максимальной скорости/i);
 });
 
 test("Foundation содержит 8 недель, недели 1–3 неизменны, с Week 4 — по 3 тренировки", () => {

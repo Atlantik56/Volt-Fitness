@@ -257,6 +257,9 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
  // нагрузки. Пустая строка означает, что пользователь ещё не оставил feedback.
  // Forward-only enum не меняет семантику отдельного числового pain_after.
  {version:20,sql:`ALTER TABLE workout_logs ADD COLUMN load_feedback TEXT NOT NULL DEFAULT '' CHECK(load_feedback IN ('','calm','discomfort','pain'));`},
+ // Plan v3 включается только явным действием пользователя. NULL означает, что
+ // новый план доступен лишь для preview; миграция не назначает его задним числом.
+ {version:21,sql:`ALTER TABLE profile ADD COLUMN training_plan_v3_started_at TEXT;`},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

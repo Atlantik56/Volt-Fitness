@@ -2,13 +2,12 @@
 // workout-engine.ts остаются чистыми функциями — здесь они соединяются с
 // реальными workout_drafts.
 import { db } from "@/lib/db";
-import { buildProgramWeek } from "@/app/personal-data";
+import { buildHomeWeek, buildProgramDayForDate } from "@/app/personal-data";
 import { changesByDateMap, localIso, resolvePlanForDate, sessionsForDay, weekRangeContaining } from "@/app/week-schedule-model";
 import { listWeekScheduleChanges } from "@/lib/week-schedule-service";
 import { computeProgramProgress, getProgram, listPrograms } from "@/lib/swim/program-engine";
 import { assignSwimCalendar, isSwimSlot, type SwimScheduleWorkoutInput } from "@/lib/swim/schedule-sync";
-import { PLAN_V2_EFFECTIVE_WEEK } from "@/lib/training-program/definitions";
-import { programWeekForDate, programWeekMonday } from "@/lib/training-program/registry";
+import { activatedPlanPosition, programWeekForDate, programWeekMonday } from "@/lib/training-program/registry";
 import type { ResolvedSwimSlot, SwimCalendarDay, SwimProgramProgress, SwimWorkoutActual, SwimWorkoutProgress } from "@/lib/swim/types";
 
 type OpenDraftStatus = "active" | "awaiting_confirmation";
@@ -41,10 +40,10 @@ function completedActualsByPlanKey(): Map<string, SwimWorkoutActual> {
   return map;
 }
 
-type ProfilePlanDates = { programStart?: string; swimPlanStartedAt?: string | null };
+type ProfilePlanDates = { programStart?: string; swimPlanStartedAt?: string | null; trainingPlanV3StartedAt?: string | null };
 
 function getProfilePlanDates(): ProfilePlanDates {
-  return (db.prepare("SELECT program_start programStart,swim_plan_started_at swimPlanStartedAt FROM profile WHERE id=1").get() as ProfilePlanDates | undefined) ?? {};
+  return (db.prepare("SELECT program_start programStart,swim_plan_started_at swimPlanStartedAt,training_plan_v3_started_at trainingPlanV3StartedAt FROM profile WHERE id=1").get() as ProfilePlanDates | undefined) ?? {};
 }
 
 export function getSwimPlanStartedAt(): string | null {
@@ -72,9 +71,16 @@ export function effectiveSwimWeekIndex(programStart: string, activatedAt: string
   // activatedAt is an activation boundary, not an independent Week 1 anchor.
   // Before the boundary the UI previews the effective week; after it the same
   // general VOLT week continues, never restarting Foundation from Week 1.
-  const effectiveWeek = Math.max(PLAN_V2_EFFECTIVE_WEEK, generalWeek);
+  const effectiveWeek = Math.max(4, generalWeek);
   void activatedAt;
   return Math.min(Math.max(1, totalWeeks), effectiveWeek);
+}
+
+export function effectiveSwimProgramWeekIndex(programStart: string, dateIso: string, weekIndexes: readonly number[]): number | null {
+  if (!weekIndexes.length) return null;
+  const firstWeek = Math.min(...weekIndexes);
+  const lastWeek = Math.max(...weekIndexes);
+  return Math.min(lastWeek, Math.max(firstWeek, programWeekForDate(programStart, dateIso)));
 }
 
 // Единственная операция записи старта Swim. Условный UPDATE делает её
@@ -98,25 +104,30 @@ function addDaysIso(dateIso: string, days: number): string {
 // (app/week-schedule-model.ts + week_schedule_changes текущей недели) —
 // вместо собственной нумерации дней программы. Дописывает calendar на каждую
 // тренировку и calendarDays на весь горизонт программы (8 недель от
-// отдельного старта Swim), не трогая расчёт статусов/прогресса.
+// диапазона недель конкретной Swim-программы), не трогая расчёт статусов/прогресса.
 function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
-  const { programStart, swimPlanStartedAt } = getProfilePlanDates();
-  if (!programStart || !swimPlanStartedAt) return { ...progress, startedAt: swimPlanStartedAt ?? null };
+  const { programStart, swimPlanStartedAt, trainingPlanV3StartedAt } = getProfilePlanDates();
+  const activationAt = progress.program.id === "endurance" ? trainingPlanV3StartedAt : swimPlanStartedAt;
+  if (!programStart || !activationAt) return { ...progress, startedAt: activationAt ?? null };
   const todayIso = localIso(new Date());
-  const scheduleStartIso = programWeekMonday(programStart, 1);
+  const weekIndexes = progress.program.weeks.map((week) => week.weekIndex);
+  if (!weekIndexes.length) return { ...progress, startedAt: activationAt };
+  const firstWeek = Math.min(...weekIndexes);
+  const lastWeek = Math.max(...weekIndexes);
+  const scheduleStartIso = progress.program.id === "endurance" ? activationAt : programWeekMonday(programStart, firstWeek);
   const scheduleEndDate = new Date(`${scheduleStartIso}T00:00:00`);
-  scheduleEndDate.setDate(scheduleEndDate.getDate() + progress.program.weeks.length * 7 - 1);
+  scheduleEndDate.setDate(scheduleEndDate.getDate() + (lastWeek - firstWeek + 1) * 7 - 1);
   const scheduleEndIso = localIso(scheduleEndDate);
   const changes = listWeekScheduleChanges(scheduleStartIso, scheduleEndIso);
   const changesByDate = changesByDateMap(changes);
-  const resolveWeekForDate = (dateIso: string) => buildProgramWeek(programWeekForDate(programStart, dateIso));
+  const resolveWeekForDate = (dateIso: string) => buildHomeWeek(programStart,trainingPlanV3StartedAt,dateIso);
 
   const scheduleInputs: SwimScheduleWorkoutInput[] = progress.workouts.map((w) => ({
     workoutId: w.workout.id,
     status: w.status,
     pinnedDate: w.actual?.date ?? w.draftDate ?? null,
   }));
-  const calendarByWorkoutId = assignSwimCalendar({ workouts: scheduleInputs, changesByDate, todayIso, scheduleStartIso, resolveWeekForDate, horizonDays: progress.program.weeks.length * 7 });
+  const calendarByWorkoutId = assignSwimCalendar({ workouts: scheduleInputs, changesByDate, todayIso, scheduleStartIso, resolveWeekForDate, horizonDays: (lastWeek - firstWeek + 1) * 7 });
 
   const workouts = progress.workouts.map((w) => ({ ...w, calendar: calendarByWorkoutId.get(w.workout.id) ?? null }));
   const openWorkout = workouts.find((w) => w.status === "in_progress" || w.status === "awaiting_confirmation") ?? null;
@@ -125,7 +136,7 @@ function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
     .sort((a, b) => a.calendar!.date.localeCompare(b.calendar!.date))[0] ?? null;
   const nextWorkout = openWorkout ?? nextScheduled ?? workouts.find((w) => w.status === "not_started") ?? null;
 
-  const totalDays = progress.program.weeks.length * 7;
+  const totalDays = (lastWeek - firstWeek + 1) * 7;
   const calendarDays: SwimCalendarDay[] = Array.from({ length: totalDays }, (_, index) => {
     const date = addDaysIso(scheduleStartIso, index);
     const homeWeek = resolveWeekForDate(date);
@@ -141,10 +152,15 @@ function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
     };
   });
 
-  // swim_plan_started_at остаётся activation/transition key. Plan v2 starts
-  // with Foundation Week 4; Weeks 1–3 remain immutable historical definitions.
-  const currentWeekIndex = effectiveSwimWeekIndex(programStart, swimPlanStartedAt, todayIso, progress.program.weeks.length);
-  return { ...progress, startedAt: swimPlanStartedAt, workouts, nextWorkout, currentWeekIndex, calendarDays };
+  // swim_plan_started_at остаётся activation key. Индекс берётся из общего
+  // VOLT week и ограничивается реальным диапазоном выбранной Swim-программы.
+  // Foundation сохраняет введённую Plan v2 границу Week 4: его Weeks 1–3 —
+  // исторические определения, а не повод визуально откатывать активный план.
+  // Следующие программы используют собственный реальный диапазон недель.
+  const currentWeekIndex = progress.program.id === "foundation"
+    ? effectiveSwimWeekIndex(programStart, activationAt, todayIso, lastWeek)
+    : Math.min(lastWeek,Math.max(firstWeek,activatedPlanPosition(trainingPlanV3StartedAt,todayIso)?.definitionWeekIndex ?? firstWeek));
+  return { ...progress, startedAt: activationAt, workouts, nextWorkout, currentWeekIndex, calendarDays };
 }
 
 export function getProgramProgress(programId: string): SwimProgramProgress | null {
@@ -170,9 +186,15 @@ export function listProgramsWithProgress(): SwimProgramProgress[] {
 // state. Программ несколько станет в Sprint 3+ — тогда здесь появится выбор
 // "активной" программы пользователя, а не первой доступной.
 export function getNextSwimWorkout(): SwimWorkoutProgress | null {
-  const program = listPrograms().find((p) => p.status === "available");
-  if (!program) return null;
-  return getProgramProgress(program.id)?.nextWorkout ?? null;
+  const { programStart,trainingPlanV3StartedAt } = getProfilePlanDates();
+  if (!programStart) return null;
+  const todayIso = localIso(new Date());
+  const todayPlan = buildProgramDayForDate(programStart,trainingPlanV3StartedAt,todayIso);
+  const activeProgramId = sessionsForDay(todayPlan)
+    .map((session) => session.workoutRef)
+    .find((ref) => ref?.kind === "swim")?.programId;
+  const program = activeProgramId ? getProgram(activeProgramId) : listPrograms().find((candidate) => candidate.status === "available");
+  return program?.status === "available" ? getProgramProgress(program.id)?.nextWorkout ?? null : null;
 }
 
 // Единственный общий resolver "какая тренировка Swim назначена этой
@@ -181,9 +203,9 @@ export function getNextSwimWorkout(): SwimWorkoutProgress | null {
 // на attachCalendar() (тот же resolvePlanForDate/isSwimSlot, что и основной
 // план VOLT) и на уже вычисленный progress.workouts[].calendar.
 export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimSlot | null {
-  const { programStart, swimPlanStartedAt } = getProfilePlanDates();
+  const { programStart, swimPlanStartedAt,trainingPlanV3StartedAt } = getProfilePlanDates();
   if (!programStart) return null;
-  const homeWeek = buildProgramWeek(programWeekForDate(programStart, calendarDate));
+  const homeWeek = buildHomeWeek(programStart,trainingPlanV3StartedAt,calendarDate);
   const todayIso = localIso(new Date());
   const { mondayIso, sundayIso } = weekRangeContaining(calendarDate);
   const changes = listWeekScheduleChanges(mondayIso, sundayIso);
@@ -196,7 +218,8 @@ export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimS
 
   const swimRef = sessionsForDay(resolved.scheduled).map((session) => session.workoutRef).find((ref) => ref?.kind === "swim") ?? null;
   const program = swimRef?.kind === "swim" ? getProgram(swimRef.programId) : null;
-  const progress = program && swimPlanStartedAt ? getProgramProgress(program.id) : null;
+  const activationAt=program?.id==="endurance"?trainingPlanV3StartedAt:swimPlanStartedAt;
+  const progress = program && activationAt ? getProgramProgress(program.id) : null;
   const match = swimRef?.kind === "swim" && swimRef.workoutId
     ? progress?.workouts.find((w) => w.workout.id === swimRef.workoutId && w.calendar?.date === calendarDate) ?? null
     : null;

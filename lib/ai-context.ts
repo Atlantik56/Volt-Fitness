@@ -112,8 +112,8 @@ export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
   const moodLogs=(input.moodLogs??[]) as any[];
   const wellnessLogs=(input.wellnessLogs??[]) as any[];
   const programStages=input.programStages??[];
-  const programWeek=currentProgramWeek(input.profile?.programStart);
-  const phase=phases[programWeek<=3?0:programWeek<=14?1:2];
+  const programWeek=currentProgramWeek(input.profile?.programStart,input.profile?.trainingPlanV3StartedAt);
+  const phase=phases.find((candidate)=>programWeek>=candidate.startWeek&&programWeek<=candidate.endWeek)??phases.at(-1)!;
 
   const wellnessToday=wellnessLogs.find((w:any)=>w?.date===input.date)??null;
   const wellnessNoteText=wellnessToday?normalizeUserNote(wellnessToday.note):null;

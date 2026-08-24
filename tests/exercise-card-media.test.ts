@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 import test from "node:test";
 import { exerciseMediaFor, exerciseNames } from "../app/exercise-catalog.ts";
 import { exerciseVideoId } from "../app/exercise-videos.ts";
-import { home } from "../app/personal-data.ts";
+import { exerciseReplacement } from "../app/exercise-replacements.ts";
+import { home, planV2WeekCatalog, planV3WeekCatalog } from "../app/personal-data.ts";
 
 // Сломанные карточки упражнений, п.2 — карточка на экране "Тренировка идёт"
 // подтягивает изображение/описание по имени упражнения из того же каталога,
@@ -34,6 +35,23 @@ test("для каждого упражнения из каталога изоб�
     assert.ok(media, `нет медиа для "${name}"`);
     if (media!.image) assert.ok(existsSync(`public${media!.image}`), `битая ссылка на изображение для "${name}": ${media!.image}`);
   }
+});
+
+test("каталог сохраняет карточки уже начатого Plan v2 и добавляет упражнения Plan v3", () => {
+  const planV2Name = planV2WeekCatalog.flatMap((day) => day.x).find(([name]) => name === "Machine Chest Press")?.[0];
+  const planV3Name = planV3WeekCatalog.flatMap((day) => day.x).find(([name]) => name === "Жим от груди в тренажёре")?.[0];
+  assert.ok(planV2Name);
+  assert.ok(planV3Name);
+  assert.ok(exerciseMediaFor(planV2Name));
+  assert.ok(exerciseMediaFor(planV3Name));
+});
+
+test("активный каталог и AI больше не предлагают гантели, но legacy-медиа истории сохранено", () => {
+  assert.ok(!exerciseNames.some((name) => /гантел|dumbbell/i.test(name)));
+  assert.ok(!exerciseNames.map((name)=>exerciseReplacement(name)).some((replacement)=>/гантел|dumbbell/i.test(`${replacement.name} ${replacement.explanation} ${replacement.image}`)));
+  const legacyDumbbell = home.find(([name]) => /гантел/i.test(name));
+  assert.ok(legacyDumbbell);
+  assert.ok(exerciseMediaFor(legacyDumbbell![0]));
 });
 
 test("незнакомое/произвольное (добавленное вне плана) название упражнения даёт null, а не выдуманные данные", () => {

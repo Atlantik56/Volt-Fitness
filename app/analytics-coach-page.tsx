@@ -44,7 +44,7 @@ export function AnalyticsCoachPage({
 }){
  const [period,setPeriod]=useState<AnalyticsPeriod>("3M");
  const workouts=useMemo(()=>(data.workouts||[]) as WorkoutRecord[],[data.workouts]);
- const planDays=useMemo(()=>buildHomeWeek(data.profile?.programStart).map(day=>({day:day.day,type:day.type})),[data.profile?.programStart]);
+ const planDays=useMemo(()=>buildHomeWeek(data.profile?.programStart,data.profile?.trainingPlanV3StartedAt).map(day=>({day:day.day,type:day.type})),[data.profile?.programStart,data.profile?.trainingPlanV3StartedAt]);
  const anchor=useMemo(()=>new Date(),[]);
  const summary=useMemo(()=>computePeriodSummary(workouts,planDays,period,anchor,data.scheduleOverrides||[],data.weekScheduleChanges||[]),[workouts,planDays,period,anchor,data.scheduleOverrides,data.weekScheduleChanges]);
  const inPeriod=useMemo(()=>workouts.filter(workout=>workout.date>=summary.fromDate&&workout.date<=summary.toDate),[workouts,summary.fromDate,summary.toDate]);

@@ -11,6 +11,9 @@ export const VOLT_PROGRAM_ID = "volt-training";
 export const LEGACY_PROGRAM_VERSION = 1;
 export const PLAN_V2_PROGRAM_VERSION = 2;
 export const PLAN_V2_EFFECTIVE_WEEK = 4;
+export const PLAN_V3_PROGRAM_VERSION = 3;
+export const PLAN_V3_EFFECTIVE_WEEK = 9;
+export const PLAN_V3_LAST_DEFINED_WEEK = 16;
 
 const duration = (minMinutes: number, maxMinutes = minMinutes): TrainingDuration => ({ minMinutes, maxMinutes });
 const catalog = (workoutId: string): TrainingWorkoutReference => ({ kind: "catalog", workoutId });
@@ -19,6 +22,14 @@ const swim = (weekIndex: number, role: "technique" | "aerobic" | "endurance"): T
   programId: "foundation",
   programVersion: 2,
   workoutId: weekIndex >= 4 && weekIndex <= 8
+    ? `w${weekIndex}d${role === "technique" ? 1 : role === "aerobic" ? 3 : 5}`
+    : null,
+});
+const enduranceSwim = (weekIndex: number, role: "technique" | "aerobic" | "endurance"): TrainingWorkoutReference => ({
+  kind: "swim",
+  programId: "endurance",
+  programVersion: 1,
+  workoutId: weekIndex >= PLAN_V3_EFFECTIVE_WEEK && weekIndex <= PLAN_V3_LAST_DEFINED_WEEK
     ? `w${weekIndex}d${role === "technique" ? 1 : role === "aerobic" ? 3 : 5}`
     : null,
 });
@@ -123,6 +134,38 @@ const planV2Week = (index: number): TrainingWeekDefinition => ({
   sessions: planV2Sessions(index),
 });
 
+const PLAN_V3_WEEK_META: Readonly<Record<number, { title: string; phase: string; bikeMinutes: number }>> = {
+  9: { title: "Перестройка", phase: "v3-rebuild", bikeMinutes: 30 },
+  10: { title: "Аэробная база", phase: "v3-aerobic-base", bikeMinutes: 35 },
+  11: { title: "Рост объёма", phase: "v3-volume", bikeMinutes: 40 },
+  12: { title: "Разгрузка", phase: "v3-deload", bikeMinutes: 30 },
+  13: { title: "Выносливость", phase: "v3-endurance", bikeMinutes: 40 },
+  14: { title: "Построение", phase: "v3-build", bikeMinutes: 45 },
+  15: { title: "Устойчивый объём", phase: "v3-stable-volume", bikeMinutes: 50 },
+  16: { title: "Разгрузка и контроль", phase: "v3-control", bikeMinutes: 35 },
+};
+
+function planV3Sessions(weekIndex: number): readonly TrainingSessionDefinition[] {
+  const bikeMinutes = PLAN_V3_WEEK_META[weekIndex]?.bikeMinutes ?? 35;
+  return [
+    session({ id: "strength-v3-a", day: 1, discipline: "strength", role: "strength-a", required: true, title: "Силовая тренировка А — тренажёры", duration: duration(50, 60), workoutRef: catalog("strength-v3-a") }),
+    session({ id: "swim-v3-technique", day: 1, discipline: "swim", role: "technique", required: true, title: "Плавание — техника", duration: duration(40, 50), workoutRef: enduranceSwim(weekIndex, "technique") }),
+    session({ id: "bike-v3-zone-2", day: 2, discipline: "bike", role: "zone-2", required: false, title: "Велотренировка в зоне 2", duration: duration(bikeMinutes), workoutRef: catalog("bike-zone-2-v3") }),
+    session({ id: "swim-v3-aerobic", day: 3, discipline: "swim", role: "aerobic", required: true, title: "Плавание — аэробная тренировка", duration: duration(45, 60), workoutRef: enduranceSwim(weekIndex, "aerobic") }),
+    session({ id: "strength-v3-b", day: 4, discipline: "strength", role: "strength-b", required: true, title: "Силовая тренировка Б — тренажёры", duration: duration(50, 60), workoutRef: catalog("strength-v3-b") }),
+    session({ id: "swim-v3-endurance", day: 5, discipline: "swim", role: "endurance", required: true, title: "Плавание — выносливость", duration: duration(50, 70), workoutRef: enduranceSwim(weekIndex, "endurance") }),
+    recovery(6, "rest-v3-saturday"),
+    recovery(7, "rest-v3-sunday"),
+  ];
+}
+
+const planV3Week = (index: number): TrainingWeekDefinition => ({
+  index,
+  title: PLAN_V3_WEEK_META[index]?.title ?? "Устойчивый ритм",
+  phase: PLAN_V3_WEEK_META[index]?.phase ?? "v3-continuation",
+  sessions: planV3Sessions(index),
+});
+
 export const LEGACY_TRAINING_PROGRAM: TrainingProgramDefinition = {
   id: VOLT_PROGRAM_ID,
   version: LEGACY_PROGRAM_VERSION,
@@ -146,7 +189,22 @@ export const PLAN_V2_TRAINING_PROGRAM: TrainingProgramDefinition = {
   },
 };
 
+export const PLAN_V3_TRAINING_PROGRAM: TrainingProgramDefinition = {
+  id: VOLT_PROGRAM_ID,
+  version: PLAN_V3_PROGRAM_VERSION,
+  name: "VOLT Plan v3",
+  description: "Зал на тренажёрах и блоках, три плавания, спокойный велосипед и щадящая работа для тазобедренных суставов без домашних гантелей.",
+  effectiveFromWeek: PLAN_V3_EFFECTIVE_WEEK,
+  weeks: Array.from({ length: PLAN_V3_LAST_DEFINED_WEEK - PLAN_V3_EFFECTIVE_WEEK + 1 }, (_, index) => planV3Week(PLAN_V3_EFFECTIVE_WEEK + index)),
+  continuationWeek: {
+    title: "Устойчивый ритм",
+    phase: "v3-continuation",
+    sessions: planV3Sessions(PLAN_V3_LAST_DEFINED_WEEK + 1),
+  },
+};
+
 export const TRAINING_PROGRAMS: readonly TrainingProgramDefinition[] = [
   LEGACY_TRAINING_PROGRAM,
   PLAN_V2_TRAINING_PROGRAM,
+  PLAN_V3_TRAINING_PROGRAM,
 ];

@@ -50,6 +50,16 @@ export class TrainingProgramRegistry {
     return { program, week: { ...program.continuationWeek, index: normalizedWeek } };
   }
 
+  resolveVersionWeek(programId: string, programVersion: number, weekIndex: number): ResolvedTrainingWeek {
+    const normalizedWeek = Math.max(1, Math.floor(weekIndex));
+    const program = this.programs.find((candidate) => candidate.id === programId && candidate.version === programVersion);
+    if (!program) throw new Error(`Unknown training program ${programId}@${programVersion}`);
+    const exact = program.weeks.find((week) => week.index === normalizedWeek);
+    if (exact) return { program, week: exact };
+    if (!program.continuationWeek) throw new Error(`No week ${normalizedWeek} in ${program.id}@${program.version}`);
+    return { program, week: { ...program.continuationWeek, index: normalizedWeek } };
+  }
+
   identityFor(program: TrainingProgramDefinition, week: TrainingWeekDefinition, session: TrainingSessionDefinition): TrainingProgramIdentity {
     return { programId: program.id, programVersion: program.version, weekIndex: week.index, sessionId: session.id };
   }
@@ -81,6 +91,27 @@ export const trainingProgramRegistry = new TrainingProgramRegistry(TRAINING_PROG
 
 export function resolveTrainingWeek(weekIndex: number): ResolvedTrainingWeek {
   return trainingProgramRegistry.resolveWeek(weekIndex);
+}
+
+export function resolveTrainingVersionWeek(programId: string, programVersion: number, weekIndex: number): ResolvedTrainingWeek {
+  return trainingProgramRegistry.resolveVersionWeek(programId, programVersion, weekIndex);
+}
+
+export type ActivatedPlanPosition = {
+  weekIndex: number;
+  dayIndex: number;
+  elapsedDays: number;
+  definitionWeekIndex: number;
+};
+
+export function activatedPlanPosition(startedAt: string | null | undefined, dateIso: string, definitionWeekOffset = 8): ActivatedPlanPosition | null {
+  if (!startedAt || !/^\d{4}-\d{2}-\d{2}$/.test(startedAt) || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return null;
+  const startMs = Date.parse(`${startedAt}T00:00:00Z`);
+  const dateMs = Date.parse(`${dateIso}T00:00:00Z`);
+  if (!Number.isFinite(startMs) || !Number.isFinite(dateMs) || dateMs < startMs) return null;
+  const elapsedDays = Math.floor((dateMs - startMs) / 86_400_000);
+  const weekIndex = Math.floor(elapsedDays / 7) + 1;
+  return { weekIndex, dayIndex: (elapsedDays % 7) + 1, elapsedDays, definitionWeekIndex: definitionWeekOffset + weekIndex };
 }
 
 export function programWeekForDate(programStart: string | undefined, dateIso: string): number {

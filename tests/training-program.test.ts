@@ -4,9 +4,8 @@ import test from "node:test";
 import { buildProgramWeek } from "../app/personal-data.ts";
 import { sessionsForDay } from "../app/week-schedule-model.ts";
 import { planKey } from "../lib/plan-key.ts";
-import { VOLT_PROGRAM_ID } from "../lib/training-program/definitions.ts";
-import { TrainingProgramRegistry, trainingProgramRegistry } from "../lib/training-program/registry.ts";
-import type { TrainingProgramDefinition } from "../lib/training-program/types.ts";
+import { PLAN_V3_EFFECTIVE_WEEK } from "../lib/training-program/definitions.ts";
+import { trainingProgramRegistry } from "../lib/training-program/registry.ts";
 import { normalizeSnapshot } from "../lib/workout-snapshot.ts";
 
 test("legacy Weeks 1–3 stay on program v1 and Week 4 switches to Plan v2", () => {
@@ -59,24 +58,39 @@ test("legacy plan keys keep the exact old hash payload; versioned sessions get d
   assert.equal(trainingProgramRegistry.resolveIdentity(identity)?.session.title, "Strength A");
 });
 
-test("a future Plan v3 fixture can be registered without changing UI or historical v2 resolution", () => {
-  const historicalIdentity = sessionsForDay(buildProgramWeek(4)[0])[0].programIdentity!;
-  const v3: TrainingProgramDefinition = {
-    id: VOLT_PROGRAM_ID,
-    version: 3,
-    name: "Plan v3 fixture",
-    description: "Test-only future cycle",
-    effectiveFromWeek: 9,
-    weeks: [{
-      index: 9,
-      title: "Fixture week",
-      phase: "fixture",
-      sessions: [{ id: "fixture-recovery", day: 1, discipline: "recovery", role: "recovery", required: false, title: "Fixture recovery", estimatedDuration: null, workoutRef: { kind: "catalog", workoutId: "recovery" } }],
-    }],
-  };
-  const registry = new TrainingProgramRegistry([...trainingProgramRegistry.programs, v3]);
-  assert.equal(registry.resolveWeek(9).program.version, 3);
-  assert.equal(registry.resolveWeek(4).program.version, 2);
-  assert.equal(registry.resolveIdentity(historicalIdentity)?.session.title, "Strength A");
-  assert.equal(trainingProgramRegistry.resolveWeek(9).program.version, 2, "fixture is not active in production registry");
+test("Plan v3 начинается с Week 9 и не меняет исторические identity Plan v2", () => {
+  const historicalIdentity = sessionsForDay(buildProgramWeek(8)[0])[0].programIdentity!;
+  assert.equal(PLAN_V3_EFFECTIVE_WEEK, 9);
+  assert.equal(trainingProgramRegistry.resolveWeek(8).program.version, 2);
+  assert.equal(trainingProgramRegistry.resolveWeek(9).program.version, 3);
+  assert.equal(trainingProgramRegistry.resolveIdentity(historicalIdentity)?.session.title, "Strength A");
+});
+
+test("Plan v3 сохраняет ритм 3 Swim + 2 Strength + optional Bike и ссылается на Endurance", () => {
+  const week = buildProgramWeek(9);
+  const sessions = week.flatMap(sessionsForDay);
+  assert.deepEqual(sessionsForDay(week[0]).map((session) => session.id), ["strength-v3-a", "swim-v3-technique"]);
+  assert.equal(sessions.filter((session) => session.discipline === "swim" && session.required).length, 3);
+  assert.equal(sessions.filter((session) => session.discipline === "strength" && session.required).length, 2);
+  assert.equal(sessions.find((session) => session.discipline === "bike")?.optional, true);
+  assert.deepEqual(sessions.filter((session) => session.discipline === "swim").map((session) => session.workoutRef), [
+    { kind: "swim", programId: "endurance", programVersion: 1, workoutId: "w9d1" },
+    { kind: "swim", programId: "endurance", programVersion: 1, workoutId: "w9d3" },
+    { kind: "swim", programId: "endurance", programVersion: 1, workoutId: "w9d5" },
+  ]);
+  assert.deepEqual(trainingProgramRegistry.identityForSwimWorkout("endurance", 1, "w9d3"), {
+    programId: "volt-training", programVersion: 3, weekIndex: 9, sessionId: "swim-v3-aerobic",
+  });
+});
+
+test("Plan v3 не содержит домашних гантелей и тяжёлых упражнений на ноги", () => {
+  const strength = buildProgramWeek(9).flatMap(sessionsForDay).filter((session) => session.discipline === "strength");
+  assert.deepEqual(strength.map((session) => session.workoutRef), [
+    { kind: "catalog", workoutId: "strength-v3-a" },
+    { kind: "catalog", workoutId: "strength-v3-b" },
+  ]);
+  const names = strength.flatMap((session) => session.exercises.map((exercise) => exercise[0]));
+  assert.ok(names.some((name) => /нижнем блоке.*опорой/i.test(name)));
+  assert.ok(names.some((name) => /донки-кик/i.test(name)));
+  assert.ok(!names.some((name) => /гантел|dumbbell|squat|lunge|leg press|присед|выпад|жим ногами/i.test(name)));
 });

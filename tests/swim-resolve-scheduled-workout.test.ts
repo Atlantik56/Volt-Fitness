@@ -154,7 +154,7 @@ test("awaiting_confirmation и completed сохраняют дату/резул�
   assert.equal((completed as any).workoutId, activeWorkoutId);
 });
 
-test("после завершения всех 21 тренировок будущий Swim-слот честно unresolved", () => {
+test("после завершения Foundation будущий Swim-слот переходит на Endurance, не повторяя старый цикл", () => {
   const program = getProgram("foundation")!;
   const all = program.weeks.flatMap((week) => week.days.flatMap((day) => day.workout ? [day.workout] : []));
   for (let i = 0; i < all.length; i++) {
@@ -163,6 +163,10 @@ test("после завершения всех 21 тренировок буду�
     const logId = db.prepare("INSERT INTO workout_logs(date,type,title,distance_meters,duration_seconds,calories) VALUES (?,?,?,?,?,?)").run(date, "Плавание", all[i].title, 1000, 1200, 300).lastInsertRowid;
     db.prepare("INSERT INTO workout_drafts(date,plan_key,status,snapshot,workout_id) VALUES (?,?,'completed','{}',?)").run(date, key, logId);
   }
-  const slot = resolveScheduledSwimWorkout(addDays(nextWeekWednesday, 70));
-  assert.equal(slot?.kind, "unresolved");
+  const start=addDays(nextWeekWednesday,70);
+  db.prepare("UPDATE profile SET training_plan_v3_started_at=? WHERE id=1").run(start);
+  const slot = resolveScheduledSwimWorkout(start);
+  assert.equal(slot?.kind, "workout");
+  assert.equal((slot as any).programId, "endurance");
+  assert.match((slot as any).route, /^\/swim\/workouts\/endurance\/w\d+d\d$/);
 });

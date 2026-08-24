@@ -8,11 +8,16 @@ const catalog = new Map<string, number>();
 for (const [name, , target] of home) if (!catalog.has(name)) catalog.set(name, targetReps(target)[1]);
 for (const day of week) for (const [name, , target] of day.x) if (!catalog.has(name)) catalog.set(name, targetReps(target)[1]);
 
+// home содержит только наследие первых недель (включая гантели) и нужен для
+// старых snapshot/медиа. Новые назначения и AI берут названия только из week.
+const activeCatalog = new Set<string>();
+for (const day of week) for (const [name] of day.x) activeCatalog.add(name);
+
 export function targetMaxRepsFor(exercise: string): number | null {
   return catalog.get(exercise) ?? null;
 }
 
-export const exerciseNames=Object.freeze([...catalog.keys()].sort((a,b)=>a.localeCompare(b,"ru")));
+export const exerciseNames=Object.freeze([...activeCatalog].sort((a,b)=>a.localeCompare(b,"ru")));
 
 // Техника (описание) и изображение по названию упражнения — из того же
 // статичного каталога программы, что и targetMaxRepsFor выше. Не создаёт

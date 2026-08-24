@@ -17,6 +17,7 @@ export type ProfileRow = {
   startWeight?: number;
   targetWeight?: number;
   programStart?: string;
+  trainingPlanV3StartedAt?: string | null;
 } | null;
 
 // weight/waist/... в measurements — единственные по-настоящему nullable колонки
@@ -129,7 +130,7 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
   const personalRecordsLimit = options.personalRecordsLimit ?? DEFAULT_PERSONAL_RECORDS_LIMIT;
 
   const profile = (db.prepare(
-    "SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1",
+    "SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt FROM profile WHERE id=1",
   ).get() ?? null) as ProfileRow;
 
   const windowStart = historyDays > 0 ? calendarWindowStart(date, historyDays) : null;

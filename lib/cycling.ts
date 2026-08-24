@@ -37,7 +37,8 @@ function isCyclingText(value: string): boolean {
     /(^|\s|[/—-])bike($|\s|[/—-])/.test(normalized) ||
     normalized.includes("indoor cycling") ||
     normalized.includes("cycling") ||
-    normalized.includes("велосипед")
+    normalized.includes("велосипед") ||
+    normalized.includes("велотрениров")
   );
 }
 

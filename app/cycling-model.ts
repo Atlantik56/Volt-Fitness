@@ -1,4 +1,4 @@
-import { buildProgramWeek } from "./personal-data.ts";
+import { buildHomeWeek } from "./personal-data.ts";
 import {
   buildWeekSchedule,
   sessionsForDay,
@@ -12,7 +12,7 @@ import {
   isCyclingWorkoutRecord,
   type CyclingLoadFeedback,
 } from "@/lib/cycling";
-import { programWeekForDate } from "@/lib/training-program/registry";
+import { activatedPlanPosition, programWeekForDate } from "@/lib/training-program/registry";
 
 export type CyclingDraftStatus = "planned" | "active" | "awaiting_confirmation" | "completed" | "cancelled";
 export type CyclingDraftRecord = {
@@ -57,6 +57,7 @@ export type CyclingResolution = {
 
 export type ResolveCyclingInput = {
   programStart?: string;
+  trainingPlanV3StartedAt?: string | null;
   today: string;
   selectedDate?: string | null;
   weekScheduleChanges?: WeekScheduleChange[];
@@ -70,9 +71,10 @@ export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingRes
     : null;
   const anchorDate = selectedDate ?? input.today;
   const { mondayIso, sundayIso } = weekRangeContaining(anchorDate);
-  const programWeek = programWeekForDate(input.programStart, anchorDate);
+  const programWeek = activatedPlanPosition(input.trainingPlanV3StartedAt,anchorDate)?.weekIndex
+    ?? programWeekForDate(input.programStart, anchorDate);
   const schedule = buildWeekSchedule(
-    buildProgramWeek(programWeek),
+    buildHomeWeek(input.programStart,input.trainingPlanV3StartedAt,anchorDate),
     input.weekScheduleChanges ?? [],
     mondayIso,
   );

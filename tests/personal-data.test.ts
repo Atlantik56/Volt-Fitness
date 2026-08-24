@@ -71,3 +71,33 @@ test("Plan v2: Bike optional/planned и не добавлены тяжёлые �
  const strengthNames=plan.flatMap(day=>sessionsForDay(day as any)).filter(session=>session.type==="Силовая").flatMap(session=>session.exercises.map((exercise:any[])=>exercise[0]));
  assert.ok(!strengthNames.some(name=>/squat|lunge|leg press|leg extension|leg curl|присед|выпад|разгибание ног|сгибание ног/i.test(name)));
 });
+
+test("Week 8 → Week 9: Plan v3 включается новой версией без изменения Foundation", () => {
+ const week8=buildProgramWeek(8),week9=buildProgramWeek(9);
+ assert.equal(sessionsForDay(week8[0] as any)[0].programIdentity?.programVersion,2);
+ assert.equal(sessionsForDay(week9[0] as any)[0].programIdentity?.programVersion,3);
+ assert.deepEqual(sessionsForDay(week9[0] as any).map(session=>session.title),["Силовая тренировка А — тренажёры","Плавание — техника"]);
+ assert.equal(week9[1].title,"Велотренировка в зоне 2");
+ assert.equal(week9[3].title,"Силовая тренировка Б — тренажёры");
+});
+
+test("Plan v3: будущая силовая программа проходит только в зале и не содержит гантелей", () => {
+ const strength=buildProgramWeek(9).flatMap(day=>sessionsForDay(day as any)).filter(session=>session.discipline==="strength");
+ const text=strength.flatMap(session=>[session.title,...session.exercises.map((exercise:any[])=>exercise.join(" "))]).join(" ");
+ assert.doesNotMatch(text,/гантел|dumbbell/i);
+ assert.match(text,/тренаж[её]р/i);
+ assert.match(text,/нижнем блоке|донки-кик/i);
+});
+
+test("новый план не включается сам, а после старта в среду День 1 совпадает со средой", () => {
+ const before=buildHomeWeek("2026-07-21",null,"2026-10-07");
+ assert.equal(sessionsForDay(before.find(day=>day.day===3)! as any)[0].programIdentity?.programVersion,2);
+ const active=buildHomeWeek("2026-07-21","2026-10-07","2026-10-07");
+ assert.deepEqual(active.map(day=>sessionsForDay(day as any).map(session=>session.title)),[
+  ["Strength A","Swim — Technique"],["Bike / Indoor Cycling"],["Силовая тренировка А — тренажёры","Плавание — техника"],
+  ["Велотренировка в зоне 2"],["Плавание — аэробная тренировка"],["Силовая тренировка Б — тренажёры"],["Плавание — выносливость"],
+ ]);
+ const next=buildHomeWeek("2026-07-21","2026-10-07","2026-10-12");
+ assert.deepEqual(next.slice(0,2).map(day=>day.type),["Отдых","Отдых"]);
+ assert.equal(sessionsForDay(next[2] as any)[0].programIdentity?.weekIndex,10);
+});

@@ -10,6 +10,7 @@ import { listOpenWorkoutDrafts,startWorkoutDraft,finishWorkoutDraft,cancelWorkou
 import { listWeekScheduleChanges,applyReplace,applyRest,applySwap,cancelChange,resetWeek } from "@/lib/week-schedule-service";
 import { weekRangeContaining, localIso as weekLocalIso } from "@/app/week-schedule-model";
 import { getSwimPlanStartedAt } from "@/lib/swim/services";
+import { getTrainingPlanV3StartedAt } from "@/lib/training-plan-activation";
 import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
@@ -19,7 +20,7 @@ const text=(x:any,max=120)=>typeof x==="string"?x.trim().slice(0,max):"";
 
 export async function GET(){
  const denied=await requireAuth();if(denied)return denied;
- const profile=db.prepare("SELECT id,name,height,start_weight startWeight,target_weight targetWeight,program_start programStart FROM profile WHERE id=1").get();
+ const profile=db.prepare("SELECT id,name,height,start_weight startWeight,target_weight targetWeight,program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt FROM profile WHERE id=1").get();
  const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,load_feedback loadFeedback,metrics_source metricsSource,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
@@ -68,7 +69,7 @@ export async function POST(req:Request){
  }else if(b.action==="workout"){
   const result=saveWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(["startWorkoutDraft","finishWorkoutDraft","cancelWorkoutDraft","confirmWorkoutDraft"].includes(b.action)){
-  if(b.action==="startWorkoutDraft"&&typeof b.snapshot?.type==="string"&&b.snapshot.type.startsWith(`${SWIM_WORKOUT_TYPE_PREFIX} `)&&!getSwimPlanStartedAt())return Response.json({error:"Сначала начните план VOLT Swim"},{status:409});
+  if(b.action==="startWorkoutDraft"&&typeof b.snapshot?.type==="string"&&b.snapshot.type.startsWith(`${SWIM_WORKOUT_TYPE_PREFIX} `)&&!getSwimPlanStartedAt()&&!getTrainingPlanV3StartedAt())return Response.json({error:"Сначала начните тренировочный план"},{status:409});
   const result:any=b.action==="startWorkoutDraft"?startWorkoutDraft(b):b.action==="finishWorkoutDraft"?finishWorkoutDraft(b):b.action==="cancelWorkoutDraft"?cancelWorkoutDraft(b):confirmWorkoutDraft(b);
   if(!result.ok)return Response.json({error:result.error},{status:result.status});
   return Response.json({ok:true,draft:result.draft,summary:result.summary});

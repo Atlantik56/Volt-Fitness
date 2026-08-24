@@ -600,6 +600,18 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .plan-screen{display:grid;gap:clamp(38px,4vw,56px);padding-bottom:30px}
 .plan-screen>*{min-width:0}
 
+.plan-activation-card{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:16px;align-items:center;padding:18px 20px;border:1px solid rgba(255,255,255,.085);border-radius:var(--v2-radius-lg);background:linear-gradient(120deg,rgba(20,25,27,.7),rgba(9,12,14,.5));backdrop-filter:blur(24px);box-shadow:var(--v2-inset),var(--v2-shadow)}
+.plan-activation-icon{display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:14px;background:rgba(199,255,50,.08);color:var(--lime)}
+.plan-activation-copy{min-width:0}.plan-activation-copy .eyebrow{margin:0 0 5px}.plan-activation-copy h3{margin:0;font-size:18px;font-weight:600}.plan-activation-copy p{margin:6px 0 0;color:#929ca2;font-size:11px;line-height:1.5}
+.plan-activation-badges{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}.plan-activation-badges span{padding:5px 8px;border-radius:999px;background:rgba(255,255,255,.045);color:#aeb6bb;font-size:8px;font-weight:750;letter-spacing:.06em;text-transform:uppercase}
+.plan-activation-start{display:inline-flex;align-items:center;gap:8px;min-height:46px;padding:0 17px;border:0;border-radius:12px;background:var(--lime);color:#0b0e07;font-size:11px;font-weight:800;white-space:nowrap}.plan-activation-start:disabled{cursor:not-allowed;opacity:.55}
+.plan-activation-status{display:grid;gap:5px;justify-items:end;color:#8d979d;font-size:10px}.plan-activation-status b{color:#eef2f1;font-size:13px}
+.plan-activation-backdrop{position:fixed;inset:0;z-index:1100;display:grid;place-items:center;padding:20px;background:rgba(2,4,5,.72);backdrop-filter:blur(9px)}
+.plan-activation-dialog{position:relative;width:min(480px,100%);padding:26px;border:1px solid rgba(255,255,255,.11);border-radius:var(--v2-radius-xl);background:#111719;box-shadow:0 40px 100px rgba(0,0,0,.65)}
+.plan-activation-dialog h2{margin:8px 36px 9px 0;font-size:27px;letter-spacing:-.035em}.plan-activation-dialog>p{color:#98a2a8;font-size:12px;line-height:1.6}
+.plan-activation-close{position:absolute;right:16px;top:16px;width:40px;height:40px;border:1px solid var(--v2-border);border-radius:50%;background:rgba(255,255,255,.04);color:#d8dddf}
+.plan-activation-preview{display:grid;gap:9px;margin:20px 0;padding:15px;border:1px solid rgba(255,255,255,.075);border-radius:13px;background:rgba(255,255,255,.03);color:#b7bec2;font-size:11px}.plan-activation-preview b{color:#eef2f1}.plan-activation-error{color:#ff9d9d!important}.plan-activation-dialog footer{display:flex;justify-content:flex-end;gap:9px}.plan-activation-dialog footer button{min-height:44px;padding:0 15px;border-radius:11px}.plan-activation-dialog footer .ghost-btn{border:1px solid var(--v2-border);background:transparent;color:#aeb6bb}
+
 .plan-hero{
   position:relative;isolation:isolate;overflow:hidden;
   padding:clamp(24px,2.8vw,38px) clamp(20px,3vw,42px) 0;
@@ -724,7 +736,8 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .safety{display:flex;gap:13px;align-items:flex-start;margin:0 0 28px;border:0;border-left:2px solid rgba(199,255,50,.45);background:rgba(255,255,255,.025);border-radius:0 12px 12px 0;padding:14px 16px;color:var(--lime);font-size:13px}
 .safety span{display:grid;gap:4px;color:#9fa7ac;font-size:10.5px;line-height:1.55}
 .safety b{color:#dfe4e6;font-size:11px}
-.plan-program-phases{position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0}
+.plan-program-phases{position:relative;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0}
+.plan-program-phases.single{grid-template-columns:1fr}
 .plan-program-phase{min-width:0;padding-right:clamp(24px,3vw,42px)}
 .plan-program-phase+ .plan-program-phase{padding-right:0;padding-left:clamp(24px,3vw,42px);border-left:1px solid rgba(255,255,255,.07)}
 .plan-program-phase>header{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;align-items:start;margin-bottom:18px}
@@ -795,6 +808,7 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 @media(max-width:760px){
   .today-session-list{grid-template-columns:1fr}
   .plan-screen{gap:30px}
+  .plan-activation-card{grid-template-columns:auto minmax(0,1fr);padding:15px}.plan-activation-start,.plan-activation-status{grid-column:1/-1;width:100%;justify-items:start}.plan-activation-dialog{padding:22px 18px}.plan-activation-dialog footer{display:grid}.plan-activation-dialog footer button{width:100%}
   .plan-hero{padding:20px 14px 0;border-radius:var(--v2-radius-lg)}
   .plan-hero-head{grid-template-columns:1fr;gap:20px;padding:0 4px 20px}
   .plan-hero-copy h2{font-size:40px}
