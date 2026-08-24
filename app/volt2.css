@@ -469,6 +469,101 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 
 /* ---------- Нижние секции ---------- */
 .activity-entry,.digest-card,.progression-panel{padding:var(--v2-pad);margin:0 0 var(--v2-section-gap)}
+.progression-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:22px;min-height:118px}
+.progression-summary-copy{min-width:0}
+.progression-summary-copy .eyebrow{margin:0 0 8px}
+.progression-summary-copy h3{margin:0 0 7px;font-size:18px;font-weight:600;letter-spacing:-.018em}
+.progression-summary-copy small{display:block;color:#9ba3a8;font-size:11px;line-height:1.45}
+.progression-open{display:inline-flex;flex:none;min-height:46px;align-items:center;justify-content:center;gap:10px;padding:0 15px;border:1px solid var(--v2-border-hover);border-radius:11px;background:rgba(255,255,255,.05);color:#e6ebee;font-size:10.5px;font-weight:700;cursor:pointer;transition:border-color var(--v2-fast) var(--v2-ease),background var(--v2-fast) var(--v2-ease)}
+.progression-open:hover{border-color:color-mix(in srgb,var(--lime) 42%,transparent);background:rgba(255,255,255,.075)}
+.progression-open span{display:grid;min-width:23px;height:23px;place-items:center;padding:0 6px;border-radius:999px;background:rgba(199,255,50,.1);color:var(--lime);font-size:9px}
+.progression-modal-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:16px;background:rgba(2,4,5,.76);backdrop-filter:blur(12px)}
+.progression-modal{display:grid;grid-template-rows:auto minmax(0,1fr);width:min(860px,100%);max-height:min(88dvh,860px);overflow:hidden;border:1px solid var(--v2-border-hover);border-radius:var(--v2-radius-xl);outline:0;background:linear-gradient(150deg,rgba(22,27,30,.985),rgba(9,12,14,.985));box-shadow:var(--v2-inset),0 36px 100px rgba(0,0,0,.68)}
+.progression-modal>header{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:24px 26px;border-bottom:1px solid var(--v2-border)}
+.progression-modal>header .eyebrow{margin:0 0 8px}
+.progression-modal>header h2{margin:0 0 7px;font-size:clamp(22px,3vw,30px);font-weight:600;letter-spacing:-.035em}
+.progression-modal>header small{color:#8d969c;font-size:10.5px;line-height:1.45}
+.progression-modal>header>button{display:grid;flex:none;width:44px;height:44px;place-items:center;border:1px solid var(--v2-border);border-radius:12px;background:rgba(255,255,255,.04);color:#dce1e3;font-size:24px;line-height:1;cursor:pointer}
+.progression-modal-body{min-height:0;overflow:auto;padding:20px 26px calc(26px + env(safe-area-inset-bottom));overscroll-behavior:contain}
+.progression-error{margin:0 0 16px;padding:12px 14px;border:1px solid rgba(239,156,133,.24);border-radius:11px;background:rgba(91,39,29,.15);color:#efb3a5;font-size:11px;line-height:1.45}
+.progression-group-section{display:grid;gap:12px}
+.progression-group-heading{display:flex;align-items:end;justify-content:space-between;gap:16px}
+.progression-group-heading .eyebrow{margin:0 0 5px}
+.progression-group-heading h3{margin:0;font-size:18px;font-weight:600;letter-spacing:-.018em}
+.progression-group-heading>span,.progression-group summary>em{display:grid;min-width:28px;height:28px;place-items:center;padding:0 7px;border-radius:999px;background:rgba(255,255,255,.055);color:#aeb5ba;font-size:9px;font-weight:750;font-style:normal}
+.progression-change-list,.progression-compact-list{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.progression-change{overflow:hidden;border:1px solid var(--v2-border);border-radius:13px;background:rgba(255,255,255,.022)}
+.progression-change-toggle{display:grid;width:100%;min-height:68px;grid-template-columns:34px minmax(0,1fr) auto 18px;gap:12px;align-items:center;padding:10px 14px;border:0;background:transparent;color:#dfe4e6;text-align:left;cursor:pointer}
+.progression-change-toggle>span:nth-child(2){display:grid;min-width:0;gap:4px}
+.progression-change-toggle b{overflow-wrap:anywhere;font-size:12.5px;font-weight:620;line-height:1.35}
+.progression-change-toggle small{color:#858f95;font-size:9px}
+.progression-change-icon{display:grid;width:32px;height:32px;place-items:center;border-radius:10px;background:rgba(255,255,255,.045);color:#aab3b8;font-size:13px;font-weight:800}
+.progression-change.good .progression-change-icon,.progression-change-icon.good{color:var(--lime)}
+.progression-change.warn .progression-change-icon,.progression-change-icon.warn{color:#ffc477}
+.progression-change.stop .progression-change-icon,.progression-change-icon.stop{color:#ff8b82}
+.progression-change-icon.info{color:#aab3b8}
+.progression-change-load{color:#c5cbcf;font-size:10px;font-weight:650;white-space:nowrap}
+.progression-change-load i{padding:0 4px;color:#636c72;font-style:normal}
+.progression-chevron{color:#747d82;font-size:16px;transform:rotate(0);transition:transform var(--v2-fast) var(--v2-ease)}
+.progression-change-toggle[aria-expanded=true] .progression-chevron{transform:rotate(180deg)}
+.progression-change-detail{padding:0 14px 16px 60px;border-top:1px solid var(--v2-border)}
+.progression-load-shift{display:flex;align-items:center;gap:18px;padding:15px 0 12px}
+.progression-load-shift>div{display:grid;gap:3px}
+.progression-load-shift small{color:#727c82;font-size:7.5px;font-weight:750;letter-spacing:.08em}
+.progression-load-shift b{font-size:13px;font-weight:620}
+.progression-load-shift>i{color:#687177;font-size:14px;font-style:normal}
+.progression-change-detail>p{margin:0 0 9px;color:#a9b0b5;font-size:10.5px;line-height:1.55}
+.progression-change-detail .coach-signals{color:#7f888e;font-size:9px}
+.progression-explanation,.progression-row-copy em{display:block;margin:11px 0 0;padding:11px 12px;border-radius:10px;background:rgba(255,255,255,.035);color:#b2bbc0;font-size:10px;font-weight:400;font-style:normal;line-height:1.5}
+.progression-actions,.progression-row-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:13px}
+.progression-primary,.progression-secondary,.progression-ai-link{min-height:44px;border-radius:10px;font-size:10px;font-weight:700;cursor:pointer}
+.progression-primary{padding:0 15px;border:0;background:var(--lime);color:#0b0e07}
+.progression-secondary{padding:0 14px;border:1px solid var(--v2-border);background:rgba(255,255,255,.035);color:#cbd1d4}
+.progression-ai-link{padding:0 5px;border:0;background:transparent;color:#9ea7ac;text-decoration:underline;text-decoration-color:rgba(158,167,172,.36);text-underline-offset:3px}
+.progression-primary:disabled,.progression-secondary:disabled,.progression-ai-link:disabled{opacity:.55;cursor:wait}
+.progression-group{margin-top:14px;border-top:1px solid var(--v2-border)}
+.progression-group>summary{display:grid;min-height:66px;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:11px 2px;cursor:pointer;list-style:none}
+.progression-group>summary::-webkit-details-marker{display:none}
+.progression-group>summary>span{display:grid;gap:4px}
+.progression-group>summary b{font-size:13px;font-weight:600}
+.progression-group>summary small{color:#7f898f;font-size:9.5px}
+.progression-group[open]>summary{color:#eef1f2}
+.progression-compact-list{padding:0 0 4px}
+.progression-compact-row{display:grid;grid-template-columns:34px minmax(0,1fr) auto;gap:12px;align-items:center;min-height:62px;padding:10px 12px;border-radius:11px;background:rgba(255,255,255,.022)}
+.progression-row-copy{display:grid;min-width:0;gap:4px}
+.progression-row-copy b{overflow-wrap:anywhere;font-size:11.5px;font-weight:610;line-height:1.35}
+.progression-row-copy small{color:#7f898f;font-size:9px;line-height:1.4}
+.progression-row-copy em{grid-column:1/-1}
+.progression-row-actions{justify-content:flex-end;margin:0}
+.progression-primary.compact,.progression-secondary.compact{min-height:44px;padding-inline:12px}
+.progression-empty{margin:0;padding:18px 2px;color:#7f898f;font-size:10.5px;line-height:1.5}
+.progression-modal :is(button,summary,[tabindex]):focus-visible,.progression-open:focus-visible{outline:2px solid color-mix(in srgb,var(--lime) 68%,white);outline-offset:2px}
+@media(max-width:760px){
+  .progression-panel{grid-template-columns:minmax(0,1fr) 132px;gap:10px;min-height:122px;padding:16px}
+  .progression-summary-copy .eyebrow{margin-bottom:6px;font-size:8px}
+  .progression-summary-copy h3{margin-bottom:5px;font-size:15px}
+  .progression-summary-copy small{display:-webkit-box;overflow:hidden;font-size:9.5px;line-height:1.4;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+  .progression-open{width:132px;min-height:48px;padding:7px 9px;line-height:1.25;text-align:center}
+  .progression-open span{flex:none}
+  .progression-modal-backdrop{align-items:end;padding:0}
+  .progression-modal{width:100%;max-height:92dvh;border-radius:22px 22px 0 0}
+  .progression-modal>header{padding:20px 18px}
+  .progression-modal>header h2{font-size:22px}
+  .progression-modal>header small{display:block;max-width:30ch}
+  .progression-modal-body{padding:16px 14px calc(22px + env(safe-area-inset-bottom))}
+  .progression-change-toggle{grid-template-columns:32px minmax(0,1fr) 18px;gap:9px;padding:10px 11px}
+  .progression-change-load{grid-column:2;white-space:normal}
+  .progression-chevron{grid-column:3;grid-row:1/3}
+  .progression-change-detail{padding:0 11px 14px}
+  .progression-load-shift{padding-top:13px}
+  .progression-actions{display:grid;grid-template-columns:1fr 1fr}
+  .progression-actions .progression-ai-link{grid-column:1/-1;justify-self:start}
+  .progression-compact-row{grid-template-columns:32px minmax(0,1fr);gap:9px;padding:11px}
+  .progression-row-actions{display:grid;grid-column:1/-1;grid-template-columns:1fr 1fr;width:100%;margin-top:4px}
+  .progression-row-actions .progression-ai-link{grid-column:1/-1;justify-self:start}
+  .progression-primary.compact,.progression-secondary.compact{min-height:44px}
+}
+@media(prefers-reduced-motion:reduce){.progression-open,.progression-chevron{transition:none!important}}
 .activity-entry input{border-radius:10px;border-color:var(--v2-border);background:rgba(255,255,255,.03)}
 /* Secondary: единственный Primary CTA страницы остаётся в Hero (01-design-principles.md). */
 .activity-entry button{border-radius:11px;border:1px solid var(--v2-border-hover);background:rgba(255,255,255,.05);color:#e6ebee;font-weight:700;transition:border-color var(--v2-fast) var(--v2-ease),background-color var(--v2-fast) var(--v2-ease)}
