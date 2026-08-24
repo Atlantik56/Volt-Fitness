@@ -9,6 +9,7 @@ import { buildWeekSchedule, sessionsForDay, weekRangeContaining, type HomeWeekSe
 import { isSwimSlot } from "@/lib/swim/schedule-sync";
 import { isCyclingSlot } from "@/lib/cycling";
 import { exerciseLabelRu } from "@/lib/swim/exercise-catalog";
+import { trainingLabelRu } from "@/lib/training-display";
 import { intervalTotalMeters, intervalTypeLabel, totalDistanceMeters } from "@/lib/swim/workout-engine";
 import type { ResolvedSwimSlot, SwimInterval, SwimWorkoutDef } from "@/lib/swim/types";
 import { useRouter } from "next/navigation";
@@ -185,7 +186,7 @@ export default function Home() {
    if(isTodayCycling){router.push(`/cycling?date=${encodeURIComponent(todayResolved.date)}`);return}
    if(!isTodaySwim)return void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId);
    if(!swimToday){notify("Не удалось определить тренировку Swim на сегодня","warn");return}
-   if(swimToday.kind==="unresolved"){notify("Сегодня запланирован бассейн, но тренировка Foundation не определена","warn");return}
+   if(swimToday.kind==="unresolved"){notify("Сегодня запланирован бассейн, но тренировка базового плана не определена","warn");return}
    router.push(swimToday.route);
   };
   // Экран «План»: Swim всегда открывает назначенную календарём тренировку
@@ -195,7 +196,7 @@ export default function Home() {
    if(isSelectedCycling){router.push(`/cycling?date=${encodeURIComponent(selectedResolved.date)}`);return}
    if(isSelectedSwim){
     if(!selectedSwim){notify("Не удалось определить тренировку Swim на выбранный день","warn");return}
-    if(selectedSwim.kind==="unresolved"){notify("На этот день запланирован бассейн, но тренировка Foundation не определена","warn");return}
+    if(selectedSwim.kind==="unresolved"){notify("На этот день запланирован бассейн, но тренировка базового плана не определена","warn");return}
     router.push(selectedSwim.route);
     return;
    }
@@ -246,12 +247,12 @@ export default function Home() {
 
         <div className="today-focus">
           <section className="next-workout-card card">
-            <div className="next-workout-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={todayPlan.title} />
+            <div className="next-workout-photo" style={{backgroundImage:`url(${todayPlan.image})`}} role="img" aria-label={trainingLabelRu(todayPlan.title)} />
             <p className="eyebrow">СЛЕДУЮЩАЯ ТРЕНИРОВКА{todayResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
-            <h3>{todayPlan.title}</h3>
+            <h3>{trainingLabelRu(todayPlan.title)}</h3>
             <p className="next-workout-type">{todayPlan.type}</p>
             {todayPlanCompleted&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
-            {todaySessions.length>1&&<div className="today-session-list" aria-label="Сессии на сегодня">{todaySessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} onClick={()=>{setSelectedPlanDate(today);setSelectedPlanSessionId(session.id??null);setNav("План")}}><span>{sessionCompleted(session,today,data.workouts||[])?"✓":String(index+1).padStart(2,"0")}</span><b>{session.title}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
+            {todaySessions.length>1&&<div className="today-session-list" aria-label="Сессии на сегодня">{todaySessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} onClick={()=>{setSelectedPlanDate(today);setSelectedPlanSessionId(session.id??null);setNav("План")}}><span>{sessionCompleted(session,today,data.workouts||[]) ? "✓" : String(index+1).padStart(2,"0")}</span><b>{trainingLabelRu(session.title)}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
             <div className="next-workout-meta">
               <span><Clock3 size={14}/>{todayPlan.time}</span>
               <span>{isTodayCycling?<Bike size={14}/>:<Dumbbell size={14}/>} {todayPlan.exercises.length} {isTodayCycling?"этапа":"упражнений"}</span>
@@ -409,8 +410,8 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
  const isRest=selectedPlan.type==="Отдых";
  const resolvedSwim=selectedSwim?.kind==="workout"?selectedSwim:null;
  const swimWorkout=resolvedSwim?.workout??null;
- const focusTitle=isSwim?(swimWorkout?.title??(selectedSwimLoading?"Загрузка тренировки…":"Тренировка не определена")):(selectedPlan.type==="Отдых"?"Отдых":selectedPlan.title);
- const focusType=isSwim?"VOLT Swim · Foundation":isCycling?"VOLT Cycling · общий Plan":isRest?"День восстановления":selectedPlan.type;
+ const focusTitle=isSwim?(swimWorkout?.title??(selectedSwimLoading?"Загрузка тренировки…":"Тренировка не определена")):(selectedPlan.type==="Отдых"?"Отдых":trainingLabelRu(selectedPlan.title));
+ const focusType=isSwim?"VOLT Swim · базовый план":isCycling?"VOLT Cycling · общий план":isRest?"День восстановления":selectedPlan.type;
  const actionMeta=isSwim?{
   label:selectedSwimLoading?"Загрузка…":resolvedSwim?.status==="completed"?"Тренировка выполнена":resolvedSwim?.status==="in_progress"?"Продолжить тренировку":resolvedSwim?.status==="awaiting_confirmation"?"Подтвердить результат":resolvedSwim?"Открыть тренировку":"Тренировка недоступна",
   cls:resolvedSwim?.status==="completed"?"repeat-btn":"start-btn",
@@ -422,9 +423,9 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
    <div className="plan-hero-shade"/>
    <div className="plan-hero-head">
     <div className="plan-hero-copy">
-     <p className="eyebrow">CURRENT WEEK · PLAN V2</p>
+     <p className="eyebrow">ТЕКУЩАЯ НЕДЕЛЯ · ПЛАН 2.0</p>
      <h2>Неделя {programWeek}</h2>
-     <p className="plan-hero-summary"><b>{completedDays} из {plannedDays} обязательных сессий</b><span>{strengthDays} силовых</span><span>{swimDays} Swim</span></p>
+     <p className="plan-hero-summary"><b>{completedDays} из {plannedDays} обязательных сессий</b><span>{strengthDays} силовых</span><span>{swimDays} плавательных</span></p>
      <p className="plan-hero-note">Техника, устойчивый ритм и восстановление без перегруза.</p>
     </div>
     <div className="plan-hero-status">
@@ -443,24 +444,24 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
      return <button key={d.date} type="button" aria-pressed={d.date===selectedResolved.date} className={`plan-day ${state} ${kind}${d.date===selectedResolved.date?" selected":""}`} onClick={()=>onSelectDate(d.date)}>
       <span className="plan-day-date"><small>{d.original.d.slice(0,2).toUpperCase()}</small><b>{Number(d.date.slice(8,10))}</b></span>
       <span className="plan-day-symbol" aria-hidden="true"><DayIcon size={15}/></span>
-      <span className="plan-day-kind">{d.scheduled.type==="Отдых"?"Отдых":sessions.length>1?`${sessions.length} сессии`:kind==="cycling"?"Cycling":isSwimSlot(d.scheduled)?"Swim":d.scheduled.optional?"Опционально":d.scheduled.type}</span>
+      <span className="plan-day-kind">{d.scheduled.type==="Отдых"?"Отдых":sessions.length>1?`${sessions.length} сессии`:kind==="cycling"?"Велосипед":isSwimSlot(d.scheduled)?"Плавание":d.scheduled.optional?"Опционально":d.scheduled.type}</span>
       <span className="plan-day-state">{d.locked?.completed?<><CheckCircle2 size={10}/>Готово</>:d.date===today?"Сегодня":d.changed?"Изменён":""}</span>
      </button>;
     })}
    </div>
   </section>
 
-  {selectedSessions.length>1&&<div className="plan-session-switcher" role="group" aria-label="Сессии выбранного дня">{selectedSessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} className={(session.id??null)===selectedSessionId?"active":""} onClick={()=>onSelectSession(session.id??null)}><span>{String(index+1).padStart(2,"0")}</span><b>{session.title}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
+  {selectedSessions.length>1&&<div className="plan-session-switcher" role="group" aria-label="Сессии выбранного дня">{selectedSessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} className={(session.id??null)===selectedSessionId?"active":""} onClick={()=>onSelectSession(session.id??null)}><span>{String(index+1).padStart(2,"0")}</span><b>{trainingLabelRu(session.title)}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
 
   <section className="plan-now" aria-label="Текущая и следующая тренировки">
    <article className={`plan-focus-card${isRest?" rest":""}`}>
     <div className={`plan-focus-photo${isRest?" plan-rest-photo":""}`} style={{backgroundImage:`url(${isRest?"/workouts/rest-day-home-v2.png":selectedPlan.image})`}} role="img" aria-label={focusTitle}/>
     <div className="plan-focus-shade"/>
     <div className="plan-focus-content">
-     <p className="eyebrow">{isSelectedToday?"TODAY · СЕГОДНЯ":dayLabel(selectedResolved.date,today).toUpperCase()}{selectedResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
+     <p className="eyebrow">{isSelectedToday?"СЕГОДНЯ":dayLabel(selectedResolved.date,today).toUpperCase()}{selectedResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
      <h3>{focusTitle}</h3>
      <p className="next-workout-type">{focusType}</p>
-     {selectedPlan.optional&&<p className="plan-focus-goal">Опциональная сессия · можно оставить в состоянии planned, пока велостанок недоступен.</p>}
+     {selectedPlan.optional&&<p className="plan-focus-goal">Опциональная сессия · можно оставить запланированной, пока велостанок недоступен.</p>}
      {swimWorkout&&<p className="plan-focus-goal">{swimWorkout.goal}</p>}
      {isRest&&<div className="plan-rest-guide" aria-label="Фокус восстановления"><span><Footprints size={14}/>Спокойная прогулка</span><span><RefreshCw size={14}/>Лёгкая мобилизация</span><span><Moon size={14}/>Полноценный сон</span></div>}
      <div className="next-workout-meta">
@@ -477,9 +478,9 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
    <aside className="plan-next-card">
     <span className="plan-next-icon" aria-hidden="true"><Clock3 size={17}/></span>
     <div>
-     <p className="eyebrow">NEXT · ДАЛЬШЕ</p>
+     <p className="eyebrow">ДАЛЬШЕ</p>
      <span className="plan-next-date">{dayLabel(nextResolved.date,today)}</span>
-     <h3>{nextSession.title}</h3>
+     <h3>{trainingLabelRu(nextSession.title)}</h3>
      <p>{isSwimSession(nextSession)?"VOLT Swim":isCyclingSession(nextSession)?"VOLT Cycling":nextSession.type} · {nextSession.time}</p>
     </div>
     <button type="button" className="ghost-btn" onClick={()=>{onSelectDate(nextResolved.date);onSelectSession(nextSession.id??null)}}>Посмотреть день <span aria-hidden="true">→</span></button>
@@ -487,10 +488,10 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
   </section>
 
   <section className="plan-day-exercises" id="plan-workout-composition">
-   <div className="section-head plan-section-heading"><div><p className="eyebrow">WORKOUT DETAILS</p><h3>{isSwim?(swimWorkout?.title??"VOLT Swim"):isRest?"Восстановление":selectedPlan.title}</h3></div><span>{swimWorkout?`${totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м · ${swimWorkout.intervals.length} интервалов`:isRest?"Спокойный день":`${selectedPlan.exercises.length} ${isCycling?"этапа":"упражнений"}`}</span></div>
+   <div className="section-head plan-section-heading"><div><p className="eyebrow">ДЕТАЛИ ТРЕНИРОВКИ</p><h3>{isSwim?(swimWorkout?.title??"VOLT Swim"):isRest?"Восстановление":trainingLabelRu(selectedPlan.title)}</h3></div><span>{swimWorkout?`${totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м · ${swimWorkout.intervals.length} интервалов`:isRest?"Спокойный день":`${selectedPlan.exercises.length} ${isCycling?"этапа":"упражнений"}`}</span></div>
    {isSwim?(
     selectedSwimLoading?<div className="plan-swim-empty" aria-busy="true">Загружаем назначенную тренировку VOLT Swim…</div>:
-    swimWorkout?<PlanSwimIntervals workout={swimWorkout}/>:<div className="plan-swim-empty">VOLT Swim не смог назначить тренировку Foundation на этот день. Измените день плана или откройте модуль Swim.</div>
+    swimWorkout?<PlanSwimIntervals workout={swimWorkout}/>:<div className="plan-swim-empty">VOLT Swim не смог назначить тренировку базового плана на этот день. Измените день плана или откройте модуль Swim.</div>
    ):isRest?<div className="plan-rest-note"><span aria-hidden="true"><Moon size={22}/></span><div><b>Сегодня без тренировки</b><p>Восстановись и сохрани ритм недели. Следующее занятие уже отмечено выше.</p></div></div>:<>
     {selectedPlan.warmup&&<section className="plan-exercise-block"><header><div><span>01</span><div><p className="eyebrow">ПОДГОТОВКА</p><h4>Разминка</h4></div></div><small>{selectedPlan.warmup.length} упражнения</small></header><PlanExercises items={selectedPlan.warmup}/></section>}
     <section className="plan-exercise-block"><header><div><span>{selectedPlan.warmup?"02":"01"}</span><div><p className="eyebrow">РАБОЧИЙ БЛОК</p><h4>Основная часть</h4></div></div><small>{selectedPlan.exercises.length} {isCycling?"этапа":"упражнений"}{selectedPlan.rounds>1?` · ${selectedPlan.rounds} круга`:""}</small></header><PlanExercises items={selectedPlan.exercises}/></section>
@@ -498,7 +499,7 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
   </section>
 
   <section className="plan-program">
-   <div className="section-head plan-program-head"><div><p className="eyebrow">PROGRAM · PROGRESSION</p><h3>Путь программы</h3></div><p>От уверенной техники дома — к залу и устойчивому кардио.</p></div>
+   <div className="section-head plan-program-head"><div><p className="eyebrow">ПРОГРАММА · ПРОГРЕССИЯ</p><h3>Путь программы</h3></div><p>От уверенной техники дома — к залу и устойчивому кардио.</p></div>
    <Notice/>
    <div className="plan-program-phases">
     <PlanProgramPhase number="01" period="НЕДЕЛИ 1–3" title="Домашняя база" note="2 круга → 3 круга → прибавка веса или повторов" days={buildProgramWeek(1).map((d:any)=>({day:d.d,type:d.type,title:d.title,time:d.time,warmup:d.warmup,exercises:d.exercises}))}/>
@@ -515,7 +516,7 @@ function PlanProgramPhase({number,period,title,note,days}:{number:string;period:
    const kind=day.type==="Отдых"?"rest":day.title==="Бассейн"||day.title?.includes("Плавание")?"swim":isCyclingSlot(day)?"cycling":day.type==="Силовая"?"strength":"cardio";
    const DayIcon=kind==="swim"?Waves:kind==="cycling"?Bike:kind==="strength"?Dumbbell:kind==="rest"?Moon:Footprints;
    return <details key={`${day.day}-${day.title}`} className={`plan-phase-day ${kind}`}>
-    <summary><span className="plan-phase-marker" aria-hidden="true"><DayIcon size={14}/></span><div><small>{day.day}</small><h5>{day.title}</h5><p>{day.type} · {day.time}</p></div><span className="plan-phase-open" aria-hidden="true">＋</span></summary>
+    <summary><span className="plan-phase-marker" aria-hidden="true"><DayIcon size={14}/></span><div><small>{day.day}</small><h5>{trainingLabelRu(day.title)}</h5><p>{day.type} · {day.time}</p></div><span className="plan-phase-open" aria-hidden="true">＋</span></summary>
     <div className="plan-phase-details">{day.warmup&&<><p className="plan-block-title">Разминка</p><PlanExercises items={day.warmup}/></>}<p className="plan-block-title">{day.type==="Отдых"?"План дня":"Основная часть"}</p><PlanExercises items={day.exercises}/></div>
    </details>;
   })}</div>
@@ -554,7 +555,7 @@ function LastWorkoutCard({workout,onOpen}:{workout:any;onOpen:()=>void}){
     <button type="button" className="last-workout-card card" onClick={onOpen} style={{textAlign:"left",cursor:"pointer"}}>
       <p className="eyebrow">ПОСЛЕДНЯЯ ТРЕНИРОВКА</p>
       <div className="last-workout-body">
-        <h4>{workout.title}</h4>
+        <h4>{trainingLabelRu(workout.title)}</h4>
         <small>{workout.date} · {workout.type}</small>
         <div className="last-workout-stats">
           <span>Время<b>{mins} мин</b></span>
@@ -615,7 +616,7 @@ function Personal({section,data,refresh,coachAction,loaded,initialProgressTab,on
  return <ProgressPage data={data} refresh={refresh} coachAction={coachAction} initialTab={initialProgressTab}/>
 }
 function Notice(){return <div className="safety">✦ <span><b>Суставы под защитой</b>{safety}</span></div>}
-function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any,index:number)=><article key={x[0]}>{x[3]?<img src={x[3]} alt={`Пример: ${x[0]}`}/>:<span className="plan-exercise-fallback" aria-hidden="true"><Dumbbell size={18}/></span>}<div className="plan-exercise-copy"><div className="plan-exercise-title"><span>{index+1}</span><h4>{x[0]}</h4></div><p>{x[1]}</p><b>{x[2]}</b></div><ExerciseVideo name={x[0]} compact/></article>)}</div>}
+function PlanExercises({items}:{items:any[]}){return <div className="plan-exercises">{items.map((x:any,index:number)=><article key={x[0]}>{x[3]?<img src={x[3]} alt={`Пример: ${trainingLabelRu(x[0])}`}/>:<span className="plan-exercise-fallback" aria-hidden="true"><Dumbbell size={18}/></span>}<div className="plan-exercise-copy"><div className="plan-exercise-title"><span>{index+1}</span><h4>{trainingLabelRu(x[0])}</h4></div><p>{x[1]}</p><b>{x[2]}</b></div><ExerciseVideo name={x[0]} compact/></article>)}</div>}
 
 function AiKeySetup({onReady}:{onReady:()=>void}){
  const notify=useToast();
@@ -939,7 +940,7 @@ function JourneyOverview({data,profile,summary,onOpenTab}:{data:any;profile:{nam
    {events.length?<ol>{events.map(event=><li key={event.id}>
     <time dateTime={event.date}>{journeyDate(event.date)}</time>
     <span className="journey-event-icon"><JourneyEventIcon kind={event.kind}/></span>
-    <div><small>{journeyEventLabel(event.kind)}</small><b>{event.title}</b><p>{event.summary}</p></div>
+    <div><small>{journeyEventLabel(event.kind)}</small><b>{trainingLabelRu(event.title)}</b><p>{event.summary}</p></div>
    </li>)}</ol>:<div className="journey-empty"><Sparkles size={22}/><p>Первое событие появится после сохранённой тренировки, замера или личной вехи.</p></div>}
   </section>
 
@@ -964,7 +965,7 @@ function JourneyOverview({data,profile,summary,onOpenTab}:{data:any;profile:{nam
 
    <section className="journey-story-card journey-strength-card">
     <header><div><p className="eyebrow">СИЛА</p><h3>Лучшие результаты</h3></div><Dumbbell size={19}/></header>
-    {strengthBest.length?<div className="journey-strength-list">{strengthBest.map(item=><article key={item.exercise}><span><b>{item.exercise}</b><small>{item.date}</small></span><strong>{journeyNumber(item.weight)} кг</strong></article>)}</div>:<div className="journey-story-empty"><Dumbbell size={26}/><p>Рабочие веса появятся после подтверждённых силовых записей.</p></div>}
+    {strengthBest.length?<div className="journey-strength-list">{strengthBest.map(item=><article key={item.exercise}><span><b>{trainingLabelRu(item.exercise)}</b><small>{item.date}</small></span><strong>{journeyNumber(item.weight)} кг</strong></article>)}</div>:<div className="journey-story-empty"><Dumbbell size={26}/><p>Рабочие веса появятся после подтверждённых силовых записей.</p></div>}
     <button type="button" onClick={()=>onOpenTab("Тренировки")}>Все упражнения</button>
    </section>
 
@@ -1235,7 +1236,7 @@ function WorkoutHistory({workouts,refresh}:{workouts:any[];refresh:()=>void}){
  const [message,setMessage]=useState(""); const clock=(n:number)=>`${Math.floor((Number(n)||0)/60)} мин ${String((Number(n)||0)%60).padStart(2,"0")} сек`;
  const save=async(e:any,w:any)=>{e.preventDefault();setMessage("");const form=e.currentTarget,raw:any=Object.fromEntries(new FormData(form)),details=(w.details||[]).map((x:any,i:number)=>({...x,value:Number(raw[`detail-${i}`])||0}));const body={action:"updateWorkout",id:w.id,date:raw.date,type:raw.type,title:raw.title,rounds:raw.rounds,durationSeconds:Math.round((Number(raw.durationMinutes)||0)*60),restSeconds:Math.round((Number(raw.restMinutes)||0)*60),minHeartRate:raw.minHeartRate,avgHeartRate:raw.avgHeartRate,maxHeartRate:raw.maxHeartRate,calories:raw.calories,distanceMeters:raw.distanceMeters,avgSpeed:raw.avgSpeed,details};const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body)});if(!r.ok){const j=await r.json();notify(j.error||"Не удалось сохранить","warn");return setMessage(j.error||"Не удалось сохранить")};setMessage("Изменения сохранены");notify("Тренировка обновлена");refresh()};
  const remove=async(id:number)=>{if(!confirm("Удалить тренировку без возможности восстановления? Также удалятся связанные силовые записи и предложения прогрессии."))return;const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"deleteWorkout",id})});if(r.ok){notify("Тренировка удалена");refresh()}else{const j=await r.json().catch(()=>({}));notify(j.error||"Не удалось удалить тренировку","warn")}};
- return <section className="workout-history"><div className="section-head"><div><p className="eyebrow">ЖУРНАЛ ТРЕНИРОВОК</p><h3>Предыдущие тренировки</h3></div><b>{workouts.length}</b></div>{message&&<p className="history-message">{message}</p>}<div>{workouts.length===0?<p className="detail-lead">Завершённые тренировки появятся здесь.</p>:workouts.map(w=><details key={w.id} className="history-card"><summary><div><small>{w.date} · {w.type}</small><h4>{w.title}</h4></div><span><b>{clock(w.durationSeconds)}</b><em>Пульс {w.avgHeartRate||"—"}</em></span></summary><form onSubmit={e=>save(e,w)}><div className="history-fields"><label>Дата<input name="date" type="date" required defaultValue={w.date}/></label><label>Тип<select name="type" defaultValue={w.type}><option>Силовая</option><option>Кардио</option><option>Плавание</option><option>Восстановление</option></select></label><label>Название<input name="title" required defaultValue={w.title}/></label><label>Круги<input name="rounds" type="number" min="1" max="20" defaultValue={w.rounds}/></label><label>Активное время, мин<input name="durationMinutes" type="number" min="0" step="0.01" defaultValue={((w.durationSeconds||0)/60).toFixed(2)}/></label><label>Отдых, мин<input name="restMinutes" type="number" min="0" step="0.01" defaultValue={((w.restSeconds||0)/60).toFixed(2)}/></label><label>Мин. пульс<input name="minHeartRate" type="number" min="0" max="250" defaultValue={w.minHeartRate||0}/></label><label>Средний пульс<input name="avgHeartRate" type="number" min="0" max="250" defaultValue={w.avgHeartRate||0}/></label><label>Макс. пульс<input name="maxHeartRate" type="number" min="0" max="250" defaultValue={w.maxHeartRate||0}/></label><label>Калории<input name="calories" type="number" min="0" defaultValue={w.calories||0}/></label><label>Расстояние, м<input name="distanceMeters" type="number" min="0" step="0.1" defaultValue={w.distanceMeters||0}/></label><label>Скорость, км/ч<input name="avgSpeed" type="number" min="0" step="0.1" defaultValue={w.avgSpeed||0}/></label></div>{w.details?.length>0&&<div className="history-exercises"><h5>Фактически выполнено</h5>{w.details.map((x:any,i:number)=><label key={`${x.key}-${i}`}><span>{x.name}</span><input name={`detail-${i}`} type="number" min="0" defaultValue={x.value}/><em>{x.unit}</em></label>)}</div>}<div className="history-form-actions"><button type="submit">Сохранить изменения</button><button type="button" className="delete-workout" onClick={()=>remove(w.id)}>Удалить тренировку</button></div></form></details>)}</div></section>
+ return <section className="workout-history"><div className="section-head"><div><p className="eyebrow">ЖУРНАЛ ТРЕНИРОВОК</p><h3>Предыдущие тренировки</h3></div><b>{workouts.length}</b></div>{message&&<p className="history-message">{message}</p>}<div>{workouts.length===0?<p className="detail-lead">Завершённые тренировки появятся здесь.</p>:workouts.map(w=><details key={w.id} className="history-card"><summary><div><small>{w.date} · {w.type}</small><h4>{trainingLabelRu(w.title)}</h4></div><span><b>{clock(w.durationSeconds)}</b><em>Пульс {w.avgHeartRate||"—"}</em></span></summary><form onSubmit={e=>save(e,w)}><div className="history-fields"><label>Дата<input name="date" type="date" required defaultValue={w.date}/></label><label>Тип<select name="type" defaultValue={w.type}><option>Силовая</option><option>Кардио</option><option>Плавание</option><option>Восстановление</option></select></label><label>Название<input name="title" required defaultValue={w.title}/></label><label>Круги<input name="rounds" type="number" min="1" max="20" defaultValue={w.rounds}/></label><label>Активное время, мин<input name="durationMinutes" type="number" min="0" step="0.01" defaultValue={((w.durationSeconds||0)/60).toFixed(2)}/></label><label>Отдых, мин<input name="restMinutes" type="number" min="0" step="0.01" defaultValue={((w.restSeconds||0)/60).toFixed(2)}/></label><label>Мин. пульс<input name="minHeartRate" type="number" min="0" max="250" defaultValue={w.minHeartRate||0}/></label><label>Средний пульс<input name="avgHeartRate" type="number" min="0" max="250" defaultValue={w.avgHeartRate||0}/></label><label>Макс. пульс<input name="maxHeartRate" type="number" min="0" max="250" defaultValue={w.maxHeartRate||0}/></label><label>Калории<input name="calories" type="number" min="0" defaultValue={w.calories||0}/></label><label>Расстояние, м<input name="distanceMeters" type="number" min="0" step="0.1" defaultValue={w.distanceMeters||0}/></label><label>Скорость, км/ч<input name="avgSpeed" type="number" min="0" step="0.1" defaultValue={w.avgSpeed||0}/></label></div>{w.details?.length>0&&<div className="history-exercises"><h5>Фактически выполнено</h5>{w.details.map((x:any,i:number)=><label key={`${x.key}-${i}`}><span>{trainingLabelRu(x.name)}</span><input name={`detail-${i}`} type="number" min="0" defaultValue={x.value}/><em>{x.unit}</em></label>)}</div>}<div className="history-form-actions"><button type="submit">Сохранить изменения</button><button type="button" className="delete-workout" onClick={()=>remove(w.id)}>Удалить тренировку</button></div></form></details>)}</div></section>
 }
 function Photo({item,title,onDelete,compact}:{item:any;title:string;onDelete?:(id:number)=>void;compact?:boolean}){
  const [revealed,setRevealed]=useState(false);
@@ -1259,12 +1260,12 @@ function StrengthLog({data,refresh}:{data:any;refresh:()=>void}){
  const ordered=[...history].reverse(), latest=ordered[0], prev=ordered[1];
  const trend=latest&&prev?Number(latest.weight)-Number(prev.weight):null;
  return <section className="strength-card card"><div className="section-head"><div><p className="eyebrow">ЗАЛ</p><h3>Рабочие веса</h3></div></div>
-  <form onSubmit={submit} className="strength-form"><label>Упражнение<select name="exercise" value={exercise} onChange={e=>setExercise(e.target.value)}>{gymExercises.map(x=><option key={x} value={x}>{x}</option>)}</select></label><label>Дата<input name="date" type="date" required defaultValue={localIso(new Date())}/></label><label>Рабочий вес, кг<input name="weight" type="number" min="0" step="0.5" required/></label><label>Повторы<input name="reps" type="number" min="0"/></label><label>Сложность<select name="difficulty" defaultValue="Нормально"><option>Легко</option><option>Нормально</option><option>Тяжело</option><option>Боль</option></select></label><button>Записать</button></form>
+  <form onSubmit={submit} className="strength-form"><label>Упражнение<select name="exercise" value={exercise} onChange={e=>setExercise(e.target.value)}>{gymExercises.map(x=><option key={x} value={x}>{trainingLabelRu(x)}</option>)}</select></label><label>Дата<input name="date" type="date" required defaultValue={localIso(new Date())}/></label><label>Рабочий вес, кг<input name="weight" type="number" min="0" step="0.5" required/></label><label>Повторы<input name="reps" type="number" min="0"/></label><label>Сложность<select name="difficulty" defaultValue="Нормально"><option>Легко</option><option>Нормально</option><option>Тяжело</option><option>Боль</option></select></label><button>Записать</button></form>
   {history.length>0?<>
-   <SeriesChart points={history.map((x:any)=>({id:x.id,date:x.date,value:Number(x.weight)}))} label={exercise} unit="кг"/>
+   <SeriesChart points={history.map((x:any)=>({id:x.id,date:x.date,value:Number(x.weight)}))} label={trainingLabelRu(exercise)} unit="кг"/>
    {trend!=null&&<p className="detail-lead">{trend>0?`+${trend.toFixed(1)} кг с прошлого раза — прогресс.`:trend<0?`${trend.toFixed(1)} кг с прошлого раза.`:"Вес не изменился с прошлого раза."}</p>}
    <div className="strength-history">{ordered.slice(0,10).map((x:any)=><article key={x.id}><b>{x.date}</b><span>{x.weight} кг{x.reps?` × ${x.reps}`:""}</span><button type="button" onClick={()=>remove(x.id)} aria-label="Удалить запись">×</button></article>)}</div>
-  </>:<p className="detail-lead">Пока нет записей по «{exercise}».</p>}
+  </>:<p className="detail-lead">Пока нет записей по «{trainingLabelRu(exercise)}».</p>}
  </section>
 }
 function WeeklyDigest({data,weekWorkouts,weekDates,currentWeight}:{data:any;weekWorkouts:any[];weekDates:Set<string>;currentWeight:number}){

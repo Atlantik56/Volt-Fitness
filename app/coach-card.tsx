@@ -5,6 +5,7 @@
 // чтобы карточка и индикатор не могли показать разные решения.
 
 import { COACH_ACTION_LABELS, type CoachResult } from "../lib/coach";
+import { trainingLabelRu } from "../lib/training-display";
 import { useInsightSurface } from "./use-insight-surface";
 
 const TONE_ICON:Record<string,string>={stop:"⛔",warn:"⚠",good:"✓",info:"◆"};
@@ -36,9 +37,9 @@ export function CoachCard({result,plan,date,ready=true,onAskCoach}:{result:Coach
   {decision&&meta?<>
    <div className={`coach-status ${meta.tone}`} role="status"><span className="coach-status-dot" aria-hidden="true"/><b>{meta.label}</b></div>
    {plan&&<div className="coach-decision">
-    <div><small>ИСХОДНЫЙ ПЛАН</small><b>{plan.title}</b><span>{plan.type}</span></div>
+    <div><small>ИСХОДНЫЙ ПЛАН</small><b>{trainingLabelRu(plan.title)}</b><span>{plan.type}</span></div>
     <i aria-hidden="true">→</i>
-    <div><small>РЕКОМЕНДАЦИЯ</small><b>{decision.suggestedLoad.title}</b><span>{decision.suggestedLoad.details}</span></div>
+    <div><small>РЕКОМЕНДАЦИЯ</small><b>{trainingLabelRu(decision.suggestedLoad.title)}</b><span>{decision.suggestedLoad.details}</span></div>
    </div>}
    <p className="coach-explanation">{decision.explanation}</p>
    <p className="coach-note-line">Рекомендация не применяется к плану автоматически — решение за тобой.</p>

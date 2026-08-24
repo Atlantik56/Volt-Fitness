@@ -7,6 +7,7 @@
 // вызов AI Hub, который лишь объясняет уже посчитанное, ничего не меняя.
 
 import { useEffect, useRef, useState } from "react";
+import { trainingLabelRu } from "../lib/training-display";
 import { useToast } from "./toast";
 
 type ProgressionAction="increase"|"maintain"|"decrease"|"deload"|"no-change";
@@ -117,7 +118,7 @@ export function ProgressionPanel({proposals,refresh}:{proposals:ProgressionPropo
     return <li key={p.id} className={`progression-change ${meta.tone}`}>
       <button type="button" className="progression-change-toggle" aria-expanded={expanded} aria-controls={`progression-change-${p.id}`} onClick={()=>setExpandedId(expanded?null:p.id)}>
         <span className="progression-change-icon" aria-hidden="true">{meta.icon}</span>
-        <span><b>{p.exercise}</b><small>{meta.label}</small></span>
+        <span><b>{trainingLabelRu(p.exercise)}</b><small>{meta.label}</small></span>
         <span className="progression-change-load">{formatLoad(p.from)} <i aria-hidden="true">→</i> {formatLoad(p.to)}</span>
         <span className="progression-chevron" aria-hidden="true">⌄</span>
       </button>
@@ -143,7 +144,7 @@ export function ProgressionPanel({proposals,refresh}:{proposals:ProgressionPropo
     const meta=ACTION_META[p.action];
     return <li key={p.id} className="progression-compact-row">
       <span className="progression-change-icon info" aria-hidden="true">{meta.icon}</span>
-      <span className="progression-row-copy"><b>{p.exercise}</b><small>{meta.label}</small>{explain[p.id]&&<em>{explain[p.id]}</em>}</span>
+      <span className="progression-row-copy"><b>{trainingLabelRu(p.exercise)}</b><small>{meta.label}</small>{explain[p.id]&&<em>{explain[p.id]}</em>}</span>
       <div className="progression-row-actions">
         <button type="button" className="progression-primary compact" disabled={busyId===p.id} onClick={()=>act(p.id,"accept")}>{busyId===p.id?"Сохраняю…":"Подтвердить"}</button>
         <button type="button" className="progression-secondary compact" disabled={busyId===p.id} onClick={()=>act(p.id,"reject")}>Оставить как есть</button>
@@ -157,7 +158,7 @@ export function ProgressionPanel({proposals,refresh}:{proposals:ProgressionPropo
     const statusLabel=p.status==="accepted"?"Применено":p.status==="rejected"?"Отклонено":"Отменено";
     return <li key={p.id} className="progression-compact-row processed">
       <span className={`progression-change-icon ${meta.tone}`} aria-hidden="true">{meta.icon}</span>
-      <span className="progression-row-copy"><b>{p.exercise}</b><small>{meta.label} · {statusLabel}{p.decidedAt?` · ${p.decidedAt}`:""}</small>{explain[p.id]&&<em>{explain[p.id]}</em>}</span>
+      <span className="progression-row-copy"><b>{trainingLabelRu(p.exercise)}</b><small>{meta.label} · {statusLabel}{p.decidedAt?` · ${p.decidedAt}`:""}</small>{explain[p.id]&&<em>{explain[p.id]}</em>}</span>
       {p.status==="accepted"&&<div className="progression-row-actions">
         <button type="button" className="progression-secondary compact" disabled={busyId===p.id} onClick={()=>act(p.id,"cancel")}>{busyId===p.id?"Отменяю…":"Отменить решение"}</button>
         {!explain[p.id]&&<button type="button" className="progression-ai-link" disabled={busyId===p.id} onClick={()=>askAi(p.id)}>Спросить у ИИ, почему</button>}

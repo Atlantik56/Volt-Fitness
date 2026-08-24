@@ -5,6 +5,7 @@ import Link from "next/link";
 import AuthGate from "../auth-gate";
 import {buildHomeWeek} from "../personal-data";
 import {calculateReadiness} from "../../lib/readiness";
+import {trainingLabelRu} from "../../lib/training-display";
 import styles from "./widget.module.css";
 
 const iso=(d:Date)=>{const z=new Date(d.getTime()-d.getTimezoneOffset()*60000);return z.toISOString().slice(0,10)};
@@ -22,9 +23,9 @@ export default function WidgetPage(){
  return <AuthGate><main className={`${styles.page} volt-widget-page`}>
   <header className={styles.header}><Link href="/" className={styles.brand}><span>V</span>VOLT</Link><time>{new Intl.DateTimeFormat("ru-RU",{weekday:"short",day:"numeric",month:"short"}).format(new Date())}</time></header>
   {!data?<section className={styles.loading}>Загрузка данных…</section>:<>
-   <section className={styles.hero} style={{backgroundImage:plan.image?`linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.35)),url(${plan.image})`:`linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.35))`}}><p>ПЛАН НА СЕГОДНЯ</p><h1>{plan.title}</h1><div><span>{plan.time}</span><span>{plan.exercises.length} упражнений</span><span>{plan.rounds?`${plan.rounds} круга`:"отдых"}</span></div><Link href="/">{plan.type==="Отдых"?"Открыть день":"Начать тренировку"} →</Link></section>
+   <section className={styles.hero} style={{backgroundImage:plan.image?`linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.35)),url(${plan.image})`:`linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.35))`}}><p>ПЛАН НА СЕГОДНЯ</p><h1>{trainingLabelRu(plan.title)}</h1><div><span>{plan.time}</span><span>{plan.exercises.length} упражнений</span><span>{plan.rounds?`${plan.rounds} круга`:"отдых"}</span></div><Link href="/">{plan.type==="Отдых"?"Открыть день":"Начать тренировку"} →</Link></section>
    <section className={styles.glance} aria-label="Главные показатели"><article><span>⚡</span><b>{streak(data.workouts||[])}</b><small>серия</small></article><article><span>🌿</span><b>{streak(data.activity||[],"date","beers")}</b><small>без пива</small></article><article><span>↟</span><b>{Number(activity.steps||0).toLocaleString("ru-RU")}</b><small>шагов</small></article><article><span>◷</span><b>{activity.activeMinutes||0}</b><small>минут</small></article></section>
-   <section className={styles.readiness}><div className={styles.score} style={{background:`conic-gradient(var(--lime) ${score}%,#292e30 0)`}}><span><b>{score}</b><small>готовность</small></span></div><div><p>VOLT CHECK-IN</p><h2>{decision.title}</h2><small>{decision.text}</small></div></section>
+   <section className={styles.readiness}><div className={styles.score} style={{background:`conic-gradient(var(--lime) ${score}%,#292e30 0)`}}><span><b>{score}</b><small>готовность</small></span></div><div><p>ПРОВЕРКА VOLT</p><h2>{decision.title}</h2><small>{decision.text}</small></div></section>
    <form className={styles.survey} onSubmit={save}><div className={styles.surveyHead}><div><p>ОПРОС ПО ОЩУЩЕНИЯМ</p><h2>Как тело сегодня?</h2></div>{saved&&<b>Сохранено ✓</b>}</div>
     <Range label="Энергия" value={form.energy} min={1} max={5} left="нет сил" right="много сил" change={v=>update("energy",v)}/>
     <Range label="Боль в суставах" value={form.pain} min={0} max={10} left="нет" right="сильная" change={v=>update("pain",v)}/>

@@ -11,6 +11,7 @@ import {
   Moon, Scale, Sparkles, Target, TrendingDown, TrendingUp,
 } from "lucide-react";
 import { buildHomeWeek } from "./personal-data";
+import { trainingLabelRu } from "../lib/training-display";
 import { CoachChatPanel } from "./coach-chat-panel";
 import type { CoachResult } from "../lib/coach";
 import {
@@ -85,7 +86,7 @@ export function AnalyticsCoachPage({
   const items:Insight[]=[];
   if(summary.planCompletionPct!=null)items.push({id:"plan",title:summary.planCompletionPct>=80?"План выполняется устойчиво":summary.planCompletionPct>=50?"План выполняется частично":"План требует более ровного ритма",summary:`Выполнено ${summary.planCompletionPct}% плановых тренировок за выбранный период.`,evidence:`${summary.totalWorkouts} тренировок · ${summary.activeWeeks} из ${summary.totalWeeks} активных недель`,tone:summary.planCompletionPct>=80?"good":summary.planCompletionPct>=50?"neutral":"warn",icon:<Target size={20}/>});
   if(weightDelta!=null)items.push({id:"weight",title:weightDelta<0?"Вес снижается":"Вес изменился за период",summary:`От ${numberRu(Number(firstWeight))} до ${numberRu(Number(currentWeight))} кг.`,evidence:`${weightDelta>0?"+":""}${numberRu(weightDelta)} кг · ${measurements.length} замеров`,tone:weightDelta<0?"good":weightDelta>0?"warn":"neutral",icon:weightDelta<=0?<TrendingDown size={20}/>:<TrendingUp size={20}/>});
-  if(strengthImprovement)items.push({id:"strength",title:strengthImprovement.delta>0?"Рабочий вес вырос":"Рабочий вес снизился",summary:`${strengthImprovement.exercise}: ${numberRu(strengthImprovement.first)} → ${numberRu(strengthImprovement.last)} кг.`,evidence:`${strengthImprovement.delta>0?"+":""}${numberRu(strengthImprovement.delta)} кг по сохранённым подходам`,tone:strengthImprovement.delta>0?"good":"neutral",icon:<Dumbbell size={20}/>});
+  if(strengthImprovement)items.push({id:"strength",title:strengthImprovement.delta>0?"Рабочий вес вырос":"Рабочий вес снизился",summary:`${trainingLabelRu(strengthImprovement.exercise)}: ${numberRu(strengthImprovement.first)} → ${numberRu(strengthImprovement.last)} кг.`,evidence:`${strengthImprovement.delta>0?"+":""}${numberRu(strengthImprovement.delta)} кг по сохранённым подходам`,tone:strengthImprovement.delta>0?"good":"neutral",icon:<Dumbbell size={20}/>});
   if(avgCalories!=null)items.push({id:"food",title:"Питание регулярно фиксируется",summary:`Среднее по записанным дням — ${numberRu(avgCalories,0)} ккал.`,evidence:`${foodLogs.length} приёмов пищи · ${foodDays} дней с данными`,tone:"neutral",icon:<Apple size={20}/>});
   if(avgSleep!=null)items.push({id:"sleep",title:"Сон доступен для анализа",summary:`Среднее значение — ${numberRu(avgSleep)} ч по заполненным дням.`,evidence:`${sleepValues.length} дней с данными · без вывода о причинности`,tone:avgSleep>=7?"good":avgSleep<6?"warn":"neutral",icon:<Moon size={20}/>});
   if(!items.length)items.push({id:"empty",title:"Пока недостаточно данных для тренда",summary:"Добавляй тренировки, замеры или питание — Analytics покажет только подтверждённые изменения.",evidence:"Синтетические показатели не используются",tone:"neutral",icon:<Sparkles size={20}/>});

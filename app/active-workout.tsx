@@ -8,6 +8,7 @@ import { parseCompactSets } from "../lib/quick-set-parser";
 import { useMilestones } from "./milestones-section";
 import { findNewAutomaticMilestone, type Milestone } from "../lib/milestones";
 import { activeWorkoutStatusLabel, isActiveWorkoutView } from "../lib/workout-status";
+import { trainingLabelRu } from "../lib/training-display";
 
 type Exercise={name:string;order:number;target:string;recommendedWeight:number;sets:number|null;repMin:number|null;repMax:number|null;unit:string};
 type ResultSet={weight:number;reps:number};
@@ -63,11 +64,11 @@ function ConfirmationForm({draft,duration,pending,onConfirm,onCancel}:{draft:Act
    <span><small>Длительность</small><b>{Math.round((context?.duration??duration)/60)} мин</b></span>
    <span><small>Пульс</small><b>{context?.averageHeartRate??"—"}{context?.maxHeartRate?` / ${context.maxHeartRate}`:""}</b></span>
    <span><small>Калории</small><b>{context?.calories??"—"}</b></span>
-   <span><small>Источник</small><b>{context?.source??"Manual"}</b></span>
+   <span><small>Источник</small><b>{context?.source==="Garmin"?"Garmin":"Вручную"}</b></span>
   </div>
   <div className="confirmation-quick"><button type="button" onClick={allPlan}>✓ Всё выполнено по плану</button><button type="button" className="ghost-btn" disabled={!Object.keys(last).length} onClick={allLast}>Всё как в прошлый раз</button></div>
   <div className="confirmation-exercises">{items.map((item,index)=><article className={item.skipped?"is-skipped":""} key={`${item.added?"added":"plan"}-${item.name}`}>
-   <div className="confirmation-exercise-head"><div><b>{item.name}</b>{item.added&&<em>Вне плана</em>}</div><button type="button" className="text-btn" onClick={()=>update(index,{editing:!item.editing})}>{item.editing?"Свернуть":"Изменить"}</button></div>
+   <div className="confirmation-exercise-head"><div><b>{trainingLabelRu(item.name)}</b>{item.added&&<em>Вне плана</em>}</div><button type="button" className="text-btn" onClick={()=>update(index,{editing:!item.editing})}>{item.editing?"Свернуть":"Изменить"}</button></div>
    {item.plan&&<div className="exercise-comparison"><span><small>План</small><b>{item.plan.recommendedWeight} × {item.plan.repMin??0} × {item.plan.sets??1}</b></span><span><small>Последний результат</small><b>{last[item.name]?.length?setsText(last[item.name]):"Нет данных"}</b></span><span><small>Сегодня</small><b>{item.skipped?"Пропущено":item.mode==="last"?"Как в прошлый раз":item.mode==="plan"?"Выполнено по плану":"Изменено"}</b></span></div>}
    {item.editing&&!item.skipped&&<div className="quick-set-editor"><label>Быстрый ввод — например «45×8, 45×8, 45×7»<input type="text" value={item.quickText} onChange={event=>update(index,{quickText:event.target.value})} placeholder="45×8, 45×8, 45×7"/></label><button type="button" className="text-btn" onClick={()=>applyQuick(index,item.quickText)}>Разобрать</button>{item.quickError&&<p className="quick-set-error" role="alert">{item.quickError}</p>}</div>}
    {item.editing&&!item.skipped&&<div className="compact-set-editor">{item.sets.map((set,setIndex)=><div key={setIndex}><label>Вес<input type="number" min="0" max="500" step="0.25" value={set.weight} onChange={event=>update(index,{sets:item.sets.map((x,i)=>i===setIndex?{...x,weight:Number(event.target.value)}:x),mode:"custom"})}/></label><label>Повторы<input type="number" min="0" max="100000" value={set.reps} onChange={event=>update(index,{sets:item.sets.map((x,i)=>i===setIndex?{...x,reps:Number(event.target.value)}:x),mode:"custom"})}/></label><button aria-label={`Удалить подход ${setIndex+1}`} type="button" disabled={item.sets.length===1} onClick={()=>update(index,{sets:item.sets.filter((_,i)=>i!==setIndex),mode:"custom"})}>×</button></div>)}<button type="button" className="text-btn" onClick={()=>update(index,{sets:[...item.sets,{...(item.sets[item.sets.length-1]??{weight:0,reps:0})}],mode:"custom"})}>+ Подход</button></div>}
@@ -91,10 +92,10 @@ function ResultScreen({summary,newMilestone,onEditWorkout}:{summary:Confirmation
    <span><small>Нагрузка</small><b>{summary.effort}{summary.painAfter?` · боль ${summary.painAfter}`:""}</b></span>
   </div>
   <div className="result-exercise-groups">
-   {grouped.done.length>0&&<p><b>Выполнено:</b> {grouped.done.map(x=>x.name).join(", ")}</p>}
-   {grouped.changed.length>0&&<p><b>Изменено относительно плана:</b> {grouped.changed.map(x=>x.name).join(", ")}</p>}
-   {grouped.added.length>0&&<p><b>Добавлено вне плана:</b> {grouped.added.map(x=>x.name).join(", ")}</p>}
-   {grouped.skipped.length>0&&<p><b>Пропущено:</b> {grouped.skipped.map(x=>x.name).join(", ")}</p>}
+   {grouped.done.length>0&&<p><b>Выполнено:</b> {grouped.done.map(x=>trainingLabelRu(x.name)).join(", ")}</p>}
+   {grouped.changed.length>0&&<p><b>Изменено относительно плана:</b> {grouped.changed.map(x=>trainingLabelRu(x.name)).join(", ")}</p>}
+   {grouped.added.length>0&&<p><b>Добавлено вне плана:</b> {grouped.added.map(x=>trainingLabelRu(x.name)).join(", ")}</p>}
+   {grouped.skipped.length>0&&<p><b>Пропущено:</b> {grouped.skipped.map(x=>trainingLabelRu(x.name)).join(", ")}</p>}
   </div>
   {newMilestone&&<div className="result-milestone"><b>🏁 {newMilestone.title}</b><p>{newMilestone.summary}</p></div>}
   <button type="button" className="ghost-btn" onClick={onEditWorkout}>Редактировать результаты</button>
@@ -136,14 +137,14 @@ export function ActiveWorkout({draft,data,onChanged,onClose,onEditWorkout}:{draf
  };
  return <div className="modal-backdrop focus-mode active-workout-mode">
   <section className="workout-modal active-workout-card">
-   <header><div><p className="eyebrow">{statusLabel}</p><h2>{draft.snapshot.title}</h2></div><button aria-label="Закрыть" onClick={onClose}>×</button></header>
+   <header><div><p className="eyebrow">{statusLabel}</p><h2>{trainingLabelRu(draft.snapshot.title)}</h2></div><button aria-label="Закрыть" onClick={onClose}>×</button></header>
    {isActiveView&&<><div className="active-workout-meta"><span>Начало <b>{formatTime(draft.startedAt)}</b></span><span>{draft.snapshot.exercises.length} упражнений</span>{draft.snapshot.rounds>1&&<span>{draft.snapshot.rounds} круга</span>}</div>
    <div className="active-plan-list">{draft.snapshot.exercises.map(exercise=>{
     const media=exerciseMediaFor(exercise.name);
     return <article key={`${exercise.order}-${exercise.name}`} className="active-plan-item">
-     <ExerciseThumbnail name={exercise.name} image={media?.image??""}/>
+     <ExerciseThumbnail name={trainingLabelRu(exercise.name)} image={media?.image??""}/>
      <div className="active-plan-item-body">
-      <div className="active-plan-item-head"><span>{exercise.order+1}</span><b>{exercise.name}</b></div>
+      <div className="active-plan-item-head"><span>{exercise.order+1}</span><b>{trainingLabelRu(exercise.name)}</b></div>
       <p className="active-plan-item-desc">{media?.description||"Описание техники для этого упражнения пока недоступно — двигайся подконтрольно, без боли."}</p>
       <b className="active-plan-item-target">{exercise.target}{exercise.recommendedWeight>0?` · ${exercise.recommendedWeight} кг`:""}</b>
       <ExerciseVideo name={exercise.name} compact/>

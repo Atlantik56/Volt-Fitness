@@ -12,6 +12,7 @@ import {
   previewReplaceText, previewSwapText, previewRestText,
   type HomeWeekDay, type ResolvedDayPlan, type WeekScheduleReasonCode,
 } from "./week-schedule-model";
+import { trainingLabelRu } from "../lib/training-display";
 
 type Mode = "replace" | "swap" | "rest";
 
@@ -48,11 +49,11 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
   const locked = day.locked;
 
   const preview = mode === "replace"
-    ? previewReplaceText(day.original.d, catalog.find(x => x.day === targetDay)?.title ?? "")
+    ? previewReplaceText(day.original.d, trainingLabelRu(catalog.find(x => x.day === targetDay)?.title ?? ""))
     : mode === "rest"
     ? previewRestText(day.original.d)
     : mode === "swap" && swapDate
-    ? previewSwapText(day.scheduled.title, dayLabel(weekDays.find(x => x.date === swapDate)!))
+    ? previewSwapText(trainingLabelRu(day.scheduled.title), dayLabel(weekDays.find(x => x.date === swapDate)!))
     : "";
 
   const save = async () => {
@@ -93,8 +94,8 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
       <header><div><p className="eyebrow">ИЗМЕНИТЬ ПЛАН</p><h2>{day.original.d}</h2></div><button aria-label="Закрыть" onClick={onClose}>×</button></header>
 
       <div className="week-plan-editor-current">
-        <span>Сейчас: <b>{day.scheduled.type === "Отдых" ? "Отдых" : day.scheduled.title}</b>{day.changed && <em className="plan-changed-badge">План изменён</em>}</span>
-        {day.changed && <small>Исходно по программе: {day.original.type === "Отдых" ? "Отдых" : day.original.title}</small>}
+        <span>Сейчас: <b>{day.scheduled.type === "Отдых" ? "Отдых" : trainingLabelRu(day.scheduled.title)}</b>{day.changed && <em className="plan-changed-badge">План изменён</em>}</span>
+        {day.changed && <small>Исходно по программе: {day.original.type === "Отдых" ? "Отдых" : trainingLabelRu(day.original.title)}</small>}
       </div>
 
       {locked?.anyCompleted && <p className="week-plan-editor-locked">На этот день уже выполнена хотя бы одна сессия — план дня изменить нельзя.</p>}
@@ -108,12 +109,12 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
         </div>
 
         {mode === "replace" && <label>Новая тренировка<select value={targetDay} onChange={e => setTargetSourceDay(Number(e.target.value))}>
-          {catalog.filter(x => x.type !== "Отдых").map(x => <option key={x.day} value={x.day}>{x.title}</option>)}
+          {catalog.filter(x => x.type !== "Отдых").map(x => <option key={x.day} value={x.day}>{trainingLabelRu(x.title)}</option>)}
         </select></label>}
 
         {mode === "swap" && <label>Поменять с<select value={swapDate} onChange={e => setSwapDate(e.target.value)}>
           {swapCandidates.map(x => <option key={x.date} value={x.date} disabled={x.locked?.completed || x.locked?.openDraft}>
-            {dayLabel(x)} — {x.scheduled.type === "Отдых" ? "Отдых" : x.scheduled.title}{x.locked?.completed ? " (выполнено)" : x.locked?.openDraft ? " (есть черновик)" : ""}
+            {dayLabel(x)} — {x.scheduled.type === "Отдых" ? "Отдых" : trainingLabelRu(x.scheduled.title)}{x.locked?.completed ? " (выполнено)" : x.locked?.openDraft ? " (есть черновик)" : ""}
           </option>)}
         </select></label>}
 
