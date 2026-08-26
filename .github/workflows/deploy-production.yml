@@ -1,0 +1,26 @@
+name: Production Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to production
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, volt-vps]
+    timeout-minutes: 10
+    concurrency:
+      group: volt-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout current main
+        uses: actions/checkout@v7
+        with:
+          ref: main
+
+      - name: Pull latest and rebuild container
+        run: sudo /opt/volt-fitness/deploy.sh
