@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import { computeNutritionWeeklyStats, computeWeightWeeklyTrend } from "../lib/coach-weekly.ts";
 import { buildAiCoachContext, renderAiCoachContextText } from "../lib/ai-context.ts";
-import { askAiCoach, askMwsAiCoach, AiCoachError, SYSTEM_PROMPT, parseStructuredReply } from "../lib/ai-coach.ts";
-import { askAiHub } from "../lib/ai-hub.ts";
+import { askAiCoach, askAnthropicStructured, askMwsAiCoach, AiCoachError, SYSTEM_PROMPT, parseStructuredReply } from "../lib/ai-coach.ts";
+import { askAiHub, providerFlagEnabled } from "../lib/ai-hub.ts";
 import {
   dateInTimeZone,
   releaseDailyQuota,
@@ -270,6 +270,34 @@ test("AI Hub: Anthropic остаётся основным, когда он до�
   assert.equal(mwsCalls,0);
 });
 
+test("AI Hub: Auto сразу использует MWS, когда Anthropic отключён сервером",async()=>{
+  let anthropicCalls=0;
+  const reply=await askAiHub({anthropicKey:"a",anthropicEnabled:false,mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","auto",{
+    anthropic:async()=>{anthropicCalls++;return {answer:"Anthropic",mainRecommendation:null}},
+    mws:async()=>({answer:"MWS",mainRecommendation:null}),
+  });
+  assert.equal(anthropicCalls,0);
+  assert.equal(reply.provider,"mws");
+  assert.equal(reply.routeReason,"primary_unavailable");
+});
+
+test("AI Hub: ручной Anthropic при server-side disable не вызывает провайдера",async()=>{
+  let anthropicCalls=0;
+  await assert.rejects(()=>askAiHub({anthropicKey:"a",anthropicEnabled:false,mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","anthropic",{
+    anthropic:async()=>{anthropicCalls++;return {answer:"Anthropic",mainRecommendation:null}},
+    mws:async()=>({answer:"MWS",mainRecommendation:null}),
+  }),(error:any)=>error instanceof AiCoachError&&error.code==="provider_disabled"&&/отключён/.test(error.message));
+  assert.equal(anthropicCalls,0);
+});
+
+test("AI Hub: server-side provider flag включён по умолчанию и понимает false/off/0",()=>{
+  assert.equal(providerFlagEnabled(undefined),true);
+  assert.equal(providerFlagEnabled("true"),true);
+  assert.equal(providerFlagEnabled("false"),false);
+  assert.equal(providerFlagEnabled("OFF"),false);
+  assert.equal(providerFlagEnabled("0"),false);
+});
+
 test("AI Hub: при сбое Anthropic запрос автоматически уходит в MWS",async()=>{
   const reply=await askAiHub({anthropicKey:"a",mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","auto",{
     anthropic:async()=>{throw new AiCoachError("timeout",504)},
@@ -286,6 +314,20 @@ test("AI Hub: ошибка настройки не маскируется пер
     mws:async()=>{mwsCalls++;return {answer:"MWS",mainRecommendation:null}},
   }),AiCoachError);
   assert.equal(mwsCalls,0);
+});
+
+test("AI Hub: upstream auth error Anthropic не маскируется MWS fallback",async()=>{
+  let mwsCalls=0;
+  await assert.rejects(()=>askAiHub({anthropicKey:"a",mwsKey:"m",mwsProject:"p1",mwsModel:"m1"},fakeContext,[],"?","auto",{
+    anthropic:async()=>{throw new AiCoachError("bad key",502,{code:"provider_auth",provider:"anthropic",allowFallback:false})},
+    mws:async()=>{mwsCalls++;return {answer:"MWS",mainRecommendation:null}},
+  }),(error:any)=>error instanceof AiCoachError&&error.code==="provider_auth");
+  assert.equal(mwsCalls,0);
+});
+
+test("AI provider errors: invalid JSON и пустой ответ различаются",async()=>{
+  await assert.rejects(()=>askAnthropicStructured("key","system",[],async()=>new Response("not-json",{status:200})),(error:any)=>error instanceof AiCoachError&&error.code==="invalid_json");
+  await assert.rejects(()=>askAnthropicStructured("key","system",[],async()=>new Response(JSON.stringify({content:[]}),{status:200})),(error:any)=>error instanceof AiCoachError&&error.code==="empty_response");
 });
 
 test("AI Hub: ручной выбор MWS не вызывает Anthropic",async()=>{

@@ -10,6 +10,7 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  CloudUpload,
   Gauge,
   HeartPulse,
   Pause,
@@ -168,8 +169,8 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
   };
 
   const cancel = async () => {
-    if (!resolution?.draft || resolution.status !== "active") return;
-    const result = await perform({ action: "cancelWorkoutDraft", id: resolution.draft.id, expectedStatus: "active" });
+    if (!resolution?.draft || (resolution.status !== "active" && resolution.status !== "awaiting_confirmation")) return;
+    const result = await perform({ action: "cancelWorkoutDraft", id: resolution.draft.id, expectedStatus: resolution.status });
     if (result?.draft) {
       setDraftOverride(null);
       setView("home");
@@ -206,7 +207,7 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
         : resolution.status === "active"
           ? <CyclingActive resolution={resolution} pending={pending} onFinish={finish} onCancel={cancel} />
           : resolution.status === "awaiting_confirmation"
-            ? <CyclingResult resolution={resolution} pending={pending} onConfirm={confirm} />
+            ? <CyclingResult resolution={resolution} pending={pending} onConfirm={confirm} onCancel={cancel} onImported={load} />
             : view === "details"
               ? <CyclingDetails resolution={resolution} pending={pending} onBack={() => setView("home")} onStart={start} />
               : <CyclingHome resolution={resolution} summary={summary} onOpenDetails={() => setView("details")} />}
@@ -301,8 +302,15 @@ function CyclingActive({ resolution, pending, onFinish, onCancel }: { resolution
   </section>;
 }
 
-function CyclingResult({ resolution, pending, onConfirm }: { resolution: CyclingResolution; pending: boolean; onConfirm: (body: Record<string, unknown>) => void }) {
+function CyclingResult({ resolution, pending, onConfirm, onCancel, onImported }: {
+  resolution: CyclingResolution;
+  pending: boolean;
+  onConfirm: (body: Record<string, unknown>) => void;
+  onCancel: () => void;
+  onImported: () => Promise<void>;
+}) {
   const confirmation = resolution.draft?.confirmation as any;
+  const imported = confirmation?.source === "Garmin";
   const initialDuration = Math.max(1, Math.round((Number(confirmation?.duration) || plannedMinutes(resolution) * 60) / 60));
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -322,20 +330,65 @@ function CyclingResult({ resolution, pending, onConfirm }: { resolution: Cycling
   return <form className="cycling-result-card cycling-glass" onSubmit={submit}>
     <p className="cycling-section-label">RESULT · ПОДТВЕРЖДЕНИЕ</p>
     <h1>Как прошёл заезд?</h1>
-    <p className="cycling-result-source">Источник метрик: <b>{confirmation?.source === "Garmin" ? "FIT / Garmin" : "ручной ввод"}</b></p>
-    <div className="cycling-result-fields">
-      <label>Фактическое время, мин<input required name="durationMinutes" type="number" min="0" max="1440" step="1" defaultValue={initialDuration} /></label>
-      <label>Дистанция, км<input name="distanceKm" type="number" min="0" max="1000" step="0.01" defaultValue={confirmation?.distanceMeters ? Number(confirmation.distanceMeters) / 1000 : ""} placeholder="—" /></label>
-      <label>Средний пульс<input name="avgHeartRate" type="number" min="20" max="250" defaultValue={confirmation?.averageHeartRate ?? ""} placeholder="—" /></label>
-      <label>Средняя скорость, км/ч<input name="avgSpeed" type="number" min="0" max="200" step="0.1" defaultValue={confirmation?.averageSpeed ?? ""} placeholder="—" /></label>
-      <label>Калории<input name="calories" type="number" min="0" max="10000" defaultValue={confirmation?.calories ?? ""} placeholder="—" /></label>
+    <p className="cycling-result-source">Источник метрик: <b>{imported ? "FIT / Garmin" : "ручной ввод"}</b>{imported && " · Импортированные метрики защищены от случайного изменения."}</p>
+    {resolution.draft && <CyclingFitImport draftId={resolution.draft.id} imported={imported} onImported={onImported} />}
+    <div className="cycling-result-fields" key={imported ? "garmin" : "manual"}>
+      <label>Фактическое время, мин<input required readOnly={imported} name="durationMinutes" type="number" min="1" max="1440" step="1" defaultValue={initialDuration} /></label>
+      <label>Дистанция, км<input readOnly={imported} name="distanceKm" type="number" min="0" max="1000" step="0.01" defaultValue={confirmation?.distanceMeters ? Number(confirmation.distanceMeters) / 1000 : ""} placeholder="—" /></label>
+      <label>Средний пульс<input readOnly={imported} name="avgHeartRate" type="number" min="20" max="250" defaultValue={confirmation?.averageHeartRate ?? ""} placeholder="—" /></label>
+      <label>Средняя скорость, км/ч<input readOnly={imported} name="avgSpeed" type="number" min="0" max="200" step="0.1" defaultValue={confirmation?.averageSpeed ?? ""} placeholder="—" /></label>
+      <label>Калории<input readOnly={imported} name="calories" type="number" min="0" max="10000" defaultValue={confirmation?.calories ?? ""} placeholder="—" /></label>
       <label>Субъективная нагрузка<select name="effort" defaultValue="Нормально"><option>Легко</option><option>Нормально</option><option>Тяжело</option><option>Боль</option></select></label>
       <label>Боль после, 0–10<input name="painAfter" type="number" min="0" max="10" defaultValue="0" /></label>
     </div>
     <fieldset className="cycling-feedback-picker"><legend>Как переносится нагрузка?</legend>{(["calm", "discomfort", "pain"] as const).map((value) => <label key={value} className={value === "pain" ? "pain" : ""}><input required type="radio" name="loadFeedback" value={value} /><span>{CYCLING_LOAD_FEEDBACK_LABELS[value]}</span></label>)}</fieldset>
     <p className="cycling-result-hint">Пустые HR, distance, speed и calories сохраняются как отсутствующие и будут показаны знаком «—».</p>
-    <button className="cycling-primary" disabled={pending} type="submit"><Check size={18} />{pending ? "Сохраняем…" : "Подтвердить и сохранить в VOLT"}</button>
+    <div className="cycling-result-actions">
+      <button className="cycling-secondary danger" disabled={pending} type="button" onClick={onCancel}>Отменить тренировку</button>
+      <button className="cycling-primary" disabled={pending} type="submit"><Check size={18} />{pending ? "Сохраняем…" : "Подтвердить и сохранить в VOLT"}</button>
+    </div>
   </form>;
+}
+
+function CyclingFitImport({ draftId, imported, onImported }: { draftId: number; imported: boolean; onImported: () => Promise<void> }) {
+  const notify = useToast();
+  const [busy, setBusy] = useState(false);
+  const [status, setStatus] = useState(imported ? "Данные Garmin связаны с этой тренировкой." : "");
+
+  const upload = async (file: File) => {
+    setBusy(true);
+    setStatus("");
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("expectedActivityType", "bike");
+      form.append("draftId", String(draftId));
+      form.append("expectedDraftStatus", "awaiting_confirmation");
+      const response = await fetch("/api/workout-imports", { method: "POST", body: form });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || "Не удалось импортировать FIT");
+      if (Number(result.draftId) !== draftId) throw new Error("FIT не удалось связать с текущей тренировкой");
+      setStatus(result.duplicate ? "Этот FIT уже связан с заездом." : "FIT импортирован. Метрики Garmin применены к результату.");
+      notify("FIT Garmin связан с Cycling-тренировкой");
+      await onImported();
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : "Не удалось импортировать FIT";
+      setStatus(message);
+      notify(message, "warn");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return <section className={`cycling-fit-import${imported ? " imported" : ""}`}>
+    <div><CloudUpload size={21} /><span><b>{imported ? "Garmin FIT подключён" : "Добавить Garmin FIT"}</b><small>{imported ? "Объективные метрики загружены из файла" : "Загрузите велотренировку .fit до 10 МБ"}</small></span></div>
+    {!imported && <label className="cycling-fit-button">{busy ? "Проверяем…" : "Выбрать FIT"}<input disabled={busy} type="file" accept=".fit,application/octet-stream" onChange={(event) => {
+      const file = event.currentTarget.files?.[0];
+      event.currentTarget.value = "";
+      if (file) void upload(file);
+    }} /></label>}
+    {status && <p role="status">{status}</p>}
+  </section>;
 }
 
 function Metric({ icon, label, value, danger }: { icon: React.ReactNode; label: string; value: string; danger?: boolean }) {

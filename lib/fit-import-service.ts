@@ -29,6 +29,7 @@ export type StoredImport={id:number;workout:ImportedWorkout;draftId:number|null;
 export type ImportFailure={ok:false;error:string;status:number};
 export type ImportSuccess={ok:true;result:StoredImport};
 export type ImportResponse=ImportFailure|ImportSuccess;
+export type TargetedImportRequest={expectedActivityType:unknown;draftId:unknown;expectedDraftStatus:unknown};
 
 const finite=(value:unknown,min:number,max:number)=>{
  const n=Number(value);return Number.isFinite(n)&&n>=min&&n<=max?n:null;
@@ -154,23 +155,99 @@ function workoutFromRow(row:any):ImportedWorkout{
 const selectImport=`SELECT id,source,external_id externalId,fingerprint,started_at startedAt,duration_seconds duration,activity_type activityType,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,average_cadence averageCadence,training_effect trainingEffect,metadata,draft_id draftId FROM workout_imports`;
 
 export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
- const duplicate=db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint) as any;
- const draftRows=db.prepare("SELECT id,date,snapshot,started_at startedAt,finished_at finishedAt FROM workout_drafts WHERE status='awaiting_confirmation' ORDER BY id DESC LIMIT 50").all() as DraftRow[];
- const candidates=rankDrafts(workout,draftRows);
- if(duplicate)return {ok:true,result:{id:duplicate.id,workout:workoutFromRow(duplicate),draftId:duplicate.draftId,duplicate:true,autoLinked:false,candidates}};
- const high=candidates.filter(x=>x.confidence==="High");
- const autoDraftId=high.length===1?high[0].id:null;
- const result=db.prepare(`INSERT INTO workout_imports
-  (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
-  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
-   workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
-   JSON.stringify({fitSport:workout.metadata.fitSport,distanceMeters:workout.metadata.distanceMeters,laps:workout.metadata.laps}),autoDraftId);
- return {ok:true,result:{id:Number(result.lastInsertRowid),workout,draftId:autoDraftId,duplicate:false,autoLinked:autoDraftId!==null,candidates}};
+ let response!:ImportSuccess;
+ db.transaction(()=>{
+  const duplicate=db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint) as any;
+  const draftRows=db.prepare("SELECT id,date,snapshot,started_at startedAt,finished_at finishedAt FROM workout_drafts WHERE status='awaiting_confirmation' ORDER BY id DESC LIMIT 50").all() as DraftRow[];
+  const candidates=rankDrafts(workout,draftRows);
+  if(duplicate){
+   response={ok:true,result:{id:duplicate.id,workout:workoutFromRow(duplicate),draftId:duplicate.draftId,duplicate:true,autoLinked:false,candidates}};
+   return;
+  }
+  const high=candidates.filter(x=>x.confidence==="High");
+  const candidateDraftId=high.length===1?high[0].id:null;
+  const alreadyLinked=candidateDraftId===null?null:db.prepare("SELECT 1 FROM workout_imports WHERE draft_id=? LIMIT 1").get(candidateDraftId);
+  const autoDraftId=alreadyLinked?null:candidateDraftId;
+  const result=db.prepare(`INSERT INTO workout_imports
+   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
+   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
+    workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
+    JSON.stringify({fitSport:workout.metadata.fitSport,distanceMeters:workout.metadata.distanceMeters,laps:workout.metadata.laps}),autoDraftId);
+  response={ok:true,result:{id:Number(result.lastInsertRowid),workout,draftId:autoDraftId,duplicate:false,autoLinked:autoDraftId!==null,candidates}};
+ })();
+ return response;
 }
 
 export function importFit(bytes:Uint8Array):ImportResponse{
  const parsed=parseFit(bytes);
  return parsed.ok?storeImportedWorkout(parsed.workout):parsed;
+}
+
+// Targeted imports are used by discipline-specific result screens. Parsing,
+// activity validation and persistence happen in one server-side transaction,
+// so a client cannot first persist an incompatible FIT and link it later.
+export function importFitForDraft(bytes:Uint8Array,target:TargetedImportRequest):ImportResponse{
+ const did=Number(target.draftId);
+ const expectedActivityType=String(target.expectedActivityType??"");
+ const expectedDraftStatus=String(target.expectedDraftStatus??"");
+ if(!Number.isSafeInteger(did)||did<1||!(["strength","swim","bike","cardio","recovery"] as string[]).includes(expectedActivityType)){
+  return {ok:false,error:"Некорректный тип активности или черновик",status:400};
+ }
+ if(expectedDraftStatus!=="awaiting_confirmation"){
+  return {ok:false,error:"Поддерживается только черновик, ожидающий подтверждения",status:400};
+ }
+ const parsed=parseFit(bytes);
+ if(!parsed.ok)return parsed;
+ if(parsed.workout.activityType!==expectedActivityType){
+  return {ok:false,error:`FIT имеет тип ${parsed.workout.activityType}, ожидался ${expectedActivityType}`,status:422};
+ }
+
+ let response:ImportResponse={ok:false,error:"Черновик не найден",status:404};
+ db.transaction(()=>{
+  const draft=db.prepare("SELECT id,date,status,snapshot,started_at startedAt,finished_at finishedAt FROM workout_drafts WHERE id=?").get(did) as (DraftRow&{status:string})|undefined;
+  if(!draft)return;
+  if(draft.status!==expectedDraftStatus){
+   response={ok:false,error:"Статус черновика изменился; обновите экран",status:409};
+   return;
+  }
+  let snapshot:any={};try{snapshot=JSON.parse(draft.snapshot)}catch{}
+  if(draftFamily(String(snapshot.type??""),String(snapshot.title??""))!==expectedActivityType){
+   response={ok:false,error:"Тип черновика не соответствует FIT",status:409};
+   return;
+  }
+
+  const workout=parsed.workout;
+  const candidate=rankDrafts(workout,[draft]);
+  const linkedToDraft=db.prepare(`${selectImport} WHERE draft_id=? ORDER BY id DESC LIMIT 1`).get(did) as any;
+  if(linkedToDraft&&(linkedToDraft.source!==workout.source||linkedToDraft.fingerprint!==workout.fingerprint)){
+   response={ok:false,error:"С этим черновиком уже связан другой FIT",status:409};
+   return;
+  }
+  const duplicate=db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint) as any;
+  if(duplicate){
+   if(duplicate.draftId!==null&&duplicate.draftId!==did){
+    response={ok:false,error:"Импорт уже связан с другим черновиком",status:409};
+    return;
+   }
+   if(duplicate.draftId===null){
+    const linked=db.prepare("UPDATE workout_imports SET draft_id=? WHERE id=? AND draft_id IS NULL").run(did,duplicate.id);
+    if(linked.changes!==1){
+     response={ok:false,error:"Импорт уже связан с другим черновиком",status:409};
+     return;
+    }
+   }
+   response={ok:true,result:{id:duplicate.id,workout:workoutFromRow(duplicate),draftId:did,duplicate:true,autoLinked:false,candidates:candidate}};
+   return;
+  }
+
+  const inserted=db.prepare(`INSERT INTO workout_imports
+   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
+   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
+    workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
+    JSON.stringify({fitSport:workout.metadata.fitSport,distanceMeters:workout.metadata.distanceMeters,laps:workout.metadata.laps}),did);
+  response={ok:true,result:{id:Number(inserted.lastInsertRowid),workout,draftId:did,duplicate:false,autoLinked:false,candidates:candidate}};
+ })();
+ return response;
 }
 
 export function linkImport(importId:unknown,draftId:unknown):ImportFailure|{ok:true;draftId:number}{

@@ -18,6 +18,7 @@ type ProfileSettingsPageProps={
 
 type HubSettings={
   anthropicKeySet:boolean;
+  anthropicEnabled:boolean;
   mwsKeySet:boolean;
   mwsProject:string;
   mwsModel:string;
@@ -170,7 +171,7 @@ function ProfileAiSettings(){
   return <div className="profile-ai-settings">
     <header><Bot size={20}/><div><b>AI Coach использует эти подключения</b><p>Ключи сохраняются на сервере и не возвращаются в браузер.</p></div></header>
     <form onSubmit={saveAnthropic}>
-      <div className="profile-ai-provider"><span className={settings?.anthropicKeySet?"connected":""}/><div><b>Anthropic</b><small>{settings?.anthropicKeySet?"Ключ настроен":"Ключ не настроен"}</small></div></div>
+      <div className="profile-ai-provider"><span className={settings?.anthropicKeySet&&settings?.anthropicEnabled?"connected":""}/><div><b>Anthropic</b><small>{settings?.anthropicEnabled===false?"Отключён серверной конфигурацией":settings?.anthropicKeySet?"Ключ настроен":"Ключ не настроен"}</small></div></div>
       <label>API-ключ<input type="password" autoComplete="off" minLength={20} maxLength={200} required value={anthropicKey} onChange={event=>setAnthropicKey(event.target.value.trim())} placeholder={settings?.anthropicKeySet?"Введите новый ключ, чтобы заменить текущий":"sk-ant-api03-…"}/></label>
       <button disabled={anthropicBusy}>{anthropicBusy?"Сохраняю…":settings?.anthropicKeySet?"Обновить ключ":"Подключить"}</button>
     </form>

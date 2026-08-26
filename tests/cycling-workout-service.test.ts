@@ -59,6 +59,46 @@ test("Cycling confirmation сохраняет реальные метрики и
   assert.equal((db.prepare("SELECT COUNT(*) n FROM progression_decisions WHERE workout_id=?").get(confirmed.draft!.workoutId) as any).n, 0);
 });
 
+test("при Garmin FIT средняя скорость вычисляется на сервере, а не принимается из body", () => {
+  const started = service.startWorkoutDraft({ date: "2026-08-16", snapshot: snapshot() });
+  service.finishWorkoutDraft({ id: started.draft!.id, expectedStatus: "active" });
+  db.prepare(`INSERT INTO workout_imports
+    (source,fingerprint,started_at,duration_seconds,activity_type,metadata,draft_id)
+    VALUES ('garmin',?,'2026-08-16T08:00:00.000Z',1800,'bike',?,?)`)
+    .run("cycling-speed-integrity",JSON.stringify({distanceMeters:10_000}),started.draft!.id);
+  const confirmed = service.confirmWorkoutDraft({
+    id: started.draft!.id,
+    expectedStatus: "awaiting_confirmation",
+    durationSeconds: 60,
+    distanceMeters: 1,
+    avgSpeed: 199,
+    loadFeedback: "calm",
+  });
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.summary?.averageSpeed, 20);
+  const speed=(db.prepare("SELECT avg_speed speed FROM workout_logs WHERE id=?").get(confirmed.draft!.workoutId) as any).speed;
+  assert.equal(speed,20);
+});
+
+test("абсурдная вычисленная скорость FIT одинаково нормализуется в ответе и БД", () => {
+  const started = service.startWorkoutDraft({ date: "2026-08-17", snapshot: snapshot() });
+  service.finishWorkoutDraft({ id: started.draft!.id, expectedStatus: "active" });
+  db.prepare(`INSERT INTO workout_imports
+    (source,fingerprint,started_at,duration_seconds,activity_type,metadata,draft_id)
+    VALUES ('garmin',?,'2026-08-17T08:00:00.000Z',1,'bike',?,?)`)
+    .run("cycling-speed-normalization",JSON.stringify({distanceMeters:1_000_000}),started.draft!.id);
+  const confirmed = service.confirmWorkoutDraft({
+    id: started.draft!.id,
+    expectedStatus: "awaiting_confirmation",
+    avgSpeed: 199,
+    loadFeedback: "calm",
+  });
+  assert.equal(confirmed.ok, true);
+  assert.equal(confirmed.summary?.averageSpeed, 0);
+  const speed=(db.prepare("SELECT avg_speed speed FROM workout_logs WHERE id=?").get(confirmed.draft!.workoutId) as any).speed;
+  assert.equal(speed,0);
+});
+
 test("отсутствующие Cycling метрики остаются отсутствующими для selector (нули в legacy schema)", () => {
   const started = service.startWorkoutDraft({ date: "2026-08-13", snapshot: snapshot() });
   service.finishWorkoutDraft({ id: started.draft!.id, expectedStatus: "active" });

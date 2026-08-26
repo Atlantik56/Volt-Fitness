@@ -6,29 +6,36 @@ export type AiHubRoute="auto"|"anthropic"|"mws"|"consensus";
 export type AiHubReply=AiCoachReply&{provider:AiHubProvider;routeReason:"primary"|"primary_unavailable"|"fallback"|"consensus"};
 export type AiHubConfig={
   anthropicKey?:string|null;
+  anthropicEnabled?:boolean;
   mwsKey?:string|null;
   mwsProject?:string|null;
   mwsModel?:string|null;
 };
+
+export function providerFlagEnabled(value:string|undefined|null):boolean{
+  return !["0","false","off","disabled"].includes(String(value??"").trim().toLowerCase());
+}
 
 export async function routeAiHub<T>(
   config:AiHubConfig,
   route:Exclude<AiHubRoute,"consensus">,
   adapters:{anthropic:(key:string)=>Promise<T>;mws:(key:string,project:string,model:string)=>Promise<T>},
 ):Promise<T&{provider:Exclude<AiHubProvider,"anthropic+mws">;routeReason:Exclude<AiHubReply["routeReason"],"consensus">}>{
+  const anthropicReady=config.anthropicEnabled!==false&&!!config.anthropicKey;
   const mwsReady=!!(config.mwsKey&&config.mwsProject&&config.mwsModel);
   if(route==="anthropic"){
-    if(!config.anthropicKey)throw new AiCoachError("Anthropic не настроен",503);
+    if(config.anthropicEnabled===false)throw new AiCoachError("Anthropic отключён на сервере",503,{code:"provider_disabled",provider:"anthropic",allowFallback:false});
+    if(!config.anthropicKey)throw new AiCoachError("Anthropic не настроен",503,{code:"invalid_config",provider:"anthropic",allowFallback:false});
     return {...await adapters.anthropic(config.anthropicKey),provider:"anthropic",routeReason:"primary"};
   }
   if(route==="mws"){
-    if(!mwsReady)throw new AiCoachError("MWS GPT не настроен",503);
+    if(!mwsReady)throw new AiCoachError("MWS GPT не настроен",503,{code:"invalid_config",provider:"mws",allowFallback:false});
     return {...await adapters.mws(config.mwsKey!,config.mwsProject!,config.mwsModel!),provider:"mws",routeReason:"primary"};
   }
-  if(config.anthropicKey){
-    try{return {...await adapters.anthropic(config.anthropicKey),provider:"anthropic",routeReason:"primary"};}
+  if(anthropicReady){
+    try{return {...await adapters.anthropic(config.anthropicKey!),provider:"anthropic",routeReason:"primary"};}
     catch(error){
-      if(!mwsReady||!(error instanceof AiCoachError)||error.status<500)throw error;
+      if(!mwsReady||!(error instanceof AiCoachError)||!error.allowFallback)throw error;
       return {...await adapters.mws(config.mwsKey!,config.mwsProject!,config.mwsModel!),provider:"mws",routeReason:"fallback"};
     }
   }
@@ -47,10 +54,11 @@ export async function askAiHub(
     mws:askMwsAiCoach,
   },
 ):Promise<AiHubReply>{
+  const anthropicReady=config.anthropicEnabled!==false&&!!config.anthropicKey;
   const mwsReady=!!(config.mwsKey&&config.mwsProject&&config.mwsModel);
   if(route==="consensus"){
-    if(!config.anthropicKey||!mwsReady)throw new AiCoachError("Для консилиума настройте Anthropic и MWS GPT",503);
-    const draft=await adapters.anthropic(config.anthropicKey,context,history,question);
+    if(!anthropicReady||!mwsReady)throw new AiCoachError("Консилиум доступен только при включённых Anthropic и MWS GPT",503,{code:"invalid_config",allowFallback:false});
+    const draft=await adapters.anthropic(config.anthropicKey!,context,history,question);
     const reviewQuestion=`Вопрос пользователя: ${question}\n\nЧерновик другого AI:\n${draft.answer}${draft.mainRecommendation?`\nГлавная рекомендация: ${draft.mainRecommendation}`:""}\n\nПроверь черновик по контексту. Исправь только фактические противоречия и риски. Верни один короткий итоговый ответ в заданном JSON-формате.`;
     const reply=await adapters.mws(config.mwsKey!,config.mwsProject!,config.mwsModel!,context,[],reviewQuestion);
     return {...reply,provider:"anthropic+mws",routeReason:"consensus"};

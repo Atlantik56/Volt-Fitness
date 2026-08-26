@@ -126,6 +126,139 @@ test("при отсутствии Draft импорт сохраняется бе
  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs").get() as any).n,initialWorkoutLogs);
 });
 
+test("legacy auto-link не связывает второй отличный FIT с уже занятым Draft",()=>{
+ db.prepare("DELETE FROM workout_imports").run();
+ db.prepare("UPDATE workout_drafts SET status='cancelled'").run();
+ const target=draft("legacy-single-fit");
+ const firstBytes=activityFit(new Date("2026-07-10T10:00:10.000Z"));
+ const first=fit.importFit(firstBytes);
+ const repeated=fit.importFit(firstBytes);
+ const second=fit.importFit(activityFit(new Date("2026-07-10T10:00:11.000Z")));
+ assert.equal(first.ok,true);
+ assert.equal(repeated.ok,true);
+ assert.equal(second.ok,true);
+ if(!first.ok||!repeated.ok||!second.ok)return;
+ assert.equal(first.result.draftId,target);
+ assert.equal(repeated.result.duplicate,true);
+ assert.equal(repeated.result.draftId,target);
+ assert.equal(second.result.autoLinked,false);
+ assert.equal(second.result.draftId,null);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_imports").get() as any).n,2);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_imports WHERE draft_id=?").get(target) as any).n,1);
+ assert.equal((db.prepare("SELECT draft_id draftId FROM workout_imports WHERE id=?").get(second.result.id) as any).draftId,null);
+});
+
+const resetTargetedImports=()=>{
+ db.prepare("DELETE FROM workout_imports").run();
+ db.prepare("UPDATE workout_drafts SET status='cancelled'").run();
+};
+
+test("Cycling отклоняет Swim и Strength FIT до сохранения или связи",()=>{
+ resetTargetedImports();
+ const target=draft("cycling-reject",undefined,undefined,"Bike / Indoor Cycling");
+ const before=(db.prepare("SELECT COUNT(*) n FROM workout_imports").get() as any).n;
+ for(const [sport,second] of [["swimming",1],["training",2]] as const){
+  const result=fit.importFitForDraft(activityFit(new Date(`2026-07-10T10:00:0${second}.000Z`),sport),{
+   expectedActivityType:"bike",draftId:target,expectedDraftStatus:"awaiting_confirmation",
+  });
+  assert.equal(result.ok,false);
+  if(!result.ok)assert.equal(result.status,422);
+ }
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_imports").get() as any).n,before);
+ assert.equal(db.prepare("SELECT 1 FROM workout_imports WHERE draft_id=?").get(target),undefined);
+});
+
+test("Cycling bike FIT связывается только с явно переданным draft",()=>{
+ resetTargetedImports();
+ const other=draft("cycling-other",undefined,undefined,"Bike / Indoor Cycling");
+ const target=draft("cycling-target",undefined,undefined,"Bike / Indoor Cycling");
+ const result=fit.importFitForDraft(activityFit(new Date("2026-07-10T10:00:03.000Z"),"cycling"),{
+  expectedActivityType:"bike",draftId:target,expectedDraftStatus:"awaiting_confirmation",
+ });
+ assert.equal(result.ok,true);
+ if(!result.ok)return;
+ assert.equal(result.result.draftId,target);
+ assert.equal((db.prepare("SELECT draft_id draftId FROM workout_imports WHERE id=?").get(result.result.id) as any).draftId,target);
+ assert.equal(db.prepare("SELECT 1 FROM workout_imports WHERE draft_id=?").get(other),undefined);
+});
+
+test("Cycling FIT, уже связанный с другим draft, не перепривязывается",()=>{
+ resetTargetedImports();
+ const first=draft("cycling-first",undefined,undefined,"Bike / Indoor Cycling");
+ const second=draft("cycling-second",undefined,undefined,"Bike / Indoor Cycling");
+ const bytes=activityFit(new Date("2026-07-10T10:00:04.000Z"),"cycling");
+ const linked=fit.importFitForDraft(bytes,{expectedActivityType:"bike",draftId:first,expectedDraftStatus:"awaiting_confirmation"});
+ assert.equal(linked.ok,true);
+ const rejected=fit.importFitForDraft(bytes,{expectedActivityType:"bike",draftId:second,expectedDraftStatus:"awaiting_confirmation"});
+ assert.equal(rejected.ok,false);
+ if(!rejected.ok)assert.equal(rejected.status,409);
+ const fingerprint=fit.fingerprintFit(bytes);
+ assert.equal((db.prepare("SELECT draft_id draftId FROM workout_imports WHERE fingerprint=?").get(fingerprint) as any).draftId,first);
+});
+
+test("повторный Cycling FIT для того же draft идемпотентен",()=>{
+ resetTargetedImports();
+ const target=draft("cycling-idempotent",undefined,undefined,"Bike / Indoor Cycling");
+ const bytes=activityFit(new Date("2026-07-10T10:00:05.000Z"),"cycling");
+ const request={expectedActivityType:"bike",draftId:target,expectedDraftStatus:"awaiting_confirmation"};
+ const first=fit.importFitForDraft(bytes,request);
+ const count=(db.prepare("SELECT COUNT(*) n FROM workout_imports").get() as any).n;
+ const repeated=fit.importFitForDraft(bytes,request);
+ assert.equal(first.ok,true);
+ assert.equal(repeated.ok,true);
+ if(!repeated.ok)return;
+ assert.equal(repeated.result.duplicate,true);
+ assert.equal(repeated.result.draftId,target);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_imports").get() as any).n,count);
+});
+
+test("другой Cycling FIT не заменяет метрики уже связанного draft",()=>{
+ resetTargetedImports();
+ const target=draft("cycling-single-fit",undefined,undefined,"Bike / Indoor Cycling");
+ const request={expectedActivityType:"bike",draftId:target,expectedDraftStatus:"awaiting_confirmation"};
+ const first=fit.importFitForDraft(activityFit(new Date("2026-07-10T10:00:08.000Z"),"cycling",1800),request);
+ const second=fit.importFitForDraft(activityFit(new Date("2026-07-10T10:00:09.000Z"),"cycling",2400),request);
+ assert.equal(first.ok,true);
+ assert.equal(second.ok,false);
+ if(!second.ok)assert.equal(second.status,409);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_imports WHERE draft_id=?").get(target) as any).n,1);
+});
+
+test("Cycling FIT import не подтверждает draft и не создаёт workout log",()=>{
+ resetTargetedImports();
+ const target=draft("cycling-no-confirm",undefined,undefined,"Bike / Indoor Cycling");
+ const logsBefore=(db.prepare("SELECT COUNT(*) n FROM workout_logs").get() as any).n;
+ const result=fit.importFitForDraft(activityFit(new Date("2026-07-10T10:00:06.000Z"),"cycling"),{
+  expectedActivityType:"bike",draftId:target,expectedDraftStatus:"awaiting_confirmation",
+ });
+ assert.equal(result.ok,true);
+ assert.equal((db.prepare("SELECT status FROM workout_drafts WHERE id=?").get(target) as any).status,"awaiting_confirmation");
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs").get() as any).n,logsBefore);
+});
+
+test("targeted import отклоняет draft с изменившимся статусом без сохранения",()=>{
+ resetTargetedImports();
+ const target=draft("cycling-stale",undefined,undefined,"Bike / Indoor Cycling");
+ db.prepare("UPDATE workout_drafts SET status='cancelled' WHERE id=?").run(target);
+ const result=fit.importFitForDraft(activityFit(new Date("2026-07-10T10:00:07.000Z"),"cycling"),{
+  expectedActivityType:"bike",draftId:target,expectedDraftStatus:"awaiting_confirmation",
+ });
+ assert.equal(result.ok,false);
+ if(!result.ok)assert.equal(result.status,409);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_imports").get() as any).n,0);
+});
+
+test("существующий Swim FIT import сохраняет прежний auto-link flow",()=>{
+ resetTargetedImports();
+ const target=draft("swim-regression","2026-07-10 10:00:00","2026-07-10 10:02:00","Плавание");
+ const result=fit.importFit(swimFit());
+ assert.equal(result.ok,true);
+ if(!result.ok)return;
+ assert.equal(result.result.workout.activityType,"swim");
+ assert.equal(result.result.draftId,target);
+ assert.equal(result.result.autoLinked,true);
+});
+
 test("migration v15 создаёт provider-independent хранилище импорта",()=>{
  assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=15").get());
  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='workout_imports'").get());

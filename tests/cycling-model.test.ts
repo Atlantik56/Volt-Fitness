@@ -64,6 +64,74 @@ test("resolver различает active, awaiting_confirmation и completed", (
   assert.equal(completed?.status, "completed");
 });
 
+test("resolver восстанавливает открытый Cycling draft после смены календарной недели", () => {
+  const result = resolveCyclingAssignment({
+    programStart: PROGRAM_START,
+    today: "2026-08-19",
+    workoutDrafts: [{
+      id: 9,
+      date: "2026-08-04",
+      status: "awaiting_confirmation",
+      snapshot: {
+        id: "bike-zone-2",
+        type: "Cycling",
+        title: "Bike / Indoor Cycling",
+        programIdentity: { programId: "volt-training", programVersion: 2, weekIndex: 4, sessionId: "bike-zone-2" },
+      },
+    }],
+  });
+  assert.ok(result);
+  assert.equal(result.date, "2026-08-04");
+  assert.equal(result.status, "awaiting_confirmation");
+  assert.equal(result.draft?.id, 9);
+  assert.deepEqual(result.session.programIdentity, { programId: "volt-training", programVersion: 2, weekIndex: 4, sessionId: "bike-zone-2" });
+});
+
+test("resolver восстанавливает immutable snapshot, даже если текущая программа на ту же дату изменилась", () => {
+  const result = resolveCyclingAssignment({
+    programStart: PROGRAM_START,
+    trainingPlanV3StartedAt: "2026-08-04",
+    today: TODAY,
+    workoutDrafts: [{
+      id: 12,
+      date: "2026-08-04",
+      status: "active",
+      snapshot: {
+        id: "legacy-bike",
+        type: "Cycling Legacy",
+        title: "Сохранённый legacy-заезд",
+        origin: "scheduled",
+        scheduleChangeId: 77,
+        programIdentity: { programId: "volt-training", programVersion: 2, weekIndex: 4, sessionId: "legacy-bike" },
+        exercises: [{ name: "Сохранённый этап", target: "17 мин" }],
+      },
+    }],
+  });
+  assert.ok(result);
+  assert.equal(result.session.id, "legacy-bike");
+  assert.equal(result.session.title, "Сохранённый legacy-заезд");
+  assert.equal(result.session.exercises[0][0], "Сохранённый этап");
+  assert.equal(result.session.exercises[0][1], "17 мин");
+  assert.deepEqual(result.session.programIdentity, { programId: "volt-training", programVersion: 2, weekIndex: 4, sessionId: "legacy-bike" });
+  assert.equal(result.origin, "scheduled");
+  assert.equal(result.scheduleChangeId, 77);
+});
+
+test("resolver при нескольких открытых Cycling draft сначала возвращает ожидающий подтверждения", () => {
+  const result = resolveCyclingAssignment({
+    programStart: PROGRAM_START,
+    today: TODAY,
+    selectedDate: "2026-08-11",
+    workoutDrafts: [
+      { id: 11, date: "2026-08-11", status: "active", snapshot: { title: "Cycling" } },
+      { id: 10, date: "2026-08-04", status: "awaiting_confirmation", snapshot: { title: "Bike" } },
+    ],
+  });
+  assert.equal(result?.status, "awaiting_confirmation");
+  assert.equal(result?.draft?.id, 10);
+  assert.equal(result?.date, "2026-08-04");
+});
+
 test("weekly summary не превращает отсутствующие метрики в нули", () => {
   const summary = cyclingHomeSummary([
     { id: 1, date: "2026-08-04", title: "Bike", durationSeconds: 1800, avgHeartRate: 120, distanceMeters: 10_000, loadFeedback: "calm" },

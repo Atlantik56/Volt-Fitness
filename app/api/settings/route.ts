@@ -1,10 +1,12 @@
 import { requireAuth, sameOrigin } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/settings";
+import { providerFlagEnabled } from "@/lib/ai-hub";
 
 export async function GET() {
   const denied = await requireAuth(); if (denied) return denied;
   return Response.json({
     anthropicKeySet:!!(getSetting("anthropic_api_key")||process.env.ANTHROPIC_API_KEY),
+    anthropicEnabled:providerFlagEnabled(process.env.ANTHROPIC_ENABLED),
     mwsKeySet:!!(getSetting("mws_api_key")||process.env.MWS_API_KEY),
     mwsProject:getSetting("mws_project")||process.env.MWS_PROJECT||"",
     mwsModel:getSetting("mws_model")||process.env.MWS_MODEL||"",

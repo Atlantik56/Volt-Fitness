@@ -260,6 +260,18 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
  // Plan v3 включается только явным действием пользователя. NULL означает, что
  // новый план доступен лишь для preview; миграция не назначает его задним числом.
  {version:21,sql:`ALTER TABLE profile ADD COLUMN training_plan_v3_started_at TEXT;`},
+ // Retry одного и того же Coach-запроса должен быть идемпотентным: ответ и
+ // история сохраняются ровно один раз, а зависший processing можно подобрать.
+ {version:22,sql:`
+  CREATE TABLE IF NOT EXISTS coach_chat_requests (
+   request_id TEXT PRIMARY KEY,
+   status TEXT NOT NULL CHECK(status IN ('processing','completed')),
+   response_json TEXT NOT NULL DEFAULT '',
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   completed_at TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_coach_chat_requests_completed_at ON coach_chat_requests(completed_at);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

@@ -4,7 +4,8 @@ import { getSetting, setSetting } from "@/lib/settings";
 import { buildAiCoachContext } from "@/lib/ai-context";
 import { loadAiCoachContextData } from "@/lib/ai-context-data";
 import { AiCoachError, type AiChatMessage } from "@/lib/ai-coach";
-import { askAiHub } from "@/lib/ai-hub";
+import { askAiHub, providerFlagEnabled } from "@/lib/ai-hub";
+import { abandonCoachRequest, claimCoachRequest, completeCoachRequest, validCoachRequestId } from "@/lib/coach-chat-requests";
 import {
   COACH_CHAT_DAILY_LIMIT,
   dateInTimeZone,
@@ -29,16 +30,6 @@ function loadConversation(limit: number): AiChatMessage[] {
   return rows.reverse();
 }
 
-function appendMessages(question: string, answer: string) {
-  const insert = db.prepare("INSERT INTO coach_conversation (role,text) VALUES (?,?)");
-  const prune = db.prepare("DELETE FROM coach_conversation WHERE id NOT IN (SELECT id FROM coach_conversation ORDER BY id DESC LIMIT ?)");
-  db.transaction(() => {
-    insert.run("user", question);
-    insert.run("assistant", answer);
-    prune.run(STORED_MESSAGES_LIMIT);
-  })();
-}
-
 export async function GET() {
   const denied = await requireAuth();
   if (denied) return denied;
@@ -54,13 +45,14 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "Некорректный JSON" }, { status: 400 });
+    return Response.json({ error: "Некорректный JSON", code:"invalid_json", provider:null }, { status: 400 });
   }
 
   const date = dateOk(body.date) ? body.date : null;
   const question = typeof body.question === "string" ? body.question.trim().slice(0, 1000) : "";
   const provider=body.provider==="anthropic"||body.provider==="mws"||body.provider==="consensus"?body.provider:"auto";
-  if (!date || !question) return Response.json({ error: "Укажите дату и вопрос" }, { status: 400 });
+  if (!date || !question) return Response.json({ error: "Укажите дату и вопрос", code:"invalid_input", provider:null }, { status: 400 });
+  const requestId=validCoachRequestId(body.requestId)?body.requestId:crypto.randomUUID();
 
   const plan =
     body.plan && typeof body.plan.title === "string" && typeof body.plan.type === "string"
@@ -76,36 +68,52 @@ export async function POST(req: Request) {
   const REASON_CODES = ["mood", "fatigue", "pain", "no_equipment", "weather", "schedule", "other", ""];
   const changeReasonCode = REASON_CODES.includes(body.changeReasonCode) ? body.changeReasonCode : "";
 
+  const claim=claimCoachRequest(db,requestId);
+  if(claim.kind==="completed")return Response.json({ok:true,...claim.reply,requestId,idempotent:true});
+  if(claim.kind==="pending")return Response.json({error:"Этот вопрос уже обрабатывается",code:"request_in_progress",requestId},{status:409});
+
   const history = loadConversation(6);
 
   const hubConfig={
     anthropicKey:getSetting("anthropic_api_key")||process.env.ANTHROPIC_API_KEY,
+    anthropicEnabled:providerFlagEnabled(process.env.ANTHROPIC_ENABLED),
     mwsKey:getSetting("mws_api_key")||process.env.MWS_API_KEY,
     mwsProject:getSetting("mws_project")||process.env.MWS_PROJECT,
     mwsModel:getSetting("mws_model")||process.env.MWS_MODEL,
   };
-  if(!hubConfig.anthropicKey&&!(hubConfig.mwsKey&&hubConfig.mwsProject&&hubConfig.mwsModel))
-    return Response.json({error:"AI Hub не настроен на сервере"},{status:503});
+  if((!hubConfig.anthropicEnabled||!hubConfig.anthropicKey)&&!(hubConfig.mwsKey&&hubConfig.mwsProject&&hubConfig.mwsModel)){
+    abandonCoachRequest(db,requestId);
+    return Response.json({error:"AI Hub не настроен на сервере",code:"invalid_config",provider:null},{status:503});
+  }
 
   // Данные принадлежат единственному профилю приложения (id=1); requireAuth уже
   // защищает эндпоинт от неавторизованных запросов — доступа к «чужим» данным нет.
-  const contextData = loadAiCoachContextData(db, { date, plan, originalPlan, planChanged, changeReasonCode });
-  const context = buildAiCoachContext(contextData);
+  let context;
+  try{
+    const contextData = loadAiCoachContextData(db, { date, plan, originalPlan, planChanged, changeReasonCode });
+    context = buildAiCoachContext(contextData);
+  }catch{
+    abandonCoachRequest(db,requestId);
+    return Response.json({error:"Не удалось подготовить данные для тренера",code:"context_unavailable",provider:null},{status:500});
+  }
 
   // Ключ лимита вычисляется на сервере в часовом поясе владельца. Клиентская
   // дата нужна для контекста дня, но не может обойти лимит подстановкой другой даты.
   const quotaDate = dateInTimeZone(new Date());
-  if (!reserveQuota(quotaDate))
-    return Response.json({ error: `Дневной лимит сообщений тренеру исчерпан (${COACH_CHAT_DAILY_LIMIT}). Продолжите завтра.` }, { status: 429 });
+  if (!reserveQuota(quotaDate)){
+    abandonCoachRequest(db,requestId);
+    return Response.json({ error: `Дневной лимит сообщений тренеру исчерпан (${COACH_CHAT_DAILY_LIMIT}). Продолжите завтра.`, code:"quota_exhausted", provider:null }, { status: 429 });
+  }
 
   try {
     const reply=await askAiHub(hubConfig,context,history,question,provider);
-    appendMessages(question, reply.answer);
-    return Response.json({ ok: true, ...reply });
+    const stored=completeCoachRequest(db,requestId,question,reply.answer,reply,STORED_MESSAGES_LIMIT);
+    return Response.json({ ok: true, ...stored, requestId });
   } catch (err) {
     // Неудачный запрос не должен съедать пользовательский дневной лимит.
+    abandonCoachRequest(db,requestId);
     releaseQuota(quotaDate);
-    if (err instanceof AiCoachError) return Response.json({ error: err.message }, { status: err.status });
-    return Response.json({ error: "Не удалось получить ответ ИИ-тренера" }, { status: 500 });
+    if (err instanceof AiCoachError) return Response.json({ error: err.message, code:err.code, provider:err.provider??null }, { status: err.status });
+    return Response.json({ error: "Не удалось получить ответ ИИ-тренера", code:"unknown", provider:null }, { status: 500 });
   }
 }

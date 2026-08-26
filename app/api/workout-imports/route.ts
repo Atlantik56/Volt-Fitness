@@ -1,5 +1,5 @@
 import { requireAuth,sameOrigin } from "@/lib/auth";
-import { importFit,linkImport,MAX_FIT_FILE_SIZE,validateFitUpload } from "@/lib/fit-import-service";
+import { importFit,importFitForDraft,linkImport,MAX_FIT_FILE_SIZE,validateFitUpload } from "@/lib/fit-import-service";
 export const runtime="nodejs";
 
 export async function POST(req:Request){
@@ -20,7 +20,10 @@ export async function POST(req:Request){
  const invalid=validateFitUpload(file.name,file.size);
  if(invalid)return Response.json({error:invalid.error},{status:invalid.status});
  const bytes=new Uint8Array(await file.arrayBuffer());
- const imported=importFit(bytes);
+ const targeted=["expectedActivityType","draftId","expectedDraftStatus"].some(key=>form.has(key));
+ const imported=targeted?importFitForDraft(bytes,{
+  expectedActivityType:form.get("expectedActivityType"),draftId:form.get("draftId"),expectedDraftStatus:form.get("expectedDraftStatus"),
+ }):importFit(bytes);
  if(!imported.ok)return Response.json({error:imported.error},{status:imported.status});
  return Response.json({ok:true,...imported.result},{status:imported.result.duplicate?200:201,headers:{"cache-control":"no-store","x-content-type-options":"nosniff"}});
 }

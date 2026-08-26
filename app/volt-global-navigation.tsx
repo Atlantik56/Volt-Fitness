@@ -3,32 +3,10 @@
 import type { MouseEvent, ReactNode } from "react";
 import { useState } from "react";
 import Link from "next/link";
-import {
-  Apple,
-  Bike,
-  CalendarDays,
-  ChartColumn,
-  ChartNoAxesCombined,
-  Home,
-  Menu,
-  Moon,
-  Route,
-  UserRound,
-  Waves,
-} from "lucide-react";
+import { Bike, CalendarDays, Home, Menu, Waves } from "lucide-react";
+import { VOLT_NAV_ITEMS, type VoltSection } from "./volt-nav-items";
 
-export const VOLT_NAV_ITEMS = [
-  { id: "Сегодня", label: "Сегодня", icon: Home },
-  { id: "План", label: "План", icon: CalendarDays },
-  { id: "Дорожная карта", label: "Дорожная карта", icon: Route },
-  { id: "Питание", label: "Nutrition Hub", icon: Apple },
-  { id: "Аналитика", label: "Аналитика", icon: ChartNoAxesCombined },
-  { id: "Вечерний прогресс", label: "Вечерний прогресс", icon: Moon },
-  { id: "Моя история", label: "Мой путь", icon: ChartColumn },
-  { id: "Профиль и настройки", label: "Профиль и настройки", icon: UserRound },
-] as const;
-
-export type VoltSection = (typeof VOLT_NAV_ITEMS)[number]["id"];
+export { VOLT_NAV_ITEMS, type VoltSection };
 export type VoltEnvironment = "volt" | "swim" | "cycling";
 
 type Props = {
@@ -105,12 +83,24 @@ export function VoltGlobalNavigation({
       >×</button>
 
       <nav className="side-nav" aria-label="Глобальная навигация VOLT">
-        {VOLT_NAV_ITEMS.map(({ id, label, icon: Icon }) => {
+        {VOLT_NAV_ITEMS.filter(item => item.primary).map(({ id, label, icon: Icon }) => {
           const active = environment === "volt" && activeSection === id;
           return <Link
             key={id}
             href={sectionHref(id)}
             data-tour-id={id === "Моя история" ? "nav-progress" : id === "Аналитика" ? "nav-analytics" : undefined}
+            className={active ? "active" : undefined}
+            aria-current={active ? "page" : undefined}
+            onClick={(event) => openSection(event, id)}
+          ><span aria-hidden="true"><Icon size={18} strokeWidth={2} /></span>{label}</Link>;
+        })}
+
+        <span className="side-nav-divider">Дополнительно</span>
+        {VOLT_NAV_ITEMS.filter(item => !item.primary).map(({ id, label, icon: Icon }) => {
+          const active = environment === "volt" && activeSection === id;
+          return <Link
+            key={id}
+            href={sectionHref(id)}
             className={active ? "active" : undefined}
             aria-current={active ? "page" : undefined}
             onClick={(event) => openSection(event, id)}

@@ -12,6 +12,8 @@ const dateOk = (x: any) => typeof x === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x
 const num = (x: any, min = 0, max = 100000) => { const n = Number(x); return Number.isFinite(n) && n >= min && n <= max ? n : null };
 const text = (x: any, max = 120) => typeof x === "string" ? x.trim().slice(0, max) : "";
 
+export const normalizeAverageSpeed=(value:unknown)=>num(value,0,200)??0;
+
 export type ActionResult = { ok: true; workoutId?: number } | { ok: false; error: string; status: number };
 
 // AI-9 доработка — происхождение фактического результата по упражнению/подходу.
@@ -128,7 +130,7 @@ function generateProgressionProposals(params: {
 }
 
 export function saveWorkout(b: any): ActionResult {
- const duration = num(b.durationSeconds, 0, 86400), rest = num(b.restSeconds, 0, 86400), minHr = num(b.minHeartRate, 0, 250), avgHr = num(b.avgHeartRate, 0, 250), maxHr = num(b.maxHeartRate, 0, 250), calories = num(b.calories, 0, 10000), distance = num(b.distanceMeters, 0, 1000000), speed = num(b.avgSpeed, 0, 200), details = parseDetails(b.details);
+ const duration = num(b.durationSeconds, 0, 86400), rest = num(b.restSeconds, 0, 86400), minHr = num(b.minHeartRate, 0, 250), avgHr = num(b.avgHeartRate, 0, 250), maxHr = num(b.maxHeartRate, 0, 250), calories = num(b.calories, 0, 10000), distance = num(b.distanceMeters, 0, 1000000), speed = normalizeAverageSpeed(b.avgSpeed), details = parseDetails(b.details);
  const loadFeedback:CyclingLoadFeedback = typeof b.loadFeedback === "string" ? b.loadFeedback : "";
  if (!dateOk(b.date) || !text(b.title) || !Array.isArray(b.completed) || duration === null || rest === null || !(CYCLING_LOAD_FEEDBACK_VALUES as readonly string[]).includes(loadFeedback)) return { ok: false, error: "Некорректная тренировка", status: 400 };
  const workoutType = text(b.type, 40), painAfter = num(b.painAfter, 0, 10) || 0, effort = ["Легко", "Нормально", "Тяжело", "Боль"].includes(b.effort) ? b.effort : "";
