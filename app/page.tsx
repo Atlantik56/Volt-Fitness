@@ -28,7 +28,8 @@ import { computeEveningWeeklyStats } from "../lib/evening";
 import { MoodSection, MoodSummaryCard } from "./mood-section";
 import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner, useMilestones } from "./milestones-section";
 import { useToast } from "./toast";
-import { VOLT_NAV_ITEMS, VoltGlobalNavigation, type VoltSection } from "./volt-global-navigation";
+import { VoltGlobalNavigation, type VoltSection } from "./volt-global-navigation";
+import { resolveSectionFromQuery, sectionUrl } from "./nav-url";
 import {
   Bell, Bike, CalendarDays, Camera, ChartColumn, CheckCircle2, ChevronDown, Clock3, Droplets,
   Dumbbell, Flame, Footprints, Moon, PenLine, Play, ReceiptText,
@@ -73,9 +74,41 @@ export default function Home() {
   const router=useRouter();
   useEffect(()=>{
    load();loadProgression();loadSwimToday();
-   const query=new URLSearchParams(window.location.search),section=query.get("section");
-   const id=window.setTimeout(()=>{if(section&&VOLT_NAV_ITEMS.some(item=>item.id===section)){setNav(section as VoltSection);if(section==="Аналитика"&&query.get("mode")==="coach")setAnalyticsMode("coach")}},0);
+   const id=window.setTimeout(()=>{
+    const {section,mode}=resolveSectionFromQuery(new URLSearchParams(window.location.search));
+    setNav(section);
+    if(section==="Аналитика"&&mode==="coach")setAnalyticsMode("coach");
+    // Начальная канонизация URL (Home -> "/", неизвестный section -> "/",
+    // валидные deep links и mode=coach сохраняются) — всегда через
+    // replaceState, а не pushState: это гигиена текущей записи истории, а
+    // не новый шаг навигации, поэтому Back не должен на неё натыкаться.
+    const canonical=sectionUrl(section,mode);
+    if(window.location.pathname+window.location.search!==canonical)window.history.replaceState(null,"",canonical);
+   },0);
    return()=>window.clearTimeout(id);
+  },[]);
+  // URL/history sync: `nav` (+ analyticsMode для Аналитика) остаётся
+  // единственным источником истины для рендера, адресная строка — только его
+  // отражение. History API напрямую (а не router.push) — переключение
+  // раздела не должно запускать Next.js навигацию/refetch и терять
+  // состояние экранов или авторизацию. Первый автоматический запуск этого
+  // эффекта (при монтировании, до того как выполнится отложенная выше
+  // начальная канонизация) пропускается — иначе он успеет запушить старый
+  // URL раньше, чем прочитает исходные query-параметры.
+  const skipNextHistoryPush=useRef(true);
+  useEffect(()=>{
+   if(skipNextHistoryPush.current){skipNextHistoryPush.current=false;return}
+   const url=sectionUrl(nav,analyticsMode);
+   if(window.location.pathname+window.location.search!==url)window.history.pushState(null,"",url);
+  },[nav,analyticsMode]);
+  useEffect(()=>{
+   const onPopState=()=>{
+    const {section,mode}=resolveSectionFromQuery(new URLSearchParams(window.location.search));
+    setNav(section);
+    setAnalyticsMode(mode);
+   };
+   window.addEventListener("popstate",onPopState);
+   return()=>window.removeEventListener("popstate",onPopState);
   },[]);
   // Сброс во время рендера (а не в эффекте) — рекомендованный React-паттерн для
   // производного состояния при смене nav, без каскадного лишнего рендера.
