@@ -214,6 +214,17 @@
 .cycling-result-fields label { display: grid; gap: 7px; color: var(--cycling-muted); font-size: 10px; }
 .cycling-result-fields input,.cycling-result-fields select { width: 100%; min-width: 0; padding: 13px 12px; border: 1px solid rgba(255, 255, 255, .1); border-radius: 10px; outline: 0; color: var(--cycling-text); background: rgba(10, 7, 5, .54); font: inherit; color-scheme: dark; }
 .cycling-result-fields input:focus,.cycling-result-fields select:focus { border-color: rgba(255, 157, 69, .55); box-shadow: 0 0 0 3px rgba(255, 122, 26, .08); }
+.cycling-result-fields input[readonly] { color: var(--cycling-gold); cursor: default; background: rgba(255, 122, 26, .055); }
+.cycling-fit-import { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 9px 16px; align-items: center; margin: 0 0 22px; padding: 15px; border: 1px solid rgba(255, 157, 69, .16); border-radius: 14px; background: rgba(255, 122, 26, .045); }
+.cycling-fit-import > div { display: flex; min-width: 0; align-items: center; gap: 11px; }
+.cycling-fit-import > div > svg { flex: none; color: var(--cycling-primary-light); }
+.cycling-fit-import span { display: grid; min-width: 0; gap: 3px; }
+.cycling-fit-import b { font-size: 12px; }
+.cycling-fit-import small,.cycling-fit-import p { color: var(--cycling-muted); font-size: 10px; line-height: 1.45; }
+.cycling-fit-import p { grid-column: 1/-1; margin: 0; }
+.cycling-fit-button { position: relative; display: inline-flex; min-height: 42px; align-items: center; justify-content: center; padding: 0 13px; overflow: hidden; border: 1px solid rgba(255, 157, 69, .3); border-radius: 10px; color: var(--cycling-primary-light); background: rgba(255, 122, 26, .08); font-size: 10px; font-weight: 850; cursor: pointer; }
+.cycling-fit-button input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.cycling-fit-import.imported { border-color: rgba(255, 197, 110, .24); }
 .cycling-feedback-picker { margin: 25px 0 0; padding: 0; border: 0; }
 .cycling-feedback-picker legend { margin-bottom: 11px; font-size: 13px; font-weight: 800; }
 .cycling-feedback-picker label { display: flex; align-items: center; gap: 10px; margin: 7px 0; padding: 12px; border: 1px solid rgba(255, 255, 255, .09); border-radius: 11px; color: var(--cycling-muted); cursor: pointer; }
@@ -222,7 +233,8 @@
 .cycling-feedback-picker input { accent-color: var(--cycling-primary); }
 .cycling-feedback-picker label.pain input { accent-color: var(--cycling-danger); }
 .cycling-result-hint { margin: 18px 0; color: var(--cycling-muted); font-size: 11px; line-height: 1.55; }
-.cycling-result-card > .cycling-primary { width: 100%; }
+.cycling-result-actions { display: grid; grid-template-columns: minmax(0,.55fr) minmax(0,1fr); gap: 12px; }
+.cycling-result-actions > button { width: 100%; }
 
 .cycling-state { width: min(620px, 100%); margin: 12vh auto 0; padding: 40px; border-radius: 24px; text-align: center; }
 .cycling-state > svg { color: var(--cycling-primary-light); }
@@ -286,5 +298,7 @@
   .cycling-active-card footer { flex-direction: column-reverse; }
   .cycling-active-card footer button { width: 100%; }
   .cycling-result-fields { grid-template-columns: 1fr; }
+  .cycling-fit-import,.cycling-result-actions { grid-template-columns: 1fr; }
+  .cycling-fit-button { width: 100%; }
   .cycling-state { margin-top: 8vh; padding: 28px 20px; }
 }

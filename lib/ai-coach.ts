@@ -14,9 +14,24 @@ export type AiCoachReply={
   food?:AiFoodItem[]|null;
 };
 
+export type AiCoachErrorCode="invalid_config"|"provider_disabled"|"provider_auth"|"network"|"timeout"|"upstream_http"|"invalid_json"|"invalid_output"|"empty_response";
+export type AiCoachProvider="anthropic"|"mws";
+
 export class AiCoachError extends Error{
   status:number;
-  constructor(message:string,status:number){super(message);this.status=status}
+  code:AiCoachErrorCode;
+  provider?:AiCoachProvider;
+  allowFallback:boolean;
+  upstreamStatus?:number;
+  constructor(message:string,status:number,options:{code?:AiCoachErrorCode;provider?:AiCoachProvider;allowFallback?:boolean;upstreamStatus?:number}={}){
+    super(message);
+    this.name="AiCoachError";
+    this.status=status;
+    this.code=options.code??(status>=500?"upstream_http":"invalid_config");
+    this.provider=options.provider;
+    this.allowFallback=options.allowFallback??status>=500;
+    this.upstreamStatus=options.upstreamStatus;
+  }
 }
 
 // Экспортируется, чтобы регрессионные тесты проверяли реальное тело запроса
@@ -74,14 +89,34 @@ export function parseStructuredReply(raw:string):AiCoachReply{
   if(fence)jsonText=fence[1].trim();
   let parsed:any;
   try{parsed=JSON.parse(jsonText)}
-  catch{throw new AiCoachError("Ответ ИИ не удалось разобрать",502)}
+  catch{throw new AiCoachError("Ответ ИИ не удалось разобрать",502,{code:"invalid_output",allowFallback:true})}
   if(!parsed||typeof parsed.answer!=="string"||!parsed.answer.trim())
-    throw new AiCoachError("Ответ ИИ имеет неверный формат",502);
+    throw new AiCoachError("Ответ ИИ имеет неверный формат",502,{code:"invalid_output",allowFallback:true});
   const mainRecommendation=sanitizeMainRecommendation(parsed.mainRecommendation);
   return {answer:parsed.answer.trim(),mainRecommendation,food:sanitizeFood(parsed.food)};
 }
 
 export type AnthropicFetch=(url:string,init:RequestInit)=>Promise<Response>;
+
+function providerNetworkError(error:unknown,provider:AiCoachProvider):AiCoachError{
+  const timeout=error instanceof Error&&(error.name==="TimeoutError"||error.name==="AbortError");
+  const label=provider==="anthropic"?"Anthropic":"MWS GPT";
+  return timeout
+    ?new AiCoachError(`${label}: превышено время ожидания`,504,{code:"timeout",provider,allowFallback:true})
+    :new AiCoachError(`${label}: ошибка сети`,502,{code:"network",provider,allowFallback:true});
+}
+
+function providerHttpError(provider:AiCoachProvider,status:number):AiCoachError{
+  const label=provider==="anthropic"?"Anthropic":"MWS GPT";
+  if(status===401||status===403)return new AiCoachError(`${label}: проверьте API-ключ и права доступа`,502,{code:"provider_auth",provider,allowFallback:false,upstreamStatus:status});
+  if(status>=400&&status<500&&status!==408&&status!==429)return new AiCoachError(`${label}: запрос отклонён провайдером (${status})`,502,{code:"upstream_http",provider,allowFallback:false,upstreamStatus:status});
+  return new AiCoachError(`${label}: сервис недоступен (${status})`,502,{code:"upstream_http",provider,allowFallback:true,upstreamStatus:status});
+}
+
+async function readProviderJson(response:Response,provider:AiCoachProvider):Promise<any>{
+  try{return await response.json()}
+  catch{throw new AiCoachError(`${provider==="anthropic"?"Anthropic":"MWS GPT"}: получен некорректный JSON`,502,{code:"invalid_json",provider,allowFallback:true})}
+}
 
 // Приложение личное и однопользовательское: Haiku на порядок дешевле Sonnet и
 // для коротких вопросов по уже посчитанным показателям этого достаточно.
@@ -101,27 +136,27 @@ export async function askAnthropicStructured(apiKey:string,system:string,message
       method:"POST",headers:{"content-type":"application/json","x-api-key":apiKey,"anthropic-version":"2023-06-01"},signal:AbortSignal.timeout(30000),
       body:JSON.stringify({model:MODEL,max_tokens:MAX_REPLY_TOKENS,system:[{type:"text",text:system,cache_control:{type:"ephemeral"}}],messages}),
     });
-  }catch{throw new AiCoachError("Сервис ИИ-тренера не ответил, попробуйте ещё раз",504)}
-  if(!response.ok)throw new AiCoachError(`Сервис ИИ-тренера недоступен (${response.status})`,502);
-  const body=await response.json();
+  }catch(error){throw providerNetworkError(error,"anthropic")}
+  if(!response.ok)throw providerHttpError("anthropic",response.status);
+  const body=await readProviderJson(response,"anthropic");
   const text=String((body.content||[]).map((p:any)=>p.text||"").join("\n")).trim();
-  if(!text)throw new AiCoachError("Пустой ответ от сервиса ИИ-тренера",502);
+  if(!text)throw new AiCoachError("Anthropic: получен пустой ответ",502,{code:"empty_response",provider:"anthropic",allowFallback:true});
   return text;
 }
 
 export async function askMwsStructured(apiKey:string,project:string,model:string,system:string,messages:ProviderMessage[],fetchImpl:AnthropicFetch=fetch):Promise<string>{
-  if(!/^[a-zA-Z0-9][a-zA-Z0-9_-]{1,80}$/.test(project)||!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,100}$/.test(model))throw new AiCoachError("Настройки MWS GPT имеют неверный формат",400);
+  if(!/^[a-zA-Z0-9][a-zA-Z0-9_-]{1,80}$/.test(project)||!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,100}$/.test(model))throw new AiCoachError("Настройки MWS GPT имеют неверный формат",400,{code:"invalid_config",provider:"mws",allowFallback:false});
   let response:Response;
   try{
     response=await fetchImpl(`https://gpt.mwsapis.ru/projects/${encodeURIComponent(project)}/openai/v1/chat/completions`,{
       method:"POST",headers:{"content-type":"application/json","authorization":`Bearer ${apiKey}`},signal:AbortSignal.timeout(30000),
       body:JSON.stringify({model,messages:[{role:"system",content:system},...messages],temperature:0.2,max_tokens:MAX_REPLY_TOKENS}),
     });
-  }catch{throw new AiCoachError("Резервный сервис MWS GPT не ответил",504)}
-  if(!response.ok)throw new AiCoachError(`Резервный сервис MWS GPT недоступен (${response.status})`,502);
-  const body=await response.json();
+  }catch(error){throw providerNetworkError(error,"mws")}
+  if(!response.ok)throw providerHttpError("mws",response.status);
+  const body=await readProviderJson(response,"mws");
   const text=String(body?.choices?.[0]?.message?.content||"").trim();
-  if(!text)throw new AiCoachError("Пустой ответ от MWS GPT",502);
+  if(!text)throw new AiCoachError("MWS GPT: получен пустой ответ",502,{code:"empty_response",provider:"mws",allowFallback:true});
   return text;
 }
 
@@ -150,7 +185,7 @@ export async function askMwsAiCoach(
   fetchImpl:AnthropicFetch=fetch,
 ):Promise<AiCoachReply>{
   if(!/^[a-zA-Z0-9][a-zA-Z0-9_-]{1,80}$/.test(project)||!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,100}$/.test(model))
-    throw new AiCoachError("Настройки MWS GPT имеют неверный формат",400);
+    throw new AiCoachError("Настройки MWS GPT имеют неверный формат",400,{code:"invalid_config",provider:"mws",allowFallback:false});
   const contextText=renderAiCoachContextText(context);
   const messages:ProviderMessage[]=[
     ...history.slice(-MAX_HISTORY_MESSAGES).map(m=>({role:m.role,content:m.text.slice(0,MAX_HISTORY_MESSAGE_CHARS)})),

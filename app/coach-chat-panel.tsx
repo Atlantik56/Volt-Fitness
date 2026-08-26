@@ -8,10 +8,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "./toast";
+import { canSubmitCoachQuestion, coachErrorMessage, coachRequestForQuestion, type CoachChatRequest } from "@/lib/coach-chat-client";
 
 type FoodItem={name:string;calories:number;protein:number;fat:number;carbs:number};
 type ChatMessage = { role: "user" | "assistant"; text: string; recommendation?: string | null; food?: FoodItem[] | null; foodSaved?: boolean };
-type HubSettings={anthropicKeySet:boolean;mwsKeySet:boolean;mwsProject:string;mwsModel:string};
+type HubSettings={anthropicKeySet:boolean;anthropicEnabled?:boolean;mwsKeySet:boolean;mwsProject:string;mwsModel:string};
 
 type QuickAction={label:string;icon?:string;onClick:()=>void};
 
@@ -26,27 +27,37 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
   const [providerChoice,setProviderChoice]=useState<"auto"|"anthropic"|"mws"|"consensus">("auto");
   const [hubSettings,setHubSettings]=useState<HubSettings|null>(null);
   const [settingsOpen,setSettingsOpen]=useState(false);
+  const [error,setError]=useState<{message:string;code?:string;provider?:string}|null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const sendingRef=useRef(false);
+  const requestRef=useRef<CoachChatRequest|null>(null);
 
   useEffect(() => {
     if (!open || loaded) return;
     fetch("/api/coach-chat", { cache: "no-store" })
       .then((r) => r.json())
       .then((j) => setMessages(Array.isArray(j.messages) ? j.messages : []))
-      .catch(() => {})
+      .catch(() => setError({message:"Не удалось загрузить историю Coach. Повторите после проверки соединения.",code:"network"}))
       .finally(() => setLoaded(true));
     fetch("/api/settings",{cache:"no-store"}).then(r=>r.json()).then(setHubSettings).catch(()=>{});
   }, [open, loaded]);
 
   useEffect(() => {
-    listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    const list=listRef.current;
+    if(!list)return;
+    const reduceMotion=window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    list.scrollTo({ top:list.scrollHeight, behavior:reduceMotion?"auto":"smooth" });
   }, [messages, sending]);
 
   if (!open) return null;
 
   const sendQuestion = async (text: string) => {
     text = text.trim();
-    if (!text || sending) return;
+    if (!canSubmitCoachQuestion(text,sendingRef.current)) return;
+    const request=coachRequestForQuestion(requestRef.current,text,()=>crypto.randomUUID());
+    requestRef.current=request;
+    sendingRef.current=true;
+    setError(null);
     setQuestion("");
     setMessages((current) => [...current, { role: "user", text }]);
     setSending(true);
@@ -54,22 +65,28 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
       const r = await fetch("/api/coach-chat", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ date: today, plan, originalPlan, planChanged, changeReasonCode, question: text,provider:providerChoice }),
+        body: JSON.stringify({ date: today, plan, originalPlan, planChanged, changeReasonCode, question: text,provider:providerChoice,requestId:request.id }),
       });
-      const j = await r.json();
+      const j = await r.json().catch(()=>({error:"Сервер VOLT вернул некорректный ответ",code:"invalid_json"}));
       if (!r.ok) {
-        notify(j.error || "Не удалось получить ответ тренера", "warn");
+        const message=coachErrorMessage(j,r.status);
+        setError({message,code:typeof j.code==="string"?j.code:undefined,provider:typeof j.provider==="string"?j.provider:undefined});
+        notify(message, "warn");
         setMessages((current) => current.slice(0, -1));
         setQuestion(text);
         return;
       }
+      requestRef.current=null;
       setProvider(j.provider==="anthropic+mws"?"anthropic+mws":j.provider==="mws"?"mws":"anthropic");
       setMessages((current) => [...current, { role: "assistant", text: j.answer, recommendation: j.mainRecommendation, food: j.food }]);
     } catch {
-      notify("Тренер не ответил — проверьте соединение", "warn");
+      const message=coachErrorMessage({code:"network"});
+      setError({message,code:"network"});
+      notify(message, "warn");
       setMessages((current) => current.slice(0, -1));
       setQuestion(text);
     } finally {
+      sendingRef.current=false;
       setSending(false);
     }
   };
@@ -99,8 +116,8 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
   return (
     <div className={`coach-chat-panel card${embedded?" coach-chat-embedded":""}`} role={embedded?"region":"dialog"} aria-label="Чат с VOLT Coach">
       <header className="coach-chat-head">
-        <div><p className="eyebrow">VOLT COACH · AI HUB</p><small>{provider?`Последний ответ: ${provider==="anthropic+mws"?"Консилиум":provider==="mws"?"MWS GPT":"Anthropic"}`:"Anthropic основной · MWS резервный"}</small></div>
-        <div className="coach-chat-head-actions"><button type="button" aria-label="Настроить AI Hub" title="Настроить AI Hub" onClick={()=>setSettingsOpen(v=>!v)}>⚙</button>{!embedded&&<button type="button" aria-label="Закрыть чат" onClick={onClose}>×</button>}</div>
+        <div><p className="eyebrow">VOLT COACH · AI HUB</p><small>{provider?`Последний ответ: ${provider==="anthropic+mws"?"Консилиум":provider==="mws"?"MWS GPT":"Anthropic"}`:hubSettings?.anthropicEnabled===false?"Anthropic отключён · Auto использует MWS":"Anthropic основной · MWS резервный"}</small></div>
+        <div className="coach-chat-head-actions"><button type="button" aria-label="Настроить AI Hub" title="Настроить AI Hub" onClick={()=>setSettingsOpen(v=>!v)}>⚙</button>{embedded?<button type="button" className="coach-chat-close-embedded" aria-label="Закрыть AI Coach" onClick={onClose}>×</button>:<button type="button" aria-label="Закрыть чат" onClick={onClose}>×</button>}</div>
       </header>
       {settingsOpen&&<MwsSetup settings={hubSettings} onSaved={(next)=>{setHubSettings(next);setSettingsOpen(false);notify("MWS GPT подключён как резерв","good")}}/>}
       {suggestedQuestions.length>0&&<div className="coach-suggested-questions" role="group" aria-label="Популярные вопросы">
@@ -112,10 +129,10 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
         {quickActions.map(a=><button key={a.label} type="button" onClick={a.onClick}>{a.icon&&<span aria-hidden="true">{a.icon} </span>}{a.label}</button>)}
       </div>}
       <div className="coach-provider-choice" role="group" aria-label="Выбор AI-модели">
-        <button type="button" className={providerChoice==="auto"?"active":""} onClick={()=>setProviderChoice("auto")}>Авто</button>
-        <button type="button" className={providerChoice==="anthropic"?"active":""} onClick={()=>setProviderChoice("anthropic")}>Anthropic</button>
-        <button type="button" className={providerChoice==="mws"?"active":""} onClick={()=>setProviderChoice("mws")} disabled={hubSettings?.mwsKeySet===false}>MWS GPT</button>
-        <button type="button" className={providerChoice==="consensus"?"active":""} onClick={()=>setProviderChoice("consensus")} disabled={hubSettings?.mwsKeySet===false||hubSettings?.anthropicKeySet===false}>Консилиум</button>
+        <button type="button" aria-pressed={providerChoice==="auto"} className={providerChoice==="auto"?"active":""} onClick={()=>setProviderChoice("auto")}>Авто</button>
+        <button type="button" aria-pressed={providerChoice==="anthropic"} className={providerChoice==="anthropic"?"active":""} onClick={()=>setProviderChoice("anthropic")}>Anthropic</button>
+        <button type="button" aria-pressed={providerChoice==="mws"} className={providerChoice==="mws"?"active":""} onClick={()=>setProviderChoice("mws")} disabled={hubSettings?.mwsKeySet===false}>MWS GPT</button>
+        <button type="button" aria-pressed={providerChoice==="consensus"} className={providerChoice==="consensus"?"active":""} onClick={()=>setProviderChoice("consensus")} disabled={hubSettings?.mwsKeySet===false||hubSettings?.anthropicKeySet===false||hubSettings?.anthropicEnabled===false}>Консилиум</button>
       </div>
       <div className="coach-chat-list" ref={listRef}>
         {!loaded && <p className="coach-chat-empty">Загружаю историю…</p>}
@@ -136,9 +153,10 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
         ))}
         {sending && <div className="coach-chat-bubble assistant pending"><p>Думаю…</p></div>}
       </div>
+      {error&&<div className="coach-chat-error" role="alert" id="coach-chat-error"><b>Ответ не получен</b><span>{error.message}</span>{error.code&&<small>Код: {error.code}{error.provider?` · ${error.provider}`:""}</small>}</div>}
       <form className="coach-chat-form" onSubmit={ask}>
-        <input value={question} onChange={(e) => setQuestion(e.target.value)} placeholder="Например: сколько калорий осталось?" maxLength={1000} disabled={sending} />
-        <button type="submit" disabled={sending || !question.trim()}>Спросить</button>
+        <input aria-label="Вопрос VOLT Coach" aria-describedby={error?"coach-chat-error":undefined} value={question} onChange={(e) => {setQuestion(e.target.value);if(requestRef.current?.text!==e.target.value.trim())requestRef.current=null}} onKeyDown={(e)=>{if(e.key==="Enter"){e.preventDefault();void sendQuestion(question)}}} placeholder="Например: сколько калорий осталось?" maxLength={1000} disabled={sending} />
+        <button type="submit" disabled={!canSubmitCoachQuestion(question,sending)}>{sending?"Думаю…":"Спросить"}</button>
       </form>
     </div>
   );
@@ -160,7 +178,7 @@ function MwsSetup({settings,onSaved}:{settings:HubSettings|null;onSaved:(value:H
   };
   return <form className="mws-setup" onSubmit={save}>
     <b>MWS GPT — резервный AI</b>
-    <p>Anthropic остаётся основным. MWS получит запрос только при сбое Anthropic.</p>
+    <p>{settings?.anthropicEnabled===false?"Anthropic отключён на сервере. Auto отправляет запрос сразу в MWS.":"Anthropic остаётся основным. MWS получит запрос только при допустимом сбое Anthropic."}</p>
     <label>Проект<input value={project} onChange={e=>setProject(e.target.value.trim())}/></label>
     <label>Модель<input value={model} onChange={e=>setModel(e.target.value.trim())}/></label>
     <label>API-ключ<input type="password" autoComplete="off" value={key} onChange={e=>setKey(e.target.value.trim())} placeholder={settings?.mwsKeySet?"Ключ сохранён — оставьте пустым, чтобы не менять":"Вставьте ключ MWS"}/></label>

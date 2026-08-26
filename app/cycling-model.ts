@@ -1,6 +1,7 @@
 import { buildHomeWeek } from "./personal-data.ts";
 import {
   buildWeekSchedule,
+  isoWeekdayOf,
   sessionsForDay,
   weekRangeContaining,
   type HomeWeekSession,
@@ -8,11 +9,13 @@ import {
 } from "./week-schedule-model.ts";
 import {
   CYCLING_LOAD_FEEDBACK_VALUES,
+  CYCLING_SLOT_ID,
   isCyclingSlot,
   isCyclingWorkoutRecord,
   type CyclingLoadFeedback,
 } from "@/lib/cycling";
 import { activatedPlanPosition, programWeekForDate } from "@/lib/training-program/registry";
+import type { TrainingProgramIdentity } from "@/lib/training-program/types";
 
 export type CyclingDraftStatus = "planned" | "active" | "awaiting_confirmation" | "completed" | "cancelled";
 export type CyclingDraftRecord = {
@@ -22,7 +25,15 @@ export type CyclingDraftRecord = {
   startedAt?: string | null;
   finishedAt?: string | null;
   workoutId?: number | null;
-  snapshot: { id?: string; type?: string; title?: string; exercises?: unknown[] };
+  snapshot: {
+    id?: string;
+    type?: string;
+    title?: string;
+    exercises?: unknown[];
+    origin?: "original" | "scheduled";
+    scheduleChangeId?: number | null;
+    programIdentity?: TrainingProgramIdentity;
+  };
   confirmation?: Record<string, unknown>;
 };
 export type CyclingWorkoutRecord = {
@@ -65,16 +76,43 @@ export type ResolveCyclingInput = {
   workouts?: CyclingWorkoutRecord[];
 };
 
-export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingResolution | null {
-  const selectedDate = input.selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(input.selectedDate)
-    ? input.selectedDate
-    : null;
-  const anchorDate = selectedDate ?? input.today;
-  const { mondayIso, sundayIso } = weekRangeContaining(anchorDate);
-  const programWeek = activatedPlanPosition(input.trainingPlanV3StartedAt,anchorDate)?.weekIndex
-    ?? programWeekForDate(input.programStart, anchorDate);
+const draftStatusRank: Record<CyclingDraftStatus, number> = {
+  awaiting_confirmation: 4,
+  active: 3,
+  planned: 2,
+  completed: 1,
+  cancelled: 0,
+};
+
+function sessionFromDraft(draft: CyclingDraftRecord): HomeWeekSession {
+  const exercises = (Array.isArray(draft.snapshot.exercises) ? draft.snapshot.exercises : []).map((item: any, index) => {
+    if (Array.isArray(item)) return item;
+    const target = String(item?.target ?? "По плану");
+    return [
+      String(item?.name ?? `Этап ${index + 1}`),
+      target,
+      target,
+    ];
+  });
+  return {
+    id: draft.snapshot.id ?? CYCLING_SLOT_ID,
+    type: String(draft.snapshot.type ?? "Cycling"),
+    title: String(draft.snapshot.title ?? "Bike / Indoor Cycling"),
+    time: "По сохранённому плану",
+    rounds: 1,
+    image: "",
+    optional: true,
+    exercises,
+    programIdentity: draft.snapshot.programIdentity,
+  };
+}
+
+function cyclingCandidates(input: ResolveCyclingInput, date: string) {
+  const { mondayIso, sundayIso } = weekRangeContaining(date);
+  const programWeek = activatedPlanPosition(input.trainingPlanV3StartedAt,date)?.weekIndex
+    ?? programWeekForDate(input.programStart,date);
   const schedule = buildWeekSchedule(
-    buildHomeWeek(input.programStart,input.trainingPlanV3StartedAt,anchorDate),
+    buildHomeWeek(input.programStart,input.trainingPlanV3StartedAt,date),
     input.weekScheduleChanges ?? [],
     mondayIso,
   );
@@ -83,6 +121,43 @@ export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingRes
       .filter(isCyclingSlot)
       .map((session) => ({ day, session })),
   );
+  return { mondayIso, sundayIso, programWeek, candidates };
+}
+
+export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingResolution | null {
+  const openDraft = (input.workoutDrafts ?? [])
+    .filter((draft) => draft.status !== "completed" && draft.status !== "cancelled" && isCyclingSlot(draft.snapshot))
+    .slice()
+    .sort((a, b) => draftStatusRank[b.status] - draftStatusRank[a.status] || b.id - a.id)[0];
+
+  // An open draft is persisted state and therefore wins over the current
+  // calendar week or a stale query parameter. This restores Active/Result
+  // after refresh without creating a Cycling-specific calendar.
+  if (openDraft) {
+    const open = cyclingCandidates(input, openDraft.date);
+    const restoredSession = sessionFromDraft(openDraft);
+    return {
+      date: openDraft.date,
+      weekday: isoWeekdayOf(openDraft.date),
+      session: restoredSession,
+      optional: true,
+      changed: openDraft.snapshot.origin === "scheduled",
+      scheduleChangeId: openDraft.snapshot.scheduleChangeId ?? null,
+      origin: openDraft.snapshot.origin === "scheduled" ? "scheduled" : "original",
+      status: openDraft.status === "awaiting_confirmation" ? "awaiting_confirmation" : "active",
+      draft: openDraft,
+      workout: null,
+      programWeek: open.programWeek,
+      mondayIso: open.mondayIso,
+      sundayIso: open.sundayIso,
+    };
+  }
+
+  const selectedDate = input.selectedDate && /^\d{4}-\d{2}-\d{2}$/.test(input.selectedDate)
+    ? input.selectedDate
+    : null;
+  const anchorDate = selectedDate ?? input.today;
+  const { mondayIso, sundayIso, programWeek, candidates } = cyclingCandidates(input, anchorDate);
   const selected = (selectedDate ? candidates.find(({ day }) => day.date === selectedDate) : null)
     ?? candidates.find(({ day }) => day.date >= input.today)
     ?? candidates[0];

@@ -1,5 +1,5 @@
 import { db } from "@/lib/db";
-import { saveWorkout, WORKOUT_DETAIL_SOURCES, type ActionResult, type WorkoutDetailSource } from "@/lib/workout-service";
+import { normalizeAverageSpeed, saveWorkout, WORKOUT_DETAIL_SOURCES, type ActionResult, type WorkoutDetailSource } from "@/lib/workout-service";
 import { normalizeSnapshot, type SnapshotExercise, type WorkoutSnapshot, type WorkoutSnapshotOrigin } from "@/lib/workout-snapshot";
 import { planKey } from "@/lib/plan-key";
 import { CYCLING_LOAD_FEEDBACK_VALUES, type CyclingLoadFeedback } from "@/lib/cycling";
@@ -193,7 +193,9 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;
   const maxHeartRate=finite(imported?.maxHeartRate??body?.maxHeartRate,20,250);
   const calories=finite(imported?.calories??body?.calories,0,10000);
   const distanceMeters=finite(importedMetadata.distanceMeters??body?.distanceMeters,0,1000000);
-  const averageSpeed=finite(body?.avgSpeed,0,200)??(distanceMeters!==null&&duration>0?(distanceMeters/1000)/(duration/3600):null);
+  const calculatedSpeed=distanceMeters!==null&&duration>0?(distanceMeters/1000)/(duration/3600):null;
+  const normalizedCalculatedSpeed=calculatedSpeed===null?null:normalizeAverageSpeed(calculatedSpeed);
+  const averageSpeed=imported?normalizedCalculatedSpeed:(finite(body?.avgSpeed,0,200)??normalizedCalculatedSpeed);
   const notes=typeof body?.notes==="string"?body.notes:"";
   const saved=saveWorkout({date:draft.date,title:draft.snapshot.title,type:draft.snapshot.type,rounds:draft.snapshot.rounds,
    completed:details.filter(x=>!x.skipped).map(x=>x.key),details,durationSeconds:duration,restSeconds:0,effort,painAfter,

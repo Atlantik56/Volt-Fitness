@@ -28,7 +28,8 @@ import { computeEveningWeeklyStats } from "../lib/evening";
 import { MoodSection, MoodSummaryCard } from "./mood-section";
 import { MilestonesSection, LatestMilestoneCard, NewMilestoneBanner, useMilestones } from "./milestones-section";
 import { useToast } from "./toast";
-import { VOLT_NAV_ITEMS, VoltGlobalNavigation, type VoltSection } from "./volt-global-navigation";
+import { VoltGlobalNavigation, type VoltSection } from "./volt-global-navigation";
+import { resolveSectionFromQuery, sectionUrl } from "./nav-url";
 import {
   Bell, Bike, CalendarDays, Camera, ChartColumn, CheckCircle2, ChevronDown, Clock3, Droplets,
   Dumbbell, Flame, Footprints, Moon, PenLine, Play, ReceiptText,
@@ -56,6 +57,7 @@ export default function Home() {
   const [data,setData]=useState<any>({profile:{name:"Илья",height:167,startWeight:86,targetWeight:67},workouts:[],measurements:[],activity:[],photos:[]});
   const [activeWorkout,setActiveWorkout]=useState<ActiveDraft|null>(null);
   const [analyticsMode,setAnalyticsMode]=useState<"insights"|"coach">("insights");
+  const [urlReady,setUrlReady]=useState(false);
   const [loaded,setLoaded]=useState(false);
   const [progressionProposals,setProgressionProposals]=useState<ProgressionProposal[]>([]);
   const loadProgression=()=>fetch("/api/progression").then(r=>r.json()).then(d=>setProgressionProposals(d.proposals||[])).catch(()=>{});
@@ -73,9 +75,29 @@ export default function Home() {
   const router=useRouter();
   useEffect(()=>{
    load();loadProgression();loadSwimToday();
-   const query=new URLSearchParams(window.location.search),section=query.get("section");
-   const id=window.setTimeout(()=>{if(section&&VOLT_NAV_ITEMS.some(item=>item.id===section)){setNav(section as VoltSection);if(section==="Аналитика"&&query.get("mode")==="coach")setAnalyticsMode("coach")}},0);
+   const id=window.setTimeout(()=>{
+    const {section,mode}=resolveSectionFromQuery(new URLSearchParams(window.location.search));
+    setNav(section);
+    setAnalyticsMode(mode);
+    const canonical=sectionUrl(section,mode);
+    if(window.location.pathname+window.location.search!==canonical)window.history.replaceState(null,"",canonical);
+    setUrlReady(true);
+   },0);
    return()=>window.clearTimeout(id);
+  },[]);
+  useEffect(()=>{
+   if(!urlReady)return;
+   const url=sectionUrl(nav,analyticsMode);
+   if(window.location.pathname+window.location.search!==url)window.history.pushState(null,"",url);
+  },[nav,analyticsMode,urlReady]);
+  useEffect(()=>{
+   const onPopState=()=>{
+    const {section,mode}=resolveSectionFromQuery(new URLSearchParams(window.location.search));
+    setNav(section);
+    setAnalyticsMode(mode);
+   };
+   window.addEventListener("popstate",onPopState);
+   return()=>window.removeEventListener("popstate",onPopState);
   },[]);
   // Сброс во время рендера (а не в эффекте) — рекомендованный React-паттерн для
   // производного состояния при смене nav, без каскадного лишнего рендера.
