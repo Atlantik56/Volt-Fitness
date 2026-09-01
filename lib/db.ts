@@ -311,7 +311,12 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   ALTER TABLE strava_connections ADD COLUMN status TEXT NOT NULL DEFAULT 'connected';
   ALTER TABLE strava_connections ADD COLUMN needs_reauth_at TEXT;
   ALTER TABLE strava_connections ADD COLUMN last_webhook_at TEXT;
-  ALTER TABLE workout_imports ADD COLUMN updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  -- SQLite rejects a non-constant default in ALTER TABLE when the table already
+  -- contains rows. Use a constant migration-safe default, then preserve the
+  -- original import timestamp for existing records. Application inserts set
+  -- updated_at explicitly below.
+  ALTER TABLE workout_imports ADD COLUMN updated_at TEXT NOT NULL DEFAULT '';
+  UPDATE workout_imports SET updated_at=created_at WHERE updated_at='';
   ALTER TABLE workout_imports ADD COLUMN cache_expires_at TEXT;
   ALTER TABLE workout_imports ADD COLUMN review_status TEXT NOT NULL DEFAULT 'new';
   CREATE TABLE IF NOT EXISTS strava_webhook_events (

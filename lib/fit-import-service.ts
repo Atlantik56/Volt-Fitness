@@ -184,8 +184,8 @@ export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
   const alreadyLinked=candidateDraftId===null?null:db.prepare("SELECT 1 FROM workout_imports WHERE draft_id=? LIMIT 1").get(candidateDraftId);
   const autoDraftId=alreadyLinked?null:candidateDraftId;
   const result=db.prepare(`INSERT INTO workout_imports
-   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id,cache_expires_at)
-   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
+   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id,updated_at,cache_expires_at)
+   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
     workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
     JSON.stringify(workout.metadata),autoDraftId,stravaCacheExpiry(workout));
   response={ok:true,result:{id:Number(result.lastInsertRowid),workout,draftId:autoDraftId,duplicate:false,autoLinked:autoDraftId!==null,candidates}};
@@ -256,8 +256,8 @@ export function importFitForDraft(bytes:Uint8Array,target:TargetedImportRequest)
   }
 
   const inserted=db.prepare(`INSERT INTO workout_imports
-   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
-   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
+   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id,updated_at)
+   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
     workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
     JSON.stringify(workout.metadata),did);
   response={ok:true,result:{id:Number(inserted.lastInsertRowid),workout,draftId:did,duplicate:false,autoLinked:false,candidates:candidate}};
