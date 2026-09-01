@@ -36,6 +36,9 @@
   [приложенный макет](design/volt-swim/volt-swim-concept-v17.jpg).
 - [`volt-swim/SPRINTS.md`](volt-swim/SPRINTS.md) — действующие пять спринтов
   VOLT Swim вокруг 8-недельной программы Foundation.
+- [`GARMIN_BRIDGE.md`](GARMIN_BRIDGE.md) — автоматический импорт тренировок,
+  сна и HRV из Garmin Connect (и WattAttack через него) через intervals.icu;
+  разобранные альтернативы и причины отказа от Strava.
 - [`TRAINING_PROGRAM_ARCHITECTURE.md`](TRAINING_PROGRAM_ARCHITECTURE.md) —
   canonical program layer, versioning, effective programs и правила добавления
   следующих версий без изменения истории; текущий 8-недельный Plan v3

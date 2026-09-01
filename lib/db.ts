@@ -365,6 +365,22 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
    WHERE id=1 AND training_plan_v3_started_at IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM training_plan_cycles WHERE program_id='volt-training' AND program_version=3);
  `},
+ // Состояние синхронизации с intervals.icu (docs/GARMIN_BRIDGE.md). Ключ API
+ // живёт только в переменных окружения и сюда не попадает — таблица хранит
+ // лишь прогресс и последнюю ошибку, чтобы показать статус в профиле и
+ // продолжить инкрементальную синхронизацию после перезапуска.
+ {version:26,sql:`
+  CREATE TABLE IF NOT EXISTS intervals_connection (
+   id INTEGER PRIMARY KEY CHECK(id=1),
+   athlete_id TEXT NOT NULL DEFAULT '',
+   last_synced_at TEXT,
+   last_activity_date TEXT,
+   last_sync_error TEXT NOT NULL DEFAULT '',
+   status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','ok','sync_error','unauthorized')),
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  INSERT OR IGNORE INTO intervals_connection(id) VALUES(1);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

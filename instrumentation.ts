@@ -1,3 +1,5 @@
+const INTERVALS_SYNC_INTERVAL_MS = 3 * 60 * 60_000;
+
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { checkAndSendReminder } = await import("./lib/push");
@@ -7,4 +9,19 @@ export async function register() {
     running = true;
     checkAndSendReminder().catch(() => {}).finally(() => { running = false; });
   }, 60_000);
+
+  // Подтягиваем тренировки из intervals.icu (docs/GARMIN_BRIDGE.md). Опрос —
+  // базовый путь доставки: он не зависит от вебхуков и переживает простои.
+  // Ошибки намеренно проглатываются: недоступность intervals.icu не должна
+  // влиять на работу приложения, состояние видно в статусе интеграции.
+  const { isIntervalsConfigured, syncIntervalsActivities } = await import("./lib/intervals-service");
+  if (!isIntervalsConfigured()) return;
+  let syncing = false;
+  const sync = () => {
+    if (syncing) return;
+    syncing = true;
+    syncIntervalsActivities().catch(() => {}).finally(() => { syncing = false; });
+  };
+  setInterval(sync, INTERVALS_SYNC_INTERVAL_MS);
+  sync();
 }
