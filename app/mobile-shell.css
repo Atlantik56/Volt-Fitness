@@ -7,7 +7,7 @@
  .mobile-sidebar-close{display:grid;place-items:center;position:absolute;right:18px;top:22px;width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:#15191b;color:#fff;font-size:23px;cursor:pointer}
  .mobile-sidebar-backdrop{position:fixed;inset:0;z-index:55;border:0;background:#020304b8;backdrop-filter:blur(4px)}
  .mobile-sidebar-backdrop.visible{display:block}
- .mobile-status-bar{width:100%;display:grid;grid-template-columns:1fr 1fr 1.25fr;align-items:center;gap:7px;margin:-8px 0 14px;padding:9px;border:1px solid var(--line);border-radius:14px;background:rgba(15,19,20,.82);color:#dfe4e6;backdrop-filter:blur(14px);cursor:pointer;overflow:hidden}
+ .mobile-status-bar{width:100%;display:grid;grid-template-columns:1fr 1fr 1.25fr;align-items:center;gap:7px;margin:10px 0 14px;padding:9px;border:1px solid var(--line);border-radius:14px;background:rgba(15,19,20,.82);color:#dfe4e6;backdrop-filter:blur(14px);cursor:pointer;overflow:hidden}
  .mobile-status-bar>span{min-width:0;padding:4px 7px;border-right:1px solid var(--line);font-size:11px;white-space:nowrap}
  .mobile-status-bar>span:last-child{border:0}
  .mobile-status-bar small{color:#7f898e;font-size:8px}

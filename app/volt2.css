@@ -77,6 +77,14 @@ body:has(.auth-screen),body:has(.volt-widget-page){
   background-attachment:fixed;
 }
 .auth-screen{background:linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.66))}
+/* Заголовок auth-карточки наследовал body line-height 1.5: при 34px это
+   давало 51px строку и разрыв между «С» и «возвращением» на всю высоту.
+   Длинное слово при этом упиралось в край карточки (249px контента на 375px). */
+.auth-card h1{font-size:clamp(25px,7.2vw,34px);line-height:1.08;letter-spacing:-.03em;overflow-wrap:break-word;text-wrap:balance}
+@media(max-width:520px){
+  .auth-screen{padding:20px 14px}
+  .auth-card{padding:28px 20px}
+}
 
 .app-shell:not(.swim-shell){position:relative;isolation:isolate}
 .app-shell:not(.swim-shell)::before{
@@ -246,6 +254,16 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .today-focus{display:grid;grid-template-columns:1.75fr 1fr;gap:var(--v2-gap);margin-bottom:var(--v2-section-gap)}
 .content:has(> .hero) .topbar{margin-bottom:0}
 .content:has(> .hero) .today-focus{position:relative;z-index:2;margin-top:clamp(-176px,-17vh,-138px)}
+/* Перекрытие Hero карточкой обязано оставаться меньше нижнего padding Hero,
+   иначе .today-focus наезжает на CTA «Начать тренировку». Базовый clamp на
+   высоких экранах доходит до -176px при padding-bottom 150px (≤760px) и
+   130px (≤520px). Правила стоят после базового: специфичность равная. */
+@media(max-width:760px){
+  .content:has(> .hero) .today-focus{margin-top:-104px}
+}
+@media(max-width:520px){
+  .content:has(> .hero) .today-focus{margin-top:-88px}
+}
 /* Второй по значимости элемент после Hero — компактнее прежнего: меньше
    внутренних отступов и вертикальных зазоров между заголовком/мета/CTA. */
 /* justify-content:center — .today-focus стретчит обе колонки под высоту
@@ -2229,7 +2247,7 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 
 /* ---------- Мобильная навигация ---------- */
 @media(max-width:760px){
-  .content{margin-left:0;padding:20px 16px 104px}
+  .content{margin-left:0;padding:20px 16px calc(104px + env(safe-area-inset-bottom,0px))}
   /* Мобильный аналог Sidebar — та же архитектурная поверхность (05-glass-system.md). */
   .mobile-nav{background:var(--v2-glass-arch);backdrop-filter:blur(26px) saturate(1.12);border-top:1px solid var(--v2-border)}
   .app-shell:not(.swim-shell)>.mobile-nav{grid-template-columns:repeat(6,minmax(0,1fr))!important}
