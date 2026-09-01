@@ -41,6 +41,13 @@
   следующих версий без изменения истории; текущий 8-недельный Plan v3
   запускается пользователем и связывает зал, Endurance Swim и велосипед в
   одном относительном календаре.
+- [`ANALYTICS.md`](ANALYTICS.md) — provider-neutral Analytics Foundation:
+  периоды, plan-vs-fact, Gym/Swim/Cycling, trends/comparisons, data coverage,
+  Strava isolation и подготовленный aggregate-only Coach context.
+- [`STRAVA_INTEGRATION.md`](STRAVA_INTEGRATION.md) — read-only OAuth,
+  encrypted token lifecycle, manual activity sync, provider-neutral mapping,
+  local setup and the production retention gate required by Strava's 2026 API
+  Policy.
 - [`volt-swim/ARCHITECTURE.md`](volt-swim/ARCHITECTURE.md) — почему `/swim`
   устроен как отдельные маршруты, как устроены слои `lib/swim/*` и как модуль
   масштабируется в следующих спринтах.

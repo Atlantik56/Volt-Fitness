@@ -144,7 +144,7 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
   ).all(windowStart, date, historyRowsLimit) as FoodLogRow[];
 
   const workouts = db.prepare(
-    "SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT ?",
+    "SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC,id DESC LIMIT ?",
   ).all(date, workoutsLimit) as WorkoutRow[];
 
   // Полное окно истории, а не только сегодняшний день — lib/coach.ts считает
@@ -208,7 +208,7 @@ const MILESTONES_ROWS_LIMIT = 5000;
 
 function loadMilestonesForContext(db: Database.Database, date: string, programStages: ProgramStageRow[]): Milestone[] {
   const workouts = db.prepare(
-    "SELECT id,date FROM workout_logs WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",
+    "SELECT id,date FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date ASC,id ASC LIMIT ?",
   ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; date: string }[];
   const strengthLogs = db.prepare(
     "SELECT id,date,exercise,weight FROM strength_logs WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",

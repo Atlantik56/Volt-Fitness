@@ -3,7 +3,7 @@ import { ChevronRight } from "lucide-react";
 import { formatDuration, formatMeters } from "@/lib/swim-metrics";
 import type { SwimHistoryItem as SwimHistoryItemType } from "@/app/swim/types";
 
-const SOURCE_LABEL: Record<SwimHistoryItemType["source"], string> = { manual: "Вручную", imported_metric: "Гармин" };
+const sourceLabel=(item:SwimHistoryItemType)=>item.source==="manual"?"Вручную":item.provider==="strava"?"Strava":item.provider==="garmin_fit"?"Гармин":"Импорт";
 
 function dayNumber(iso: string): string {
   const date = new Date(`${iso}T12:00:00`);
@@ -51,7 +51,7 @@ export function HistoryItem({ item, featured = false }: { item: SwimHistoryItemT
       <div className="swim-history-entry-body">
         <div className="swim-history-entry-head">
           <strong>{item.title}</strong>
-          <span className={`swim-badge ${item.source === "imported_metric" ? "synced" : ""}`}>{SOURCE_LABEL[item.source]}</span>
+          <span className={`swim-badge ${item.source === "imported_metric" ? "synced" : ""}`}>{sourceLabel(item)}</span>
           {featured && <span className="swim-history-entry-flag">Лучший объём месяца</span>}
         </div>
         {featured && (

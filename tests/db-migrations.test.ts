@@ -28,6 +28,32 @@ test("migration v22 создаёт idempotency store Coach",()=>{
  assert.ok(table);
 });
 
+test("migration v23 создаёт раздельное Strava OAuth-хранилище и provenance",()=>{
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=23").get());
+ assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='strava_connections'").get());
+ assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='strava_oauth_tokens'").get());
+ const columns=db.prepare("PRAGMA table_info(workout_logs)").all() as {name:string}[];
+ assert.ok(columns.some(column=>column.name==="external_activity_source"));
+ assert.ok(columns.some(column=>column.name==="external_activity_id"));
+});
+
+test("migration v24 создаёт webhook inbox, auth state и transient cache TTL",()=>{
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=24").get());
+ assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='strava_webhook_events'").get());
+ const connectionColumns=db.prepare("PRAGMA table_info(strava_connections)").all() as any[];
+ const importColumns=db.prepare("PRAGMA table_info(workout_imports)").all() as any[];
+ assert.ok(connectionColumns.some(column=>column.name==="status"));
+ assert.ok(connectionColumns.some(column=>column.name==="last_webhook_at"));
+ assert.ok(importColumns.some(column=>column.name==="cache_expires_at"));
+ assert.ok(importColumns.some(column=>column.name==="review_status"));
+});
+
+test("migration v25 создаёт историю циклов общего тренировочного плана",()=>{
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=25").get());
+ assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='training_plan_cycles'").get());
+ assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_training_plan_cycles_open'").get());
+});
+
 test("однозначное совпадение по дате и упражнению — связывается", () => {
  const workoutId = insertWorkout("2026-01-01", [detail("Жим гантелей лёжа")]);
  const logId = insertOrphanStrengthLog("2026-01-01", "Жим гантелей лёжа");

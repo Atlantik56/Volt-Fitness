@@ -12,11 +12,11 @@ import { trainingLabelRu } from "../lib/training-display";
 
 type Exercise={name:string;order:number;target:string;recommendedWeight:number;sets:number|null;repMin:number|null;repMax:number|null;unit:string};
 type ResultSet={weight:number;reps:number};
-export type ActiveDraft={id:number;date:string;status:"active"|"awaiting_confirmation"|"completed"|"cancelled";startedAt:string|null;finishedAt:string|null;workoutId:number|null;snapshot:{title:string;type:string;rounds:number;exercises:Exercise[]};confirmation?:{source:"Garmin"|"Manual";duration:number;averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;lastResults:Record<string,ResultSet[]>}};
+export type ActiveDraft={id:number;date:string;status:"active"|"awaiting_confirmation"|"completed"|"cancelled";startedAt:string|null;finishedAt:string|null;workoutId:number|null;snapshot:{title:string;type:string;rounds:number;exercises:Exercise[]};confirmation?:{source:"Garmin"|"Strava"|"Manual";duration:number;averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;lastResults:Record<string,ResultSet[]>}};
 // Эхо реального результата lib/active-workout-service.ts#confirmWorkoutDraft
 // (result.summary) — экран результата показывает только то, что подтвердил
 // сервер, а не то, что клиент "помнит" из формы (см. AI-9 доработка, п.3.4).
-export type ConfirmationSummary={workoutId:number;duration:number;effort:string;painAfter:number;metricsSource:"manual"|"imported_metric";confirmationSource:"Garmin"|"Manual";averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;exercises:{name:string;source:string;setCount:number}[]};
+export type ConfirmationSummary={workoutId:number;duration:number;effort:string;painAfter:number;metricsSource:"manual"|"imported_metric";confirmationSource:"Garmin"|"Strava"|"Manual";averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;exercises:{name:string;source:string;setCount:number}[]};
 
 const EFFORT_VALUES=["Легко","Нормально","Тяжело","Боль"] as const;
 const formatTime=(iso:string|null)=>iso?new Intl.DateTimeFormat("ru-RU",{hour:"2-digit",minute:"2-digit"}).format(new Date(iso.replace(" ","T")+"Z")):"—";
@@ -64,7 +64,7 @@ function ConfirmationForm({draft,duration,pending,onConfirm,onCancel}:{draft:Act
    <span><small>Длительность</small><b>{Math.round((context?.duration??duration)/60)} мин</b></span>
    <span><small>Пульс</small><b>{context?.averageHeartRate??"—"}{context?.maxHeartRate?` / ${context.maxHeartRate}`:""}</b></span>
    <span><small>Калории</small><b>{context?.calories??"—"}</b></span>
-   <span><small>Источник</small><b>{context?.source==="Garmin"?"Garmin":"Вручную"}</b></span>
+   <span><small>Источник</small><b>{context?.source==="Strava"?"Strava":context?.source==="Garmin"?"Garmin":"Вручную"}</b></span>
   </div>
   <div className="confirmation-quick"><button type="button" onClick={allPlan}>✓ Всё выполнено по плану</button><button type="button" className="ghost-btn" disabled={!Object.keys(last).length} onClick={allLast}>Всё как в прошлый раз</button></div>
   <div className="confirmation-exercises">{items.map((item,index)=><article className={item.skipped?"is-skipped":""} key={`${item.added?"added":"plan"}-${item.name}`}>

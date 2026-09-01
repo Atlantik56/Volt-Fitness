@@ -76,7 +76,7 @@ function computeCoachActionForDate(date: string, plan: { title: string; type: st
  const profile = db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight FROM profile WHERE id=1").get() as any;
  const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
  const foodLogs = db.prepare("SELECT date,calories,protein,fat,carbs FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
- const workouts = db.prepare("SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 20").all(date) as any[];
+ const workouts = db.prepare("SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC,id DESC LIMIT 20").all(date) as any[];
  const wellnessRow = db.prepare("SELECT energy,pain,pain_area painArea FROM wellness_logs WHERE date=?").get(date) as any;
  const activityRow = db.prepare("SELECT steps,active_minutes activeMinutes,sleep_hours sleepHours FROM daily_activity WHERE date=?").get(date) as any;
  const summary = buildCoachSummary({

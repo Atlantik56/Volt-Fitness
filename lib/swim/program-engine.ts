@@ -351,15 +351,15 @@ export const getProgram = (id: string): SwimProgramDef | null => PROGRAMS.find((
 export function getWorkout(program: SwimProgramDef, weekIndex: number, workoutId: string) { const week = program.weeks.find((w) => w.weekIndex === weekIndex); const found = week?.days.find((d) => d.workout?.id === workoutId); return week && found ? { day: found, week } : null; }
 export function findWorkoutById(program: SwimProgramDef, workoutId: string) { for (const w of program.weeks) for (const d of w.days) if (d.workout?.id === workoutId) return { workout: d.workout, weekIndex: w.weekIndex, dayIndex: d.dayIndex }; return null; }
 function ordered(program: SwimProgramDef) { return program.weeks.flatMap((week) => week.days.flatMap((day) => day.workout ? [{ workout: day.workout, weekIndex: week.weekIndex, dayIndex: day.dayIndex }] : [])); }
-export function computeProgramProgress(program: SwimProgramDef, completedPlanKeys: ReadonlySet<string>, openDraftsByPlanKey: ReadonlyMap<string, { id: number; status: "active" | "awaiting_confirmation"; date: string }>, actualsByPlanKey: ReadonlyMap<string, SwimWorkoutActual> = new Map()): SwimProgramProgress {
+export function computeProgramProgress(program: SwimProgramDef, completedPlanKeys: ReadonlySet<string>, openDraftsByPlanKey: ReadonlyMap<string, { id: number; status: "active" | "awaiting_confirmation"; date: string }>, actualsByPlanKey: ReadonlyMap<string, SwimWorkoutActual> = new Map(),planCycleId:number|null=null,includeUnscoped=true): SwimProgramProgress {
   const workouts: SwimWorkoutProgress[] = ordered(program).map(({ workout, weekIndex, dayIndex }) => {
-    const candidates = swimWorkoutPlanKeyCandidates(program, workout);
-    const key = candidates.find((candidate) => completedPlanKeys.has(candidate) || openDraftsByPlanKey.has(candidate) || actualsByPlanKey.has(candidate)) ?? swimWorkoutPlanKey(program, workout) ?? "";
+    const candidates = swimWorkoutPlanKeyCandidates(program, workout,planCycleId,includeUnscoped);
+    const key = candidates.find((candidate) => completedPlanKeys.has(candidate) || openDraftsByPlanKey.has(candidate) || actualsByPlanKey.has(candidate)) ?? swimWorkoutPlanKey(program, workout,planCycleId) ?? "";
     const open = openDraftsByPlanKey.get(key);
     const status: SwimWorkoutProgressStatus = completedPlanKeys.has(key) ? "completed" : open?.status === "awaiting_confirmation" ? "awaiting_confirmation" : open?.status === "active" ? "in_progress" : "not_started";
     return { workout, weekIndex, dayIndex, status, planKey: key, draftId: open?.id ?? null, draftDate: open?.date ?? null, actual: actualsByPlanKey.get(key) ?? null, calendar: null };
   });
   const completedCount = workouts.filter((w) => w.status === "completed").length;
   const nextWorkout = workouts.find((w) => w.status === "in_progress" || w.status === "awaiting_confirmation") ?? workouts.find((w) => w.status === "not_started") ?? null;
-  return { program, startedAt: null, completedCount, totalCount: workouts.length, currentWeekIndex: nextWorkout?.weekIndex ?? (workouts.at(-1)?.weekIndex ?? null), nextWorkout, workouts, calendarDays: [] };
+  return { program, startedAt: null, planCycleId,completedCount, totalCount: workouts.length, currentWeekIndex: nextWorkout?.weekIndex ?? (workouts.at(-1)?.weekIndex ?? null), nextWorkout, workouts, calendarDays: [] };
 }

@@ -21,6 +21,9 @@ export type TrainingProgramIdentity = {
   programVersion: number;
   weekIndex: number;
   sessionId: string;
+  // Present for restartable programs. It prevents a completed workout from a
+  // previous cycle from completing the same slot in a newly started cycle.
+  cycleId?: number;
 };
 
 export type TrainingWorkoutReference =

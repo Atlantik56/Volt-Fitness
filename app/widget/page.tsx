@@ -15,7 +15,7 @@ export default function WidgetPage(){
  const [data,setData]=useState<any>(null),[saved,setSaved]=useState(false),[form,setForm]=useState({energy:3,pain:0,zone:""});
  const load=()=>fetch("/api/fitness",{cache:"no-store"}).then(r=>r.json()).then(j=>{setData(j);const w=j.wellnessLogs?.find((x:any)=>x.date===iso(new Date()));if(w)setForm(x=>({...x,energy:Number(w.energy)||3,pain:Number(w.pain)||0,zone:w.painArea||""}))});
  useEffect(()=>{load()},[]);
- const homeWeek=buildHomeWeek(data?.profile?.programStart,data?.profile?.trainingPlanV3StartedAt);
+ const homeWeek=buildHomeWeek(data?.profile?.programStart,data?.profile?.trainingPlanV3StartedAt,undefined,data?.profile?.trainingPlanV3CycleId);
  const today=iso(new Date()),plan=homeWeek.find(x=>x.day===(new Date().getDay()||7))||homeWeek[0],activity=data?.activity?.find((x:any)=>x.date===today)||{},currentWellness=data?.wellnessLogs?.find((x:any)=>x.date===today)||{};
  const lastWorkout=data?.workouts?.[0],{score,decision}=calculateReadiness({sleepHours:Number(activity.sleepHours)||0,energy:form.energy,pain:form.pain,lastWorkoutPain:Number(lastWorkout?.painAfter)||0});
  const save=async(e:FormEvent)=>{e.preventDefault();setSaved(false);const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"wellness",date:today,energy:form.energy,pain:form.pain,painArea:form.zone,note:currentWellness.note||""})});if(r.ok){setSaved(true);load()}};

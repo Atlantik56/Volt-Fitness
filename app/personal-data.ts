@@ -19,11 +19,11 @@ export const homeWarmup = mutableExercises(LEGACY_HOME_WARMUP);
 export function currentProgramWeek(programStart?:string,trainingPlanV3StartedAt?:string|null):number{
  const now=new Date(),dateIso=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
  const activated=activatedPlanPosition(trainingPlanV3StartedAt,dateIso);
- if(activated)return activated.definitionWeekIndex;
+ if(activated)return activated.weekIndex;
  return programWeekForDate(programStart,dateIso);
 }
 
-function sessionToHomeDay(session:TrainingSessionDefinition,resolved:ReturnType<typeof resolveTrainingWeek>):HomeWeekDay{
+function sessionToHomeDay(session:TrainingSessionDefinition,resolved:ReturnType<typeof resolveTrainingWeek>,cycleId?:number|null):HomeWeekDay{
  const {program,week}=resolved;
  const workout=session.workoutRef.kind==="catalog"
   ?getTrainingWorkout(session.workoutRef.workoutId)
@@ -33,7 +33,7 @@ function sessionToHomeDay(session:TrainingSessionDefinition,resolved:ReturnType<
   exercises:mutableExercises(workout.exercises),warmup:workout.warmup?mutableExercises(workout.warmup):undefined,
   optional:!session.required&&session.discipline==="bike",availability:workout.availability,
   discipline:session.discipline,role:session.role,required:session.required,workoutRef:session.workoutRef,
-  programIdentity:trainingProgramRegistry.identityFor(program,week,session),
+  programIdentity:{...trainingProgramRegistry.identityFor(program,week,session),...(cycleId?{cycleId}:{})},
  };
 }
 
@@ -41,10 +41,10 @@ export function buildProgramWeek(programWeek:number):HomeWeekDay[]{
  return buildResolvedWeek(resolveTrainingWeek(programWeek));
 }
 
-function buildResolvedWeek(resolved:ReturnType<typeof resolveTrainingWeek>):HomeWeekDay[]{
+function buildResolvedWeek(resolved:ReturnType<typeof resolveTrainingWeek>,cycleId?:number|null):HomeWeekDay[]{
  const {week}=resolved;
  return Array.from({length:7},(_,offset)=>{
-  const day=offset+1,sessions=week.sessions.filter(session=>session.day===day).map(session=>sessionToHomeDay(session,resolved));
+  const day=offset+1,sessions=week.sessions.filter(session=>session.day===day).map(session=>sessionToHomeDay(session,resolved,cycleId));
   if(!sessions.length)throw new Error(`Training program week ${week.index} has no session for day ${day}`);
   const [primary]=sessions;
   return sessions.length>1?{...primary,sessions}:primary;
@@ -56,11 +56,11 @@ function remapDayToCalendar(day:HomeWeekDay,calendarWeekday:number):HomeWeekDay{
  return {...day,day:calendarWeekday,d:DAY_LABELS[calendarWeekday],sessions:day.sessions?.map(remapSession)};
 }
 
-export function buildProgramDayForDate(programStart:string|undefined,trainingPlanV3StartedAt:string|null|undefined,dateIso:string):HomeWeekDay{
+export function buildProgramDayForDate(programStart:string|undefined,trainingPlanV3StartedAt:string|null|undefined,dateIso:string,trainingPlanV3CycleId?:number|null):HomeWeekDay{
  const calendarWeekday=isoWeekdayOf(dateIso),activated=activatedPlanPosition(trainingPlanV3StartedAt,dateIso);
  if(activated){
   const resolved=resolveTrainingVersionWeek(VOLT_PROGRAM_ID,PLAN_V3_PROGRAM_VERSION,activated.definitionWeekIndex);
-  return remapDayToCalendar(buildResolvedWeek(resolved)[activated.dayIndex-1],calendarWeekday);
+  return remapDayToCalendar(buildResolvedWeek(resolved,trainingPlanV3CycleId)[activated.dayIndex-1],calendarWeekday);
  }
  const legacyWeek=programWeekForDate(programStart,dateIso),version=legacyWeek<=3?LEGACY_PROGRAM_VERSION:PLAN_V2_PROGRAM_VERSION;
  const resolved=resolveTrainingVersionWeek(VOLT_PROGRAM_ID,version,legacyWeek);
@@ -69,9 +69,9 @@ export function buildProgramDayForDate(programStart:string|undefined,trainingPla
 
 export function buildPlanV2Week(programWeek=4):HomeWeekDay[]{return buildProgramWeek(Math.max(4,programWeek))}
 export function buildPlanV3Week(programWeek=9):HomeWeekDay[]{return buildProgramWeek(Math.max(9,programWeek))}
-export function buildHomeWeek(programStart?:string,trainingPlanV3StartedAt?:string|null,anchorDateIso?:string):HomeWeekDay[]{
+export function buildHomeWeek(programStart?:string,trainingPlanV3StartedAt?:string|null,anchorDateIso?:string,trainingPlanV3CycleId?:number|null):HomeWeekDay[]{
  const now=new Date(),today=anchorDateIso??`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}-${String(now.getDate()).padStart(2,"0")}`;
- return datesOfWeek(weekRangeContaining(today).mondayIso).map(date=>buildProgramDayForDate(programStart,trainingPlanV3StartedAt,date));
+ return datesOfWeek(weekRangeContaining(today).mondayIso).map(date=>buildProgramDayForDate(programStart,trainingPlanV3StartedAt,date,trainingPlanV3CycleId));
 }
 
 const flattenProgramWeek=(days:HomeWeekDay[])=>days.flatMap((day)=>(day.sessions??[day]).map((session)=>({d:day.d,t:session.type,n:session.title,time:session.time,x:session.exercises,optional:session.optional===true})));

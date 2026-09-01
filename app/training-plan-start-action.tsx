@@ -19,6 +19,7 @@ export function TrainingPlanStartAction({
   onStarted: (startedAt: string) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [intent,setIntent]=useState<"start"|"restart">("start");
   const [busy, setBusy] = useState(false);
   const [serverDate,setServerDate]=useState<string|null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,11 +58,14 @@ export function TrainingPlanStartAction({
     return () => { window.removeEventListener("keydown", onKeyDown); previous?.focus(); };
   }, [open, busy]);
 
-  const start = async () => {
+  const submit = async () => {
     setBusy(true);
     setError(null);
     try {
-      const response = await fetch("/api/training-plan/start", { method: "POST" });
+      const response = await fetch("/api/training-plan/start", {
+        method: "POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify(intent==="restart"?{action:"restart",expectedStartedAt:startedAt}:{action:"start"}),
+      });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) { setError(json.error || "Не удалось начать новый план"); return; }
       setOpen(false);
@@ -86,7 +90,8 @@ export function TrainingPlanStartAction({
         <small>ПЛАН НАЧАТ</small><b>{readableDate(startedAt)}</b>
         <span>Неделя {position.weekIndex} · День {position.dayIndex}</span>
         <p>Сегодня: {todayTitle}</p>{nextTitle && <p>Дальше: {nextTitle}</p>}
-      </div> : <button type="button" className="start-btn plan-activation-start" onClick={() => { setError(null);setServerDate(null);setBusy(true);setOpen(true); }}>
+        <button type="button" className="ghost-btn plan-activation-restart" onClick={()=>{setIntent("restart");setError(null);setServerDate(null);setBusy(true);setOpen(true)}}>Начать цикл заново</button>
+      </div> : <button type="button" className="start-btn plan-activation-start" onClick={() => { setIntent("start");setError(null);setServerDate(null);setBusy(true);setOpen(true); }}>
         <Play size={14} fill="currentColor"/>Начать новый план
       </button>}
     </section>
@@ -94,16 +99,19 @@ export function TrainingPlanStartAction({
     {open && createPortal(<div className="plan-activation-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) setOpen(false); }}>
       <section ref={dialogRef} className="plan-activation-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={descriptionId} tabIndex={-1}>
         <button type="button" className="plan-activation-close" aria-label="Закрыть" onClick={() => setOpen(false)} disabled={busy}><X size={18}/></button>
-        <p className="eyebrow">НОВЫЙ ПЛАН · ПОДТВЕРЖДЕНИЕ</p>
-        <h2 id={titleId}>Начать новый план сегодня?</h2>
-        <p id={descriptionId}>Сервер зафиксирует {serverDate?readableDate(serverDate):"сегодняшнюю дату по Москве"} как День 1. Старый план перестанет назначать будущие тренировки, но вся история сохранится.</p>
+        <p className="eyebrow">{intent==="restart"?"НОВЫЙ ЦИКЛ · ПОДТВЕРЖДЕНИЕ":"НОВЫЙ ПЛАН · ПОДТВЕРЖДЕНИЕ"}</p>
+        <h2 id={titleId}>{intent==="restart"?"Начать цикл заново?":"Начать новый план сегодня?"}</h2>
+        <p id={descriptionId}>{intent==="restart"
+          ?<>После подтверждения сервер зафиксирует {serverDate?readableDate(serverDate):"текущую дату по Москве"} как начало нового цикла. Неделя останется календарной, а плавание — по понедельникам, средам и пятницам. Завершённые тренировки и вся аналитика сохранятся.</>
+          :<>Сервер зафиксирует {serverDate?readableDate(serverDate):"сегодняшнюю дату по Москве"} как начало цикла. Неделя останется календарной, а плавание — по понедельникам, средам и пятницам. Старый план перестанет назначать будущие тренировки, но вся история сохранится.</>}</p>
         <div className="plan-activation-preview">
-          <span><b>День 1</b>Зал A + плавание на технику</span>
+          <span><b>Плавание</b>Понедельник · среда · пятница</span>
           <span><b>Цикл</b>8 недель</span>
-          <span><b>История</b>Останется без изменений</span>
+          <span><b>История</b>Тренировки и метрики останутся без изменений</span>
+          {intent==="restart"&&<span><b>Расписание</b>Будущие переносы начнутся с чистого листа</span>}
         </div>
         {error && <p className="plan-activation-error" role="alert">{error}</p>}
-        <footer><button type="button" className="ghost-btn" onClick={() => setOpen(false)} disabled={busy}>Отмена</button><button type="button" className="start-btn" onClick={() => void start()} disabled={busy||!serverDate}>{busy ? (serverDate?"Начинаем…":"Проверяем дату…") : "Начать план"}</button></footer>
+        <footer><button type="button" className="ghost-btn" onClick={() => setOpen(false)} disabled={busy}>Отмена</button><button type="button" className={`start-btn${intent==="restart"?" danger-btn":""}`} onClick={() => void submit()} disabled={busy||!serverDate}>{busy ? (serverDate?"Начинаем…":"Проверяем дату…") : intent==="restart"?"Да, начать заново":"Начать план"}</button></footer>
       </section>
     </div>, document.body)}
   </>;

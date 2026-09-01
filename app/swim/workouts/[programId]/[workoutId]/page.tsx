@@ -77,6 +77,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
   const [weekIndex, setWeekIndex] = useState<number | null>(null);
   const [status, setStatus] = useState<SwimWorkoutProgressStatus | null>(null);
   const [calendar, setCalendar] = useState<SwimCalendarSlot | null>(null);
+  const [planCycleId,setPlanCycleId]=useState<number|null>(null);
   const [draft, setDraft] = useState<ApiDraft | null>(null);
   // Активная тренировка работает на уровне крупных блоков (разминка/основная
   // часть/выносливость/заминка), а не на уровне каждого отдельного отрезка —
@@ -114,6 +115,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
           return;
         }
         setProgram(programJson.progress.program);
+        setPlanCycleId(programJson.progress.planCycleId??null);
         setWorkout(wp.workout);
         setWeekIndex(wp.weekIndex);
         setStatus(wp.status);
@@ -138,7 +140,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
 
   const start = async () => {
     if (!program || !workout) return;
-    const snapshot = buildSwimSnapshot(program, workout);
+    const snapshot = buildSwimSnapshot(program, workout,planCycleId);
     if (!snapshot) return setActionError("Не удалось подготовить тренировку");
     setBusy(true);
     setActionError(null);

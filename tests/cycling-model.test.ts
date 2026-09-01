@@ -154,11 +154,12 @@ test("Plan v2 сохраняет единственный optional Cycling slot"
   assert.equal(cycling[0].optional, true);
 });
 
-test("после запуска в среду Cycling следует относительному Дню 2 в четверг", () => {
-  const result=resolveCyclingAssignment({programStart:PROGRAM_START,trainingPlanV3StartedAt:"2026-08-05",today:"2026-08-05",selectedDate:"2026-08-06"});
+test("после запуска в среду Cycling остаётся по вторникам и не уходит в прошлое", () => {
+  const result=resolveCyclingAssignment({programStart:PROGRAM_START,trainingPlanV3StartedAt:"2026-08-05",trainingPlanV3CycleId:12,today:"2026-08-05",selectedDate:"2026-08-06"});
   assert.ok(result);
-  assert.equal(result.date,"2026-08-06");
-  assert.equal(result.programWeek,1);
+  assert.equal(result.date,"2026-08-11");
+  assert.equal(result.programWeek,2);
   assert.equal(result.session.id,"bike-v3-zone-2");
-  assert.equal(result.session.programIdentity?.weekIndex,9);
+  assert.equal(result.session.programIdentity?.weekIndex,10);
+  assert.equal(result.session.programIdentity?.cycleId,12);
 });

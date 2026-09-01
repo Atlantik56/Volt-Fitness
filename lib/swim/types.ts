@@ -149,6 +149,8 @@ export type SwimProgramProgress = {
   // Одноразовая дата активации Swim внутри общего плана VOLT. Это не отдельный
   // Week 1 anchor: effective week и календарь приходят из training program.
   startedAt: string | null;
+  // Current common VOLT plan cycle. Null is retained for legacy/Foundation.
+  planCycleId: number | null;
   completedCount: number;
   totalCount: number;
   currentWeekIndex: number | null;

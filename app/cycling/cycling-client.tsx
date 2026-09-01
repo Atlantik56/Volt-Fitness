@@ -34,7 +34,7 @@ import { useToast } from "@/app/toast";
 import { VoltGlobalNavigation } from "@/app/volt-global-navigation";
 
 type FitnessData = {
-  profile?: { programStart?: string; trainingPlanV3StartedAt?: string | null };
+  profile?: { programStart?: string; trainingPlanV3StartedAt?: string | null; trainingPlanV3CycleId?: number | null };
   workouts?: CyclingWorkoutRecord[];
   workoutDrafts?: CyclingDraftRecord[];
   weekScheduleChanges?: any[];
@@ -112,6 +112,7 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
   const resolution = useMemo(() => resolveCyclingAssignment({
     programStart: data.profile?.programStart,
     trainingPlanV3StartedAt: data.profile?.trainingPlanV3StartedAt,
+    trainingPlanV3CycleId: data.profile?.trainingPlanV3CycleId,
     today,
     selectedDate: initialDate,
     weekScheduleChanges: data.weekScheduleChanges,
@@ -254,7 +255,7 @@ function CyclingHome({ resolution, summary, onOpenDetails }: {
 
     <section className="cycling-last cycling-glass">
       <div><p className="cycling-section-label">ПОСЛЕДНЯЯ ПОЕЗДКА</p>{summary.lastRide
-        ? <><h3>{summary.lastRide.title}</h3><span>{dateLabel(summary.lastRide.date)} · {summary.lastRide.metricsSource === "imported_metric" ? "FIT / Garmin" : "Вручную"}</span></>
+        ? <><h3>{summary.lastRide.title}</h3><span>{dateLabel(summary.lastRide.date)} · {summary.lastRide.metricsSource === "imported_metric" ? summary.lastRide.externalActivitySource === "strava" ? "Strava" : "FIT / Garmin" : "Вручную"}</span></>
         : <><h3>Завершённых поездок пока нет</h3><span>Первая подтверждённая тренировка появится здесь.</span></>}</div>
       {summary.lastRide && <div className="cycling-last-values">
         <Value label="Время" value={durationLabel(Number(summary.lastRide.durationSeconds) || 0)} />
@@ -310,7 +311,8 @@ function CyclingResult({ resolution, pending, onConfirm, onCancel, onImported }:
   onImported: () => Promise<void>;
 }) {
   const confirmation = resolution.draft?.confirmation as any;
-  const imported = confirmation?.source === "Garmin";
+  const imported = confirmation?.source === "Garmin" || confirmation?.source === "Strava";
+  const importedLabel = confirmation?.source === "Strava" ? "Strava" : "FIT / Garmin";
   const initialDuration = Math.max(1, Math.round((Number(confirmation?.duration) || plannedMinutes(resolution) * 60) / 60));
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -330,7 +332,7 @@ function CyclingResult({ resolution, pending, onConfirm, onCancel, onImported }:
   return <form className="cycling-result-card cycling-glass" onSubmit={submit}>
     <p className="cycling-section-label">RESULT · ПОДТВЕРЖДЕНИЕ</p>
     <h1>Как прошёл заезд?</h1>
-    <p className="cycling-result-source">Источник метрик: <b>{imported ? "FIT / Garmin" : "ручной ввод"}</b>{imported && " · Импортированные метрики защищены от случайного изменения."}</p>
+    <p className="cycling-result-source">Источник метрик: <b>{imported ? importedLabel : "ручной ввод"}</b>{imported && " · Импортированные метрики защищены от случайного изменения."}</p>
     {resolution.draft && <CyclingFitImport draftId={resolution.draft.id} imported={imported} onImported={onImported} />}
     <div className="cycling-result-fields" key={imported ? "garmin" : "manual"}>
       <label>Фактическое время, мин<input required readOnly={imported} name="durationMinutes" type="number" min="1" max="1440" step="1" defaultValue={initialDuration} /></label>
@@ -353,7 +355,7 @@ function CyclingResult({ resolution, pending, onConfirm, onCancel, onImported }:
 function CyclingFitImport({ draftId, imported, onImported }: { draftId: number; imported: boolean; onImported: () => Promise<void> }) {
   const notify = useToast();
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState(imported ? "Данные Garmin связаны с этой тренировкой." : "");
+  const [status, setStatus] = useState(imported ? "Импортированные данные связаны с этой тренировкой." : "");
 
   const upload = async (file: File) => {
     setBusy(true);

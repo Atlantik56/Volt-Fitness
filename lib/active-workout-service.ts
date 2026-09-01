@@ -18,8 +18,9 @@ const text=(x:unknown,max=160)=>typeof x==="string"?x.trim().slice(0,max):"";
 const finite=(x:unknown,min:number,max:number)=>{const n=Number(x);return Number.isFinite(n)&&n>=min&&n<=max?n:null};
 export type DraftStatus="planned"|"active"|"awaiting_confirmation"|"completed"|"cancelled";
 export type ExerciseResultSet={weight:number;reps:number};
+export type ConfirmationSource="Garmin"|"Strava"|"Manual";
 export type DraftConfirmation={
- source:"Garmin"|"Manual";duration:number;averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;
+ source:ConfirmationSource;duration:number;averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;
  distanceMeters:number|null;averageSpeed:number|null;
  lastResults:Record<string,ExerciseResultSet[]>;
 };
@@ -57,14 +58,14 @@ function lastResultsFor(draft:WorkoutDraft){
  return found;
 }
 function withConfirmation(draft:WorkoutDraft):WorkoutDraft{
- const imported=db.prepare(`SELECT duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,metadata
+ const imported=db.prepare(`SELECT source,duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,metadata
   FROM workout_imports WHERE draft_id=? ORDER BY id DESC LIMIT 1`).get(draft.id) as any;
  const importedMetadata=parseMetadata(imported?.metadata);
  const manualDuration=draft.startedAt&&draft.finishedAt?Math.max(0,Math.round((dbDate(draft.finishedAt)-dbDate(draft.startedAt))/1000)):0;
  const importedDistance=finite(importedMetadata.distanceMeters,0,1000000);
  const averageSpeed=importedDistance!==null&&Number(imported?.duration)>0?(importedDistance/1000)/(Number(imported.duration)/3600):null;
  return {...draft,confirmation:{
-  source:imported?"Garmin":"Manual",duration:imported?.duration??manualDuration,
+  source:imported?(imported.source==="strava"?"Strava":"Garmin"):"Manual",duration:imported?.duration??manualDuration,
   averageHeartRate:imported?.averageHeartRate??null,maxHeartRate:imported?.maxHeartRate??null,calories:imported?.calories??null,
   distanceMeters:importedDistance,averageSpeed,
   lastResults:lastResultsFor(draft),
@@ -124,7 +125,7 @@ export function cancelWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft}{
 export type ConfirmedExerciseSummary={name:string;source:WorkoutDetailSource;setCount:number};
 export type ConfirmationSummary={
  workoutId:number;duration:number;effort:string;painAfter:number;loadFeedback:CyclingLoadFeedback;
- metricsSource:"manual"|"imported_metric";confirmationSource:"Garmin"|"Manual";
+ metricsSource:"manual"|"imported_metric";confirmationSource:ConfirmationSource;
  averageHeartRate:number|null;maxHeartRate:number|null;calories:number|null;distanceMeters:number|null;averageSpeed:number|null;
  exercises:ConfirmedExerciseSummary[];
 };
@@ -153,7 +154,7 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;
   const raw=db.prepare(`${selectDraft} WHERE id=? AND status='awaiting_confirmation'`).get(id);
   if(!raw)return;
   const draft=rowToDraft(raw);
-  const imported=db.prepare("SELECT duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,metadata FROM workout_imports WHERE draft_id=? ORDER BY id DESC LIMIT 1").get(id) as any;
+  const imported=db.prepare("SELECT source,external_id externalId,duration_seconds duration,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,metadata FROM workout_imports WHERE draft_id=? ORDER BY id DESC LIMIT 1").get(id) as any;
   const importedMetadata=parseMetadata(imported?.metadata);
   const duration=finite(imported?.duration??body?.durationSeconds,0,86400);
   if(duration===null){result={ok:false,error:"Некорректная длительность",status:400};return}
@@ -203,9 +204,10 @@ export function confirmWorkoutDraft(body:any):ActionResult&{draft?:WorkoutDraft;
    distanceMeters,avgSpeed:averageSpeed,notes,loadFeedback});
   if(!saved.ok){result=saved;return}
   const workoutId=saved.workoutId!;
+  if(imported)db.prepare("UPDATE workout_logs SET external_activity_source=?,external_activity_id=? WHERE id=?").run(imported.source,imported.externalId,workoutId);
   db.prepare("UPDATE workout_drafts SET status='completed',confirmed_at=CURRENT_TIMESTAMP,workout_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='awaiting_confirmation'").run(workoutId,id);
   result={ok:true,draft:rowToDraft(db.prepare(`${selectDraft} WHERE id=?`).get(id)),summary:{
-   workoutId,duration,effort,painAfter,loadFeedback,metricsSource,confirmationSource:imported?"Garmin":"Manual",
+   workoutId,duration,effort,painAfter,loadFeedback,metricsSource,confirmationSource:imported?(imported.source==="strava"?"Strava":"Garmin"):"Manual",
    averageHeartRate,maxHeartRate,calories,distanceMeters,averageSpeed,
    exercises:exerciseSummaries,
   }};

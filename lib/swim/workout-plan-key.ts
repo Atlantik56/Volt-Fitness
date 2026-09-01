@@ -6,18 +6,22 @@ import { planKey } from "@/lib/plan-key";
 import { buildSwimSnapshot } from "@/lib/swim/workout-engine";
 import type { SwimProgramDef, SwimWorkoutDef } from "@/lib/swim/types";
 
-export function swimWorkoutPlanKey(program: SwimProgramDef, workout: SwimWorkoutDef): string | null {
-  const snapshot = buildSwimSnapshot(program, workout);
+export function swimWorkoutPlanKey(program: SwimProgramDef, workout: SwimWorkoutDef, cycleId?:number|null): string | null {
+  const snapshot = buildSwimSnapshot(program, workout,cycleId);
   return snapshot ? planKey(snapshot) : null;
 }
 
-export function swimWorkoutPlanKeyCandidates(program: SwimProgramDef, workout: SwimWorkoutDef): string[] {
-  const snapshot = buildSwimSnapshot(program, workout);
+export function swimWorkoutPlanKeyCandidates(program: SwimProgramDef, workout: SwimWorkoutDef, cycleId?:number|null,includeUnscoped=true): string[] {
+  const snapshot = buildSwimSnapshot(program, workout,cycleId);
   if (!snapshot) return [];
   const current = planKey(snapshot);
   if (!snapshot.programIdentity) return [current];
-  const legacySnapshot = { ...snapshot };
+  if(!includeUnscoped)return [current];
+  const unscoped=cycleId?buildSwimSnapshot(program,workout):snapshot;
+  if(!unscoped)return [current];
+  const unscopedKey=planKey(unscoped);
+  const legacySnapshot = { ...unscoped };
   delete legacySnapshot.programIdentity;
   const legacy = planKey(legacySnapshot);
-  return legacy === current ? [current] : [current, legacy];
+  return Array.from(new Set([current,unscopedKey,legacy]));
 }

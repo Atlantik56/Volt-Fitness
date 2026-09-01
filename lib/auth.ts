@@ -1,8 +1,9 @@
 import { cookies } from "next/headers";
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from "node:crypto";
 import { db } from "./db";
+import { USERNAME } from "./user";
 
-export const USERNAME = "Atlantik";
+export { USERNAME };
 const COOKIE = "volt_session";
 export async function passwordDigest(password:string, salt:string){return scryptSync(password,salt,64,{N:16384,r:8,p:1,maxmem:64*1024*1024}).toString("hex")}
 export async function verifyPassword(password:string, salt:string, expected:string){const actual=Buffer.from(await passwordDigest(password,salt),"hex"), wanted=Buffer.from(expected,"hex");return actual.length===wanted.length&&timingSafeEqual(actual,wanted)}

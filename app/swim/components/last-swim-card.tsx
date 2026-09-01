@@ -15,7 +15,7 @@ export function LastSwimCard({ lastSwim, loading }: { lastSwim: SwimLastSwimView
           <div className="swim-loading-line" style={{ width: "40%" }} />
         </GlassPanel>
       ) : !lastSwim ? (
-        <EmptyState title="Заплывов пока нет" description="Как только тренировка будет подтверждена или импортирована из Garmin, она появится здесь." />
+        <EmptyState title="Заплывов пока нет" description="Как только тренировка будет подтверждена или импортирована из внешнего источника, она появится здесь." />
       ) : (
         <GlassPanel style={{ padding: "18px 20px", display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
           <div>
@@ -37,7 +37,7 @@ export function LastSwimCard({ lastSwim, loading }: { lastSwim: SwimLastSwimView
             <p className="swim-metric-value">{lastSwim.poolLengthMeters ? `${lastSwim.poolLengthMeters} м` : <span className="swim-metric-nodata">Нет данных</span>}</p>
           </div>
           <StatusBadge tone={lastSwim.source === "imported_metric" ? "synced" : "neutral"}>
-            {lastSwim.source === "imported_metric" ? "Garmin" : "Вручную"}
+            {lastSwim.source === "manual" ? "Вручную" : lastSwim.provider === "strava" ? "Strava" : lastSwim.provider === "garmin_fit" ? "Garmin" : "Импорт"}
           </StatusBadge>
           {lastSwim.notes && (
             <p style={{ flexBasis: "100%", margin: "4px 0 0", color: "var(--swim-text-muted)", fontSize: 14 }}>«{lastSwim.notes}»</p>

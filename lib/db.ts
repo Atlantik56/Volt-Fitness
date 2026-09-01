@@ -272,6 +272,94 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   );
   CREATE INDEX IF NOT EXISTS idx_coach_chat_requests_completed_at ON coach_chat_requests(completed_at);
  `},
+ // Strava OAuth and provider-neutral activity provenance. OAuth credentials are
+ // kept in their own encrypted-token table; workout_imports remains the common
+ // staging layer and workout_logs only receives imported metrics after explicit
+ // confirmation. The source columns make provider data removable on disconnect
+ // without deleting the user's manually confirmed workout/exercise history.
+ {version:23,sql:`
+  CREATE TABLE IF NOT EXISTS strava_connections (
+   username TEXT PRIMARY KEY,
+   athlete_id TEXT NOT NULL,
+   athlete_name TEXT NOT NULL DEFAULT '',
+   scopes TEXT NOT NULL,
+   connected_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   last_synced_at TEXT,
+   last_sync_error TEXT NOT NULL DEFAULT '',
+   FOREIGN KEY(username) REFERENCES auth_user(username) ON DELETE CASCADE
+  );
+  CREATE TABLE IF NOT EXISTS strava_oauth_tokens (
+   username TEXT PRIMARY KEY,
+   access_token_encrypted TEXT NOT NULL,
+   refresh_token_encrypted TEXT NOT NULL,
+   expires_at INTEGER NOT NULL,
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   FOREIGN KEY(username) REFERENCES strava_connections(username) ON DELETE CASCADE
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_imports_strava_activity
+   ON workout_imports(source,external_id)
+   WHERE source='strava' AND external_id IS NOT NULL;
+  ALTER TABLE workout_logs ADD COLUMN external_activity_source TEXT;
+  ALTER TABLE workout_logs ADD COLUMN external_activity_id TEXT;
+ `},
+ // Strava 2A/2B — transient provider cache, explicit authorization state and
+ // a minimal durable webhook inbox. The inbox stores normalized identifiers
+ // only (never the raw payload or credentials) and is safe to drain after the
+ // webhook request has already been acknowledged.
+ {version:24,sql:`
+  ALTER TABLE strava_connections ADD COLUMN status TEXT NOT NULL DEFAULT 'connected';
+  ALTER TABLE strava_connections ADD COLUMN needs_reauth_at TEXT;
+  ALTER TABLE strava_connections ADD COLUMN last_webhook_at TEXT;
+  ALTER TABLE workout_imports ADD COLUMN updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP;
+  ALTER TABLE workout_imports ADD COLUMN cache_expires_at TEXT;
+  ALTER TABLE workout_imports ADD COLUMN review_status TEXT NOT NULL DEFAULT 'new';
+  CREATE TABLE IF NOT EXISTS strava_webhook_events (
+   event_id TEXT PRIMARY KEY,
+   subscription_id TEXT NOT NULL,
+   object_id TEXT NOT NULL,
+   object_type TEXT NOT NULL,
+   aspect_type TEXT NOT NULL,
+   owner_id TEXT NOT NULL,
+   event_time INTEGER NOT NULL,
+   updates_json TEXT NOT NULL DEFAULT '{}',
+   received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   processed_at TEXT,
+   status TEXT NOT NULL DEFAULT 'pending',
+   retry_count INTEGER NOT NULL DEFAULT 0,
+   next_retry_at TEXT,
+   last_error TEXT NOT NULL DEFAULT ''
+  );
+  CREATE INDEX IF NOT EXISTS idx_strava_webhook_events_due
+   ON strava_webhook_events(status,next_retry_at,received_at);
+  CREATE INDEX IF NOT EXISTS idx_workout_imports_strava_expiry
+   ON workout_imports(source,cache_expires_at);
+ `},
+ // Plan v3 restart history. A cycle row preserves every previous activation
+ // boundary, so restarting the current plan never rewrites historical
+ // plan-vs-fact analytics. profile.training_plan_v3_started_at remains the
+ // backwards-compatible pointer to the active cycle.
+ {version:25,sql:`
+  CREATE TABLE IF NOT EXISTS training_plan_cycles (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   program_id TEXT NOT NULL,
+   program_version INTEGER NOT NULL,
+   started_at TEXT NOT NULL,
+   ended_at TEXT,
+   restarted_from_cycle_id INTEGER REFERENCES training_plan_cycles(id),
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   CHECK(ended_at IS NULL OR ended_at >= started_at)
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_training_plan_cycles_open
+   ON training_plan_cycles(program_id,program_version)
+   WHERE ended_at IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_training_plan_cycles_dates
+   ON training_plan_cycles(program_id,program_version,started_at,ended_at);
+  INSERT INTO training_plan_cycles(program_id,program_version,started_at)
+   SELECT 'volt-training',3,training_plan_v3_started_at FROM profile
+   WHERE id=1 AND training_plan_v3_started_at IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM training_plan_cycles WHERE program_id='volt-training' AND program_version=3);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

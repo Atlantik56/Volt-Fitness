@@ -40,7 +40,8 @@ export function normalizeSnapshot(raw: any): WorkoutSnapshot | null {
   const identity = raw?.programIdentity;
   const programIdentity = identity && text(identity.programId, 80) && Number.isInteger(identity.programVersion) && identity.programVersion > 0
     && Number.isInteger(identity.weekIndex) && identity.weekIndex > 0 && text(identity.sessionId, 100)
-    ? { programId: text(identity.programId, 80), programVersion: identity.programVersion, weekIndex: identity.weekIndex, sessionId: text(identity.sessionId, 100) }
+    ? { programId: text(identity.programId, 80), programVersion: identity.programVersion, weekIndex: identity.weekIndex, sessionId: text(identity.sessionId, 100),
+        ...(Number.isInteger(identity.cycleId) && identity.cycleId > 0 ? { cycleId: identity.cycleId } : {}) }
     : null;
   return programIdentity ? { title, type, rounds, exercises, origin, scheduleChangeId, programIdentity } : { title, type, rounds, exercises, origin, scheduleChangeId };
 }

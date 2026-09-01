@@ -28,6 +28,7 @@ export type SwimLastSwimView = {
   paceLabel: string | null;
   poolLengthMeters: number | null;
   source: "manual" | "imported_metric";
+  provider?: "garmin_fit" | "strava" | null;
   notes: string | null;
 } | null;
 
@@ -70,6 +71,7 @@ export type SwimHistoryItem = {
   paceLabel: string | null;
   avgHeartRate: number | null;
   source: SwimHistorySource;
+  provider?: "garmin_fit" | "strava" | null;
   effort: string | null;
   route: { programId: string; workoutId: string } | null;
 };

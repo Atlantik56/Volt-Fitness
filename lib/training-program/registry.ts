@@ -110,8 +110,11 @@ export function activatedPlanPosition(startedAt: string | null | undefined, date
   const dateMs = Date.parse(`${dateIso}T00:00:00Z`);
   if (!Number.isFinite(startMs) || !Number.isFinite(dateMs) || dateMs < startMs) return null;
   const elapsedDays = Math.floor((dateMs - startMs) / 86_400_000);
-  const weekIndex = Math.floor(elapsedDays / 7) + 1;
-  return { weekIndex, dayIndex: (elapsedDays % 7) + 1, elapsedDays, definitionWeekIndex: definitionWeekOffset + weekIndex };
+  const isoWeekday = (ms: number) => ((new Date(ms).getUTCDay() + 6) % 7) + 1;
+  const startMondayMs = startMs - (isoWeekday(startMs) - 1) * 86_400_000;
+  const dateMondayMs = dateMs - (isoWeekday(dateMs) - 1) * 86_400_000;
+  const weekIndex = Math.floor((dateMondayMs - startMondayMs) / (7 * 86_400_000)) + 1;
+  return { weekIndex, dayIndex: isoWeekday(dateMs), elapsedDays, definitionWeekIndex: definitionWeekOffset + weekIndex };
 }
 
 export function programWeekForDate(programStart: string | undefined, dateIso: string): number {

@@ -60,8 +60,9 @@ export function swimWorkoutType(program: Pick<SwimProgramDef, "version">): strin
   return `${SWIM_WORKOUT_TYPE_PREFIX} v${program.version}`;
 }
 
-export function buildSwimSnapshot(program: SwimProgramDef, workout: SwimWorkoutDef): WorkoutSnapshot | null {
-  const programIdentity = trainingProgramRegistry.identityForSwimWorkout(program.id, program.version, workout.id) ?? undefined;
+export function buildSwimSnapshot(program: SwimProgramDef, workout: SwimWorkoutDef, cycleId?:number|null): WorkoutSnapshot | null {
+  const baseIdentity = trainingProgramRegistry.identityForSwimWorkout(program.id, program.version, workout.id) ?? undefined;
+  const programIdentity=baseIdentity?{...baseIdentity,...(cycleId?{cycleId}:{})}:undefined;
   const raw = {
     title: `${program.name} · ${workout.title}`,
     type: swimWorkoutType(program),

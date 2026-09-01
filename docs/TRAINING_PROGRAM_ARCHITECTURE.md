@@ -25,10 +25,11 @@ week. Current entries are:
   активируемые только явным пользовательским стартом.
 
 Each resolved session carries `programIdentity`:
-`programId + programVersion + weekIndex + sessionId`. New workout snapshots
+`programId + programVersion + weekIndex + sessionId`, plus `cycleId` for a
+restartable active cycle. New workout snapshots
 persist that identity. `planKey()` keeps the old hash payload when identity is
 absent, so existing drafts/logs retain their keys; versioned snapshots use a
-v2 payload and cannot silently become another program version.
+versioned payload and cannot silently become another program version or cycle.
 
 ## VOLT and VOLT Swim
 
@@ -55,13 +56,30 @@ Bike progression increases duration before resistance and excludes heavy gears
 or standing pedalling. Swim uses freestyle/backstroke/easy drills only, without
 breaststroke, butterfly, aggressive kick or max-effort testing.
 
-`profile.training_plan_v3_started_at` is nullable and is never populated by a
-migration or deploy. The authenticated start endpoint atomically stores the
-server date in `Europe/Moscow`; repeat calls return the stored date. Before that
+`profile.training_plan_v3_started_at` is nullable and is never populated with a
+hard-coded date by a migration or deploy. The authenticated start endpoint
+atomically stores the server date in `Europe/Moscow` only after the user confirms
+the action in the interface; repeat calls return the stored date. Before that
 date exists, v3 is preview-only and Plan v2 remains the active future schedule.
-After activation, elapsed whole days select the relative day and week even when
-Day 1 is not Monday. All surfaces use `buildProgramDayForDate()` /
-`buildHomeWeek()`; no second calendar is created.
+After activation, the click date is the cycle boundary, while program days stay
+aligned to the calendar week: Monday is Day 1, Wednesday is Day 3 and Friday is
+Day 5. A mid-week activation enables only that date and the remaining days of
+Week 1; it never shifts Swim away from Monday/Wednesday/Friday. All surfaces use
+`buildProgramDayForDate()` / `buildHomeWeek()`; no second calendar is created.
+
+`training_plan_cycles` preserves every activation boundary. «Начать цикл
+заново» closes the current cycle on the previous calendar day, creates a new
+cycle using the click-time Moscow date and moves the visible counter to Week 1
+at the current calendar weekday. It never deletes `workout_logs`, linked strength rows, completed drafts,
+imports or measurements. Only future `week_schedule_changes`, legacy schedule
+overrides and unused planned drafts are cleared. Active or awaiting-confirmation
+workouts block restart until the user completes or cancels them.
+
+Cycle-aware `programIdentity` prevents completed Swim/Cycling/Strength slots
+from an older cycle from completing the same slot in the new cycle. Main Plan,
+VOLT Swim and VOLT Cycling all derive their date/session from the same current
+cycle and canonical weekly resolver. Historical cycles remain available to
+Analytics for correct plan-vs-fact reconstruction.
 
 Home, Plan, workout execution, History and Analytics require no schedule
 changes outside the canonical resolver.

@@ -28,6 +28,11 @@ test("currentProgramWeek: нет/некорректная дата старта 
  assert.equal(currentProgramWeek("не-дата"), 1);
 });
 
+test("currentProgramWeek: новый цикл начинает видимую нумерацию с недели 1",()=>{
+ withNow("2026-09-01",()=>assert.equal(currentProgramWeek("2026-07-21","2026-09-01"),1));
+ withNow("2026-09-08",()=>assert.equal(currentProgramWeek("2026-07-21","2026-09-01"),2));
+});
+
 test("buildHomeWeek: бассейн по вторникам/четвергам появляется с недели 2, суббота — всегда ходьба/велосипед", () => {
  withNow("2026-07-27", () => {
   const plan = buildHomeWeek("2026-07-21");
@@ -89,15 +94,23 @@ test("Plan v3: будущая силовая программа проходит
  assert.match(text,/нижнем блоке|донки-кик/i);
 });
 
-test("новый план не включается сам, а после старта в среду День 1 совпадает со средой", () => {
+test("новый план включается с даты клика, но сохраняет календарные дни недели", () => {
  const before=buildHomeWeek("2026-07-21",null,"2026-10-07");
  assert.equal(sessionsForDay(before.find(day=>day.day===3)! as any)[0].programIdentity?.programVersion,2);
  const active=buildHomeWeek("2026-07-21","2026-10-07","2026-10-07");
  assert.deepEqual(active.map(day=>sessionsForDay(day as any).map(session=>session.title)),[
-  ["Strength A","Swim — Technique"],["Bike / Indoor Cycling"],["Силовая тренировка А — тренажёры","Плавание — техника"],
-  ["Велотренировка в зоне 2"],["Плавание — аэробная тренировка"],["Силовая тренировка Б — тренажёры"],["Плавание — выносливость"],
+  ["Strength A","Swim — Technique"],["Bike / Indoor Cycling"],["Плавание — аэробная тренировка"],
+  ["Силовая тренировка Б — тренажёры"],["Плавание — выносливость"],["Полный отдых"],["Полный отдых"],
  ]);
  const next=buildHomeWeek("2026-07-21","2026-10-07","2026-10-12");
- assert.deepEqual(next.slice(0,2).map(day=>day.type),["Отдых","Отдых"]);
- assert.equal(sessionsForDay(next[2] as any)[0].programIdentity?.weekIndex,10);
+ assert.deepEqual(next.slice(0,2).map(day=>day.type),["Силовая","Кардио"]);
+ assert.equal(sessionsForDay(next[0] as any)[0].programIdentity?.weekIndex,10);
+ assert.deepEqual([1,3,5].map(day=>sessionsForDay(next[day-1] as any).some(session=>session.discipline==="swim")),[true,true,true]);
+});
+
+test("новый цикл добавляет cycleId в общий Plan identity",()=>{
+ const active=buildHomeWeek("2026-07-21","2026-09-01","2026-09-01",7);
+ const identities=active.flatMap(day=>sessionsForDay(day as any)).filter(session=>session.programIdentity?.programVersion===3).map(session=>session.programIdentity);
+ assert.ok(identities.length>0);
+ assert.ok(identities.every(identity=>identity?.cycleId===7));
 });

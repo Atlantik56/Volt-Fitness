@@ -12,6 +12,8 @@ import { weekRangeContaining, localIso as weekLocalIso } from "@/app/week-schedu
 import { getSwimPlanStartedAt } from "@/lib/swim/services";
 import { getTrainingPlanV3StartedAt } from "@/lib/training-plan-activation";
 import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
+import { purgeExpiredStravaData } from "@/lib/strava-service";
+import { buildAnalyticsBundle } from "@/lib/analytics-service";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -20,8 +22,12 @@ const text=(x:any,max=120)=>typeof x==="string"?x.trim().slice(0,max):"";
 
 export async function GET(){
  const denied=await requireAuth();if(denied)return denied;
- const profile=db.prepare("SELECT id,name,height,start_weight startWeight,target_weight targetWeight,program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt FROM profile WHERE id=1").get();
- const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,load_feedback loadFeedback,metrics_source metricsSource,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
+ purgeExpiredStravaData();
+ const profile=db.prepare(`SELECT id,name,height,start_weight startWeight,target_weight targetWeight,program_start programStart,
+  training_plan_v3_started_at trainingPlanV3StartedAt,
+  (SELECT id FROM training_plan_cycles WHERE program_id='volt-training' AND program_version=3 AND ended_at IS NULL ORDER BY id DESC LIMIT 1) trainingPlanV3CycleId
+  FROM profile WHERE id=1`).get();
+ const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,load_feedback loadFeedback,metrics_source metricsSource,external_activity_source externalActivitySource,external_activity_id externalActivityId,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
  const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters,sleep_start sleepStart,sleep_end sleepEnd,sleep_minutes sleepMinutes,sleep_quality sleepQuality,water_logged waterLogged,alcohol_type alcoholType,alcohol_servings alcoholServings,alcohol_serving_volume_ml alcoholServingVolumeMl,alcohol_relative_amount alcoholRelativeAmount,alcohol_logged alcoholLogged,day_factor dayFactor,day_factor_note dayFactorNote FROM daily_activity ORDER BY date DESC LIMIT 400").all();
@@ -50,7 +56,8 @@ export async function GET(){
  // должна видеть и более старые изменения расписания как исторический факт.
  const analyticsFrom=new Date();analyticsFrom.setFullYear(analyticsFrom.getFullYear()-1);
  const weekScheduleChanges=listWeekScheduleChanges(weekLocalIso(analyticsFrom),sundayIso);
- return Response.json({profile,workouts,workoutDrafts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides},{headers:{"cache-control":"no-store"}})
+ const analytics=buildAnalyticsBundle();
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){

@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Bell, Bot, CalendarDays, ChevronRight, Dumbbell, LogOut,
+  Activity, Bell, Bot, CalendarDays, ChevronRight, Dumbbell, LogOut,
   Pencil, Route, Ruler, ShieldCheck, Target, Upload, UserRound, Weight, Zap,
 } from "lucide-react";
 import { currentProgramWeek } from "./personal-data";
 import { GarminImport } from "./advanced-features";
+import { StravaIntegration } from "./strava-integration";
 import { useToast } from "./toast";
 
 type ProfileSettingsPageProps={
@@ -25,7 +26,7 @@ type HubSettings={
 };
 
 type ProfileDraft={name:string;height:string;startWeight:string;targetWeight:string};
-type SettingsPanel="profile"|"notifications"|"ai"|"garmin"|null;
+type SettingsPanel="profile"|"notifications"|"ai"|"garmin"|"strava"|null;
 
 const localIso=(date:Date)=>{
   const local=new Date(date.getTime()-date.getTimezoneOffset()*60000);
@@ -195,6 +196,7 @@ function SettingsRow({icon,title,description,active,onClick,status}:{icon:React.
 
 export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:ProfileSettingsPageProps){
   const [openPanel,setOpenPanel]=useState<SettingsPanel>(null);
+  useEffect(()=>{const timer=window.setTimeout(()=>{if(new URLSearchParams(window.location.search).has("strava"))setOpenPanel("strava")},0);return()=>window.clearTimeout(timer)},[]);
   const profile=data.profile||{};
   const name=profile.name||"Илья";
   const initials=name.trim().split(/\s+/).slice(0,2).map((part:string)=>part[0]).join("").toUpperCase()||"И";
@@ -249,6 +251,8 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
           <div className="profile-settings-group-title"><Upload size={18}/><span><b>Интеграции и данные</b><small>Только доступные подключения</small></span></div>
           <SettingsRow icon={<Upload size={20}/>} title="Garmin FIT import" description="Импортировать файл тренировки и связать с черновиком" active={openPanel==="garmin"} onClick={()=>toggle("garmin")} status="FIT"/>
           {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/></div>}
+          <SettingsRow icon={<Activity size={20}/>} title="Strava" description="OAuth-подключение и ручная синхронизация активностей" active={openPanel==="strava"} onClick={()=>toggle("strava")} status="OAuth"/>
+          {openPanel==="strava"&&<div className="profile-settings-detail profile-strava-detail"><StravaIntegration refresh={refresh}/></div>}
         </div>
       </div>
     </section>

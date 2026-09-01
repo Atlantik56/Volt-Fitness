@@ -59,6 +59,7 @@ export default function Home() {
   const [analyticsMode,setAnalyticsMode]=useState<"insights"|"coach">("insights");
   const [urlReady,setUrlReady]=useState(false);
   const [loaded,setLoaded]=useState(false);
+  const [loadError,setLoadError]=useState(false);
   const [progressionProposals,setProgressionProposals]=useState<ProgressionProposal[]>([]);
   const loadProgression=()=>fetch("/api/progression").then(r=>r.json()).then(d=>setProgressionProposals(d.proposals||[])).catch(()=>{});
   // Swim-черновики (snapshot.type начинается с "Плавание", см.
@@ -66,7 +67,7 @@ export default function Home() {
   // автоматически открываться в универсальном <ActiveWorkout/> — их
   // активное/awaiting_confirmation состояние восстанавливает сама страница
   // /swim/workouts/[programId]/[workoutId].
-  const load=()=>fetch("/api/fitness").then(r=>r.json()).then(d=>{setData(d);setLoaded(true);const open=(d.workoutDrafts||[]).find((draft:any)=>(draft.status==="active"||draft.status==="awaiting_confirmation")&&!String(draft.snapshot?.type||"").startsWith("Плавание")&&!isCyclingSlot(draft.snapshot));if(open)setActiveWorkout(current=>current??open)}).catch(()=>{});
+  const load=()=>fetch("/api/fitness").then(async r=>{if(!r.ok)throw new Error("fitness-load");return r.json()}).then(d=>{setLoadError(false);setData(d);setLoaded(true);const open=(d.workoutDrafts||[]).find((draft:any)=>(draft.status==="active"||draft.status==="awaiting_confirmation")&&!String(draft.snapshot?.type||"").startsWith("Плавание")&&!isCyclingSlot(draft.snapshot));if(open)setActiveWorkout(current=>current??open)}).catch(()=>setLoadError(true));
   // Общий resolver "какая тренировка Swim назначена сегодня" (lib/swim/services.ts:
   // resolveScheduledSwimWorkout) — та же функция, что использует /swim и /swim/workouts,
   // чтобы «Начать тренировку» на Главной открывало ровно ту же тренировку.
@@ -114,10 +115,11 @@ export default function Home() {
   const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
   const trainingPlanV3StartedAt=data.profile?.trainingPlanV3StartedAt??null;
+  const trainingPlanV3CycleId=data.profile?.trainingPlanV3CycleId??null;
   const activePlanPosition=activatedPlanPosition(trainingPlanV3StartedAt,today);
   const programWeek=currentProgramWeek(data.profile?.programStart,trainingPlanV3StartedAt);
   const displayProgramWeek=activePlanPosition?.weekIndex??programWeek;
-  const homeWeek=buildHomeWeek(data.profile?.programStart,trainingPlanV3StartedAt,today);
+  const homeWeek=buildHomeWeek(data.profile?.programStart,trainingPlanV3StartedAt,today,trainingPlanV3CycleId);
   // AI-11 — Гибкая неделя: план на дату = каноническая программа (homeWeek) +
   // пользовательские изменения текущей недели (week_schedule_changes). Никогда
   // не переходит на следующую неделю — see app/week-schedule-model.ts.
@@ -387,7 +389,7 @@ export default function Home() {
           programWeek={displayProgramWeek} planStartedAt={trainingPlanV3StartedAt}
           onPlanStarted={(startedAt)=>{setData((current:any)=>({...current,profile:{...current.profile,trainingPlanV3StartedAt:startedAt}}));load();loadSwimToday()}}
         /> : nav==="Аналитика" ? <AnalyticsCoachPage
-          data={data} coach={coach} today={today} mode={analyticsMode} onModeChange={setAnalyticsMode}
+          data={data} analyticsStatus={loadError?"error":loaded?"ready":"loading"} onRetry={load} coach={coach} today={today} mode={analyticsMode} onModeChange={setAnalyticsMode}
           plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null}
           originalPlan={todayResolved.changed?{title:todayResolved.original.title,type:todayResolved.original.type}:null}
           planChanged={todayResolved.changed} changeReasonCode={todayResolved.reasonCode}

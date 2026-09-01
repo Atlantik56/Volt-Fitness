@@ -5,7 +5,7 @@ import { db } from "@/lib/db";
 import { isCyclingSlot } from "@/lib/cycling";
 
 export const MAX_FIT_FILE_SIZE=10_000_000;
-export type ImportSource="garmin_fit";
+export type ImportSource="garmin_fit"|"strava";
 export type ActivityFamily="strength"|"swim"|"bike"|"cardio"|"recovery";
 export type MatchConfidence="High"|"Medium"|"Low";
 export type ImportedWorkout={
@@ -18,7 +18,7 @@ export type ImportedWorkout={
  averageHeartRate:number|null;
  maxHeartRate:number|null;
  calories:number|null;
- metadata:{averageCadence:number|null;trainingEffect:number|null;fitSport:string;distanceMeters:number|null;laps:FitLap[]};
+ metadata:{averageCadence:number|null;trainingEffect:number|null;fitSport:string;distanceMeters:number|null;laps:FitLap[];[key:string]:unknown};
 };
 // Отрезки (lapMesgs) FIT-файла — используются только для сопоставления
 // фактических метров/времени со спланированными блоками тренировки Swim
@@ -120,10 +120,11 @@ const draftFamily=(type:string,title:string):ActivityFamily=>{
 
 export function rankDrafts(workout:ImportedWorkout,rows:DraftRow[]):DraftCandidate[]{
  const start=new Date(workout.startedAt);
+ const activityDate=typeof workout.metadata.localDate==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(workout.metadata.localDate)?workout.metadata.localDate:workout.startedAt.slice(0,10);
  return rows.map(row=>{
   let snapshot:any={};try{snapshot=JSON.parse(row.snapshot)}catch{}
   const reasons:string[]=[];
-  const sameDate=row.date===workout.startedAt.slice(0,10);
+  const sameDate=row.date===activityDate;
   const sameType=draftFamily(String(snapshot.type??""),String(snapshot.title??""))===workout.activityType;
   const draftStart=dbDate(row.startedAt),draftFinish=dbDate(row.finishedAt);
   const startDiff=draftStart?Math.abs(start.getTime()-draftStart.getTime())/3_600_000:Infinity;
@@ -149,19 +150,33 @@ function workoutFromRow(row:any):ImportedWorkout{
  const extra=JSON.parse(row.metadata||"{}");
  return {source:row.source,externalId:row.externalId,fingerprint:row.fingerprint,startedAt:row.startedAt,duration:row.duration,
   activityType:row.activityType,averageHeartRate:row.averageHeartRate,maxHeartRate:row.maxHeartRate,calories:row.calories,
-  metadata:{averageCadence:row.averageCadence,trainingEffect:row.trainingEffect,fitSport:extra.fitSport??"",
+  metadata:{...extra,averageCadence:row.averageCadence,trainingEffect:row.trainingEffect,fitSport:extra.fitSport??"",
    distanceMeters:typeof extra.distanceMeters==="number"?extra.distanceMeters:null,laps:Array.isArray(extra.laps)?extra.laps:[]}};
 }
 const selectImport=`SELECT id,source,external_id externalId,fingerprint,started_at startedAt,duration_seconds duration,activity_type activityType,average_heart_rate averageHeartRate,max_heart_rate maxHeartRate,calories,average_cadence averageCadence,training_effect trainingEffect,metadata,draft_id draftId FROM workout_imports`;
+const stravaCacheExpiry=(workout:ImportedWorkout)=>{
+ if(workout.source!=="strava")return null;
+ const retrieved=new Date(typeof workout.metadata.retrievedAt==="string"?workout.metadata.retrievedAt:new Date().toISOString());
+ return new Date(retrieved.getTime()+7*86_400_000).toISOString();
+};
 
 export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
  let response!:ImportSuccess;
  db.transaction(()=>{
-  const duplicate=db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint) as any;
+  const duplicate=(workout.source==="strava"&&workout.externalId
+   ?db.prepare(`${selectImport} WHERE source=? AND external_id=?`).get(workout.source,workout.externalId)
+   :db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint)) as any;
   const draftRows=db.prepare("SELECT id,date,snapshot,started_at startedAt,finished_at finishedAt FROM workout_drafts WHERE status='awaiting_confirmation' ORDER BY id DESC LIMIT 50").all() as DraftRow[];
   const candidates=rankDrafts(workout,draftRows);
   if(duplicate){
-   response={ok:true,result:{id:duplicate.id,workout:workoutFromRow(duplicate),draftId:duplicate.draftId,duplicate:true,autoLinked:false,candidates}};
+   // Strava activity details may change after the original upload. Refresh the
+   // normalized cache in place while preserving the existing draft link.
+   if(workout.source==="strava"){
+    db.prepare(`UPDATE workout_imports SET fingerprint=?,started_at=?,duration_seconds=?,activity_type=?,average_heart_rate=?,max_heart_rate=?,calories=?,average_cadence=?,training_effect=?,metadata=?,updated_at=CURRENT_TIMESTAMP,cache_expires_at=?,review_status=CASE WHEN review_status='dismissed' THEN review_status ELSE 'new' END WHERE id=?`).run(
+     workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,workout.averageHeartRate,workout.maxHeartRate,
+     workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,JSON.stringify(workout.metadata),stravaCacheExpiry(workout),duplicate.id);
+   }
+   response={ok:true,result:{id:duplicate.id,workout:workout.source==="strava"?workout:workoutFromRow(duplicate),draftId:duplicate.draftId,duplicate:true,autoLinked:false,candidates}};
    return;
   }
   const high=candidates.filter(x=>x.confidence==="High");
@@ -169,10 +184,10 @@ export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
   const alreadyLinked=candidateDraftId===null?null:db.prepare("SELECT 1 FROM workout_imports WHERE draft_id=? LIMIT 1").get(candidateDraftId);
   const autoDraftId=alreadyLinked?null:candidateDraftId;
   const result=db.prepare(`INSERT INTO workout_imports
-   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
-   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
+   (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id,cache_expires_at)
+   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
     workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
-    JSON.stringify({fitSport:workout.metadata.fitSport,distanceMeters:workout.metadata.distanceMeters,laps:workout.metadata.laps}),autoDraftId);
+    JSON.stringify(workout.metadata),autoDraftId,stravaCacheExpiry(workout));
   response={ok:true,result:{id:Number(result.lastInsertRowid),workout,draftId:autoDraftId,duplicate:false,autoLinked:autoDraftId!==null,candidates}};
  })();
  return response;
@@ -244,7 +259,7 @@ export function importFitForDraft(bytes:Uint8Array,target:TargetedImportRequest)
    (source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,average_cadence,training_effect,metadata,draft_id)
    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(workout.source,workout.externalId,workout.fingerprint,workout.startedAt,workout.duration,workout.activityType,
     workout.averageHeartRate,workout.maxHeartRate,workout.calories,workout.metadata.averageCadence,workout.metadata.trainingEffect,
-    JSON.stringify({fitSport:workout.metadata.fitSport,distanceMeters:workout.metadata.distanceMeters,laps:workout.metadata.laps}),did);
+    JSON.stringify(workout.metadata),did);
   response={ok:true,result:{id:Number(inserted.lastInsertRowid),workout,draftId:did,duplicate:false,autoLinked:false,candidates:candidate}};
  })();
  return response;

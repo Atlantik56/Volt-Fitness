@@ -22,17 +22,18 @@ type Surface = (typeof SURFACES)[number];
 
 function buildCandidates(surface: Surface, date: string): Insight[] {
   if (surface === "card") {
-    const profile = db.prepare("SELECT program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt, target_weight targetWeight FROM profile WHERE id=1").get() as any;
+    const profile = db.prepare(`SELECT program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt, target_weight targetWeight,
+      (SELECT id FROM training_plan_cycles WHERE program_id='volt-training' AND program_version=3 AND ended_at IS NULL ORDER BY id DESC LIMIT 1) trainingPlanV3CycleId FROM profile WHERE id=1`).get() as any;
     const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
     const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-    const workouts = db.prepare("SELECT date,type,title FROM workout_logs WHERE date<=? ORDER BY date DESC,id DESC LIMIT 200").all(date) as any[];
+    const workouts = db.prepare("SELECT date,type,title FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC,id DESC LIMIT 200").all(date) as any[];
     const strengthLogs = db.prepare("SELECT exercise,weight,date FROM strength_logs WHERE date<=? ORDER BY date DESC LIMIT 300").all(date) as any[];
     const scheduleOverrides = db.prepare(
       "SELECT original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle FROM schedule_overrides WHERE original_date<=? OR scheduled_date<=? ORDER BY scheduled_date,id",
     ).all(date, date) as any[];
     const moodLogs = db.prepare("SELECT id,date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
     const activity = db.prepare("SELECT date,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-    const planDays = buildHomeWeek(profile?.programStart,profile?.trainingPlanV3StartedAt,date).map((d: any) => ({ day: d.day, type: d.type }));
+    const planDays = buildHomeWeek(profile?.programStart,profile?.trainingPlanV3StartedAt,date,profile?.trainingPlanV3CycleId).map((d: any) => ({ day: d.day, type: d.type }));
     return buildCardInsights({
       date, measurements, workouts, foodLogs, strengthLogs, planDays, scheduleOverrides,
       targets: { calories: COACH_TARGETS.calories, protein: COACH_TARGETS.protein },
@@ -44,11 +45,11 @@ function buildCandidates(surface: Surface, date: string): Insight[] {
     const activity = db.prepare(
       "SELECT date,first_drink_time firstDrinkTime,beers,dinner,sleep_hours sleepHours,active_minutes activeMinutes FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60",
     ).all(date) as any[];
-    const workouts = db.prepare("SELECT date FROM workout_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
+    const workouts = db.prepare("SELECT date FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC LIMIT 200").all(date) as any[];
     return buildEveningInsights(activity, workouts);
   }
   const moodLogs = db.prepare("SELECT id,date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
-  const workouts = db.prepare("SELECT date FROM workout_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
+  const workouts = db.prepare("SELECT date FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC LIMIT 200").all(date) as any[];
   const activity = db.prepare("SELECT date,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
   return buildMoodInsights(moodLogs, workouts, activity);
 }

@@ -12,6 +12,8 @@ export function planKey(snapshot: WorkoutSnapshot) {
   // Старые snapshots не содержат programIdentity и получают буквально прежний
   // hash payload. Новые program sessions добавляют id/version/week/session,
   // поэтому будущая версия не может переиспользовать смысл старого plan_key.
-  const identity = snapshot.programIdentity ? { schema: 2, ...legacyIdentity, programIdentity: snapshot.programIdentity } : legacyIdentity;
+  const identity = snapshot.programIdentity
+    ? { schema: snapshot.programIdentity.cycleId ? 3 : 2, ...legacyIdentity, programIdentity: snapshot.programIdentity }
+    : legacyIdentity;
   return createHash("sha256").update(JSON.stringify(identity)).digest("hex").slice(0, 32);
 }

@@ -89,6 +89,17 @@ test("связанный FIT задаёт метрики, остаётся св�
  assert.equal((db.prepare("SELECT draft_id draftId FROM workout_imports WHERE fingerprint=?").get(fingerprint) as any).draftId,draft.id);
 });
 
+test("связанная Strava activity использует общий confirm flow и сохраняет provider provenance",()=>{
+ const draft=awaiting("2026-08-21","strava");
+ db.prepare(`INSERT INTO workout_imports(source,external_id,fingerprint,started_at,duration_seconds,activity_type,average_heart_rate,max_heart_rate,calories,metadata,draft_id)
+  VALUES('strava','123456789',?,'2026-08-21T10:00:00Z',2100,'strength',126,169,360,'{"distanceMeters":0}',?)`).run("s".repeat(64),draft.id);
+ const reopened=service.listOpenWorkoutDrafts().find(item=>item.id===draft.id)!;
+ assert.equal(reopened.confirmation?.source,"Strava");
+ const saved=confirm(reopened);assert.equal(saved.ok,true);assert.equal(saved.summary!.confirmationSource,"Strava");
+ const workout=db.prepare("SELECT metrics_source metricsSource,external_activity_source source,external_activity_id externalId FROM workout_logs WHERE id=?").get(saved.draft!.workoutId) as any;
+ assert.deepEqual(workout,{metricsSource:"imported_metric",source:"strava",externalId:"123456789"});
+});
+
 test("отмена Swim draft со связанным FIT не создаёт completed workout даже при повторном confirm",()=>{
  const draft=awaiting("2026-08-20","swim-fit-cancel");
  const fingerprint="c".repeat(64);

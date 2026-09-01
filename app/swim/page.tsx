@@ -50,6 +50,7 @@ export default function SwimHomePage() {
   const weekMax = Math.max(...data.weeklyActivity.dailyMeters, 1);
   const effortTotal = data.effortDistribution.easy + data.effortDistribution.aerobic + data.effortDistribution.hard;
   const next = data.nextWorkout;
+  const activeProgramLabel=next?.programId==="endurance"?"ENDURANCE":"FOUNDATION";
 
   return (
     <div className="swim-home">
@@ -73,7 +74,7 @@ export default function SwimHomePage() {
 
         <div className="swim-home-hero">
           <div className="swim-home-hero-copy">
-            <p>POOL TRAINING SYSTEM · FOUNDATION</p>
+            <p>POOL TRAINING SYSTEM · {activeProgramLabel}</p>
             <strong>Глубина держит ритм.</strong>
             <span>Спокойная техника. Чистое движение. Своя дистанция.</span>
           </div>
@@ -83,16 +84,16 @@ export default function SwimHomePage() {
           {!data.planStartedAt ? (
             <SwimPlanStartAction compact onStarted={() => load()} />
           ) : next ? <>
-            <p className="swim-next-time"><Clock3 size={14} /> По плану Foundation</p>
+            <p className="swim-next-time"><Clock3 size={14} /> По общему плану {activeProgramLabel}</p>
             <h2>{next.title}</h2>
             <span className="swim-goal-pill">Основная цель</span>
             <p className="swim-next-goal">{next.goal}</p>
-            <p className="swim-next-meta"><b>{formatMeters(next.distanceMeters)}</b><i /> ~{next.estimatedMinutes} мин <i /> Foundation</p>
+            <p className="swim-next-meta"><b>{formatMeters(next.distanceMeters)}</b><i /> ~{next.estimatedMinutes} мин <i /> {activeProgramLabel}</p>
             <div className="swim-next-actions">
               <Link href={`/swim/workouts/${next.programId}/${next.workoutId}`} className="swim-primary-action"><Route size={17} />{next.status === "not_started" ? "Начать тренировку" : "Продолжить тренировку"}<ChevronRight size={17} /></Link>
               <Link href={`/swim/workouts/${next.programId}/${next.workoutId}`} className="swim-secondary-action">Подробнее</Link>
             </div>
-          </> : <div className="swim-card-empty"><h2>План завершён</h2><p>Следующей тренировки Foundation сейчас нет.</p><Link href="/swim/workouts">Открыть план</Link></div>}
+          </> : <div className="swim-card-empty"><h2>План завершён</h2><p>Следующей тренировки активной программы сейчас нет.</p><Link href="/swim/workouts">Открыть план</Link></div>}
         </article>
         </div>
 

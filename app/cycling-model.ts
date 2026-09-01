@@ -47,6 +47,7 @@ export type CyclingWorkoutRecord = {
   avgSpeed?: number;
   calories?: number;
   metricsSource?: string;
+  externalActivitySource?: string | null;
   loadFeedback?: CyclingLoadFeedback;
 };
 
@@ -69,6 +70,7 @@ export type CyclingResolution = {
 export type ResolveCyclingInput = {
   programStart?: string;
   trainingPlanV3StartedAt?: string | null;
+  trainingPlanV3CycleId?: number | null;
   today: string;
   selectedDate?: string | null;
   weekScheduleChanges?: WeekScheduleChange[];
@@ -112,7 +114,7 @@ function cyclingCandidates(input: ResolveCyclingInput, date: string) {
   const programWeek = activatedPlanPosition(input.trainingPlanV3StartedAt,date)?.weekIndex
     ?? programWeekForDate(input.programStart,date);
   const schedule = buildWeekSchedule(
-    buildHomeWeek(input.programStart,input.trainingPlanV3StartedAt,date),
+    buildHomeWeek(input.programStart,input.trainingPlanV3StartedAt,date,input.trainingPlanV3CycleId),
     input.weekScheduleChanges ?? [],
     mondayIso,
   );
@@ -122,6 +124,12 @@ function cyclingCandidates(input: ResolveCyclingInput, date: string) {
       .map((session) => ({ day, session })),
   );
   return { mondayIso, sundayIso, programWeek, candidates };
+}
+
+function nextIsoDate(dateIso:string):string{
+  const date=new Date(`${dateIso}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate()+1);
+  return date.toISOString().slice(0,10);
 }
 
 export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingResolution | null {
@@ -157,11 +165,17 @@ export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingRes
     ? input.selectedDate
     : null;
   const anchorDate = selectedDate ?? input.today;
-  const { mondayIso, sundayIso, programWeek, candidates } = cyclingCandidates(input, anchorDate);
-  const selected = (selectedDate ? candidates.find(({ day }) => day.date === selectedDate) : null)
-    ?? candidates.find(({ day }) => day.date >= input.today)
-    ?? candidates[0];
+  let context = cyclingCandidates(input, anchorDate);
+  const activationBoundary=input.trainingPlanV3StartedAt??"0000-00-00";
+  const eligible=()=>context.candidates.filter(({day})=>day.date>=activationBoundary);
+  let selected = (selectedDate ? eligible().find(({ day }) => day.date === selectedDate) : null)
+    ?? eligible().find(({ day }) => day.date >= input.today);
+  if(!selected){
+    context=cyclingCandidates(input,nextIsoDate(context.sundayIso));
+    selected=eligible().find(({day})=>day.date>=input.today);
+  }
   if (!selected) return null;
+  const {mondayIso,sundayIso,programWeek}=context;
 
   const draft = (input.workoutDrafts ?? []).find((item) =>
     item.date === selected.day.date && item.status !== "cancelled" && isCyclingSlot(item.snapshot),
