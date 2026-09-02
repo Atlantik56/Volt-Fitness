@@ -32,7 +32,10 @@ export type FitLap={distanceMeters:number;durationSeconds:number;numLengths:numb
 // введён; распознанное упражнение приходит тройкой догадок и как источник
 // «какое это было движение» не годится, поэтому категория сохраняется лишь
 // первым кандидатом и справочно.
-export type FitSet={repetitions:number|null;weightKg:number|null;durationSeconds:number|null;category:string|null};
+// weightKg=0 означает упражнение с весом тела (отжимания, планка, отведения),
+// а не отсутствие данных: такие подходы прогрессируют повторами, а не
+// килограммами. null остаётся только когда прибор поля не записал вовсе.
+export type FitSet={repetitions:number|null;weightKg:number|null;bodyweight:boolean;durationSeconds:number|null;category:string|null};
 
 // Длина бассейна. SWOLF в FIT не хранится и считается здесь: время длины в
 // секундах плюс число гребков — стандартное определение.
@@ -83,9 +86,11 @@ export function computeFitSets(rawSets:unknown):FitSet[]|null{
  if(!Array.isArray(rawSets))return null;
  return rawSets.filter((set:any)=>set?.setType==="active").map((set:any)=>({
   repetitions:asInteger(set?.repetitions,1,1000),
-  // Вес пишется только когда он введён на часах; ноль означает «не задан»,
-  // а не «нулевая нагрузка», поэтому от отсутствия его не отличаем.
-  weightKg:finite(set?.weight,0.1,1000),
+  // Ноль — это вес тела, а не пропуск: часы пишут его для отжиманий, планки
+  // и отведений. Отбрасывать такие подходы нельзя, иначе половина силовой
+  // тренировки для движка прогрессии перестанет существовать.
+  weightKg:finite(set?.weight,0,1000),
+  bodyweight:finite(set?.weight,0,1000)===0,
   durationSeconds:finite(set?.duration,0,86_400),
   category:Array.isArray(set?.category)?String(set.category[0]??"")||null:null,
  }));

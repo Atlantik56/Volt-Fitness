@@ -57,12 +57,21 @@ test("rest sets are dropped and working sets keep their reps", () => {
   assert.deepEqual(sets.map((s) => s.repetitions), [14, 13]);
 });
 
-test("a zero weight reads as 'not entered', not as zero load", () => {
-  // Часы пишут 0, когда вес не введён. Считать это нулевой нагрузкой нельзя:
-  // прогрессия увидела бы падение с рабочего веса до нуля.
-  const sets = computeFitSets([set(12, 0), set(12, 40)])!;
+test("a zero weight means bodyweight, not missing data", () => {
+  // Владелец вводит вес на часах: гантели дают 3.5–3.7 кг, а отжимания,
+  // планка и отведения — ноль. Такие подходы полноценны и прогрессируют
+  // повторами, поэтому отбрасывать их нельзя.
+  const sets = computeFitSets([set(12, 0), set(12, 3.6875)])!;
+  assert.equal(sets[0].weightKg, 0);
+  assert.equal(sets[0].bodyweight, true);
+  assert.equal(sets[1].weightKg, 3.6875);
+  assert.equal(sets[1].bodyweight, false);
+});
+
+test("a set without a weight field at all stays unknown", () => {
+  const sets = computeFitSets([{ setType: "active", repetitions: 10, duration: 30, category: ["curl"] }])!;
   assert.equal(sets[0].weightKg, null);
-  assert.equal(sets[1].weightKg, 40);
+  assert.equal(sets[0].bodyweight, false, "нет данных — это не вес тела");
 });
 
 test("only the first exercise guess is kept — the watch reports three candidates", () => {
