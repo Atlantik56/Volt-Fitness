@@ -435,6 +435,36 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   );
   ALTER TABLE week_schedule_changes ADD COLUMN alternative_session_id TEXT;
  `},
+ // AI-14: решения прогрессии перестали быть только про зал. Дисциплина
+ // хранится явно, чтобы разбор по бассейну и вело не смешивался с силовым.
+ // Аддитивно, со значением по умолчанию: существующие записи — силовые.
+ // CREATE IF NOT EXISTS повторён намеренно: миграция должна применяться на
+ // базе любой формы, включая ту, где таблица ещё не создавалась.
+ {version:30,sql:`
+  CREATE TABLE IF NOT EXISTS progression_decisions (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   workout_id INTEGER NOT NULL,
+   exercise TEXT NOT NULL,
+   action TEXT NOT NULL CHECK(action IN ('increase','maintain','decrease','deload','no-change')),
+   reason_code TEXT NOT NULL,
+   reason TEXT NOT NULL,
+   used_signals TEXT NOT NULL DEFAULT '[]',
+   limited_data INTEGER NOT NULL DEFAULT 0,
+   from_weight REAL NOT NULL,
+   from_reps INTEGER NOT NULL,
+   to_weight REAL NOT NULL,
+   to_reps INTEGER NOT NULL,
+   pain_after REAL NOT NULL DEFAULT 0,
+   effort TEXT NOT NULL DEFAULT '',
+   workout_complete INTEGER NOT NULL DEFAULT 1,
+   coach_action TEXT NOT NULL DEFAULT '',
+   target_max_reps INTEGER,
+   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','rejected','cancelled')),
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   decided_at TEXT
+  );
+  ALTER TABLE progression_decisions ADD COLUMN discipline TEXT NOT NULL DEFAULT 'strength';
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
