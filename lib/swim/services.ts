@@ -163,7 +163,11 @@ function attachCalendar(progress: SwimProgramProgress): SwimProgramProgress {
   const currentWeekIndex = progress.program.id === "foundation"
     ? effectiveSwimWeekIndex(programStart, activationAt, todayIso, lastWeek)
     : Math.min(lastWeek,Math.max(firstWeek,activatedPlanPosition(trainingPlanV3StartedAt,todayIso)?.definitionWeekIndex ?? firstWeek));
-  return { ...progress, startedAt: activationAt, workouts, nextWorkout, currentWeekIndex, calendarDays };
+  // Порядковый номер недели внутри программы: у Foundation совпадает с
+  // индексом определения, у Endurance неделя 9 становится первой.
+  const ordinal = progress.program.weeks.findIndex((week) => week.weekIndex === currentWeekIndex);
+  const weekOrdinal = ordinal >= 0 ? ordinal + 1 : null;
+  return { ...progress, startedAt: activationAt, workouts, nextWorkout, currentWeekIndex, weekOrdinal, calendarDays };
 }
 
 export function getProgramProgress(programId: string): SwimProgramProgress | null {
@@ -190,7 +194,7 @@ export function listProgramsWithProgress(): SwimProgramProgress[] {
   return listPrograms().map((program) =>
     program.status === "available"
       ? attachCalendar(computeProgramProgress(program, completed, open, actuals,profile.trainingPlanV3CycleId??null,!profile.trainingPlanV3RestartedFromCycleId))
-      : { program, startedAt: getSwimPlanStartedAt(),planCycleId:null, completedCount: 0, totalCount: 0, currentWeekIndex: null, nextWorkout: null, workouts: [], calendarDays: [] },
+      : { program, startedAt: getSwimPlanStartedAt(),planCycleId:null, completedCount: 0, totalCount: 0, currentWeekIndex: null, weekOrdinal: null, nextWorkout: null, workouts: [], calendarDays: [] },
   );
 }
 

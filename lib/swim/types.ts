@@ -154,6 +154,11 @@ export type SwimProgramProgress = {
   completedCount: number;
   totalCount: number;
   currentWeekIndex: number | null;
+  // Порядковый номер текущей недели ВНУТРИ списка недель программы (1-based).
+  // currentWeekIndex — это индекс определения (у Endurance недели 9–24), и
+  // показывать его пользователю нельзя: только начатая программа выглядела бы
+  // как «Неделя 9 из 16», а нарезка календаря по нему уезжала бы.
+  weekOrdinal: number | null;
   nextWorkout: SwimWorkoutProgress | null;
   workouts: SwimWorkoutProgress[];
   // Разрешённый календарь всей программы (8 недель × 7 дней, начиная с

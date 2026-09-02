@@ -361,5 +361,5 @@ export function computeProgramProgress(program: SwimProgramDef, completedPlanKey
   });
   const completedCount = workouts.filter((w) => w.status === "completed").length;
   const nextWorkout = workouts.find((w) => w.status === "in_progress" || w.status === "awaiting_confirmation") ?? workouts.find((w) => w.status === "not_started") ?? null;
-  return { program, startedAt: null, planCycleId,completedCount, totalCount: workouts.length, currentWeekIndex: nextWorkout?.weekIndex ?? (workouts.at(-1)?.weekIndex ?? null), nextWorkout, workouts, calendarDays: [] };
+  return { program, startedAt: null, planCycleId,completedCount, totalCount: workouts.length, currentWeekIndex: nextWorkout?.weekIndex ?? (workouts.at(-1)?.weekIndex ?? null), weekOrdinal: null, nextWorkout, workouts, calendarDays: [] };
 }

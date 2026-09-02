@@ -89,7 +89,10 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
   const totalWeeks = progress?.program.weeks.length ?? 0;
   // "Текущая" неделя уже рассчитана сервером относительно startedAt; клиент
   // не создаёт собственную календарную модель.
-  const liveWeekIndex = progress?.currentWeekIndex ?? 1;
+  // Показываем порядковый номер недели внутри программы, а не индекс её
+  // определения: у Endurance недели нумеруются 9–24, и только начатая
+  // программа выглядела бы как «Неделя 9», а нарезка календаря уезжала бы.
+  const liveWeekIndex = progress?.weekOrdinal ?? progress?.currentWeekIndex ?? 1;
   const weekIndex = weekIndexOverride !== null && weekIndexOverride >= 1 && weekIndexOverride <= totalWeeks ? weekIndexOverride : totalWeeks > 0 ? liveWeekIndex : null;
   const setWeekIndex = (updater: (current: number) => number) =>
     setWeekIndexOverride((prevOverride) => {
