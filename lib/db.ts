@@ -398,6 +398,22 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   );
   CREATE INDEX IF NOT EXISTS idx_daily_health_date ON daily_health(date DESC);
  `},
+ // Дедупликация импортов по устойчивому external_id, а не только по хешу
+ // байтов: одна и та же тренировка, полученная ручной загрузкой и через
+ // intervals.icu, приходит разными файлами и создавала два импорта.
+ // Сначала схлопываем уже накопившиеся дубли, сохраняя запись, привязанную
+ // к черновику (а при равенстве — самую раннюю), и только потом ставим
+ // уникальный индекс, иначе он не создастся на существующих данных.
+ {version:28,sql:`
+  DELETE FROM workout_imports WHERE external_id IS NOT NULL AND id NOT IN (
+   SELECT id FROM (
+    SELECT id, ROW_NUMBER() OVER (PARTITION BY source, external_id ORDER BY (draft_id IS NULL), id) rn
+    FROM workout_imports WHERE external_id IS NOT NULL
+   ) WHERE rn=1
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_imports_external
+   ON workout_imports(source,external_id) WHERE external_id IS NOT NULL;
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

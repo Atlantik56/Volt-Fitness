@@ -163,9 +163,16 @@ const stravaCacheExpiry=(workout:ImportedWorkout)=>{
 export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
  let response!:ImportSuccess;
  db.transaction(()=>{
-  const duplicate=(workout.source==="strava"&&workout.externalId
+  // Устойчивая личность активности — external_id (для FIT его строит parseFit
+  // из содержимого файла). Fingerprint считается по байтам, а один и тот же
+  // заезд, полученный разными путями — ручной загрузкой и через intervals.icu —
+  // приходит байт-в-байт разными файлами и раньше создавал второй импорт.
+  // Поэтому сначала ищем по external_id для любого источника, и лишь затем по
+  // хешу — для записей, у которых внешнего идентификатора нет.
+  const duplicate=((workout.externalId
    ?db.prepare(`${selectImport} WHERE source=? AND external_id=?`).get(workout.source,workout.externalId)
-   :db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint)) as any;
+   :null)
+   ??db.prepare(`${selectImport} WHERE source=? AND fingerprint=?`).get(workout.source,workout.fingerprint)) as any;
   const draftRows=db.prepare("SELECT id,date,snapshot,started_at startedAt,finished_at finishedAt FROM workout_drafts WHERE status='awaiting_confirmation' ORDER BY id DESC LIMIT 50").all() as DraftRow[];
   const candidates=rankDrafts(workout,draftRows);
   if(duplicate){
