@@ -11,6 +11,7 @@ import { listWeekScheduleChanges,applyAlternative,applyReplace,applyRest,applySw
 import { weekRangeContaining, localIso as weekLocalIso } from "@/app/week-schedule-model";
 import { getSwimPlanStartedAt } from "@/lib/swim/services";
 import { buildProgramDayForDate } from "@/app/personal-data";
+import { recoveryLimiterForDate } from "@/lib/intervals-service";
 import { getTrainingPlanV3StartedAt } from "@/lib/training-plan-activation";
 import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
 import { purgeExpiredStravaData } from "@/lib/strava-service";
@@ -36,6 +37,17 @@ export async function GET(){
  // а не подмешиваются в activity: там ручной ввод пользователя, и смешивать
  // источники в одном массиве значило бы терять происхождение данных.
  const dailyHealth=db.prepare("SELECT date,sleep_seconds sleepSeconds,sleep_score sleepScore,hrv_rmssd hrvRmssd,resting_hr restingHr FROM daily_health ORDER BY date DESC LIMIT 120").all();
+ // Вердикт ограничителя роста нагрузки: без него карточка готовности молчит о
+ // том, почему прогрессия сегодня заблокирована.
+ const recoveryLimiter=recoveryLimiterForDate(weekLocalIso(new Date()));
+ // Подходы силовой приходят с часов и лежат в метаданных импорта, а история
+ // читает workout_logs. Связь идёт через черновик: импорт → черновик →
+ // тренировка. Без этого повторы и веса с часов нигде не видны.
+ const importedSets:Record<number,any[]>={};
+ for(const row of db.prepare(`SELECT d.workout_id workoutId,i.metadata FROM workout_imports i
+  JOIN workout_drafts d ON d.id=i.draft_id WHERE d.workout_id IS NOT NULL`).all() as any[]){
+  try{const sets=JSON.parse(row.metadata||"{}")?.sets;if(Array.isArray(sets)&&sets.length)importedSets[Number(row.workoutId)]=sets}catch{}
+ }
  const foodLogs=(db.prepare("SELECT id,date,meal_type mealType,items_json itemsJson,calories,protein,fat,carbs,note,created_at createdAt FROM food_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,items:JSON.parse(x.itemsJson),itemsJson:undefined}));
  const moodLogs=db.prepare("SELECT id,date,mood,note,created_at createdAt FROM mood_logs ORDER BY created_at DESC,id DESC LIMIT 30").all();
  const strengthLogs=db.prepare("SELECT id,date,exercise,weight,reps,difficulty,created_at createdAt FROM strength_logs ORDER BY date DESC,id DESC LIMIT 300").all();
@@ -62,7 +74,7 @@ export async function GET(){
  const analyticsFrom=new Date();analyticsFrom.setFullYear(analyticsFrom.getFullYear()-1);
  const weekScheduleChanges=listWeekScheduleChanges(weekLocalIso(analyticsFrom),sundayIso);
  const analytics=buildAnalyticsBundle();
- return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,recoveryLimiter,importedSets,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){

@@ -70,6 +70,8 @@ export type SwimHistoryItem = {
   durationSeconds: number | null;
   paceLabel: string | null;
   avgHeartRate: number | null;
+  // SWOLF: время длины плюс гребки. Индикатор техники, считается при импорте FIT.
+  avgSwolf: number | null;
   source: SwimHistorySource;
   provider?: "garmin_fit" | "strava" | null;
   effort: string | null;

@@ -59,6 +59,8 @@ export function HistoryItem({ item, featured = false }: { item: SwimHistoryItemT
             <Metric label="Время" value={formatDuration(item.durationSeconds ?? 0)} />
             <Metric label="Темп" value={item.paceLabel} unit="/100м" />
             <Metric label="Пульс" value={item.avgHeartRate ? String(item.avgHeartRate) : null} unit="уд/мин" />
+            {/* SWOLF — индикатор техники: время длины плюс гребки. Меньше лучше. */}
+            <Metric label="SWOLF" value={item.avgSwolf ? String(item.avgSwolf) : null} />
             {item.effort && <Metric label="Нагрузка" value={item.effort} />}
           </div>
         )}
@@ -67,6 +69,7 @@ export function HistoryItem({ item, featured = false }: { item: SwimHistoryItemT
             <span>{formatDuration(item.durationSeconds ?? 0) ?? "—"}</span>
             <span>{item.paceLabel ? `${item.paceLabel}/100м` : "—"}</span>
             <span>{item.avgHeartRate ? `${item.avgHeartRate} уд/мин` : "—"}</span>
+            {item.avgSwolf ? <span>SWOLF {item.avgSwolf}</span> : null}
           </p>
         )}
       </div>

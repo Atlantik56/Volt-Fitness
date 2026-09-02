@@ -123,8 +123,30 @@ function swimRouteByPlanKey(): Map<string, { programId: string; workoutId: strin
   return map;
 }
 
+/**
+ * SWOLF считается при разборе FIT и живёт в workout_imports.metadata, а не в
+ * workout_logs. Связь идёт через черновик: импорт → черновик → тренировка.
+ *
+ * По дате связывать нельзя: в один день может быть и импортированный заплыв, и
+ * запись, заведённая вручную, — тогда чужой SWOLF приписался бы второй.
+ */
+function swolfByWorkoutId(): Map<number, number> {
+  const map = new Map<number, number>();
+  const rows = db.prepare(`SELECT d.workout_id workoutId,i.metadata FROM workout_imports i
+    JOIN workout_drafts d ON d.id=i.draft_id
+    WHERE i.activity_type='swim' AND d.workout_id IS NOT NULL ORDER BY i.id ASC`).all() as { workoutId: number; metadata: string }[];
+  for (const row of rows) {
+    try {
+      const value = Number(JSON.parse(row.metadata || "{}")?.swim?.avgSwolf);
+      if (Number.isFinite(value) && value > 0) map.set(Number(row.workoutId), value);
+    } catch { /* повреждённые метаданные не должны ронять историю */ }
+  }
+  return map;
+}
+
 export function getSwimHistory(): SwimHistoryData {
   const routeByPlanKey = swimRouteByPlanKey();
+  const swolf = swolfByWorkoutId();
   const rows = (db.prepare(selectHistoryLogs).all() as HistoryLogRow[]).filter((row) => isSwimActivity(row.type, row.title));
   const items: SwimHistoryItem[] = rows.map((row) => ({
     id: row.id,
@@ -134,6 +156,7 @@ export function getSwimHistory(): SwimHistoryData {
     durationSeconds: row.durationSeconds > 0 ? row.durationSeconds : null,
     paceLabel: formatPace100m(row.distanceMeters, row.durationSeconds),
     avgHeartRate: row.avgHeartRate > 0 ? row.avgHeartRate : null,
+    avgSwolf: swolf.get(row.id) ?? null,
     source: row.metricsSource === "imported_metric" ? "imported_metric" : "manual",
     provider: row.externalActivitySource === "strava" ? "strava" : row.externalActivitySource === "garmin_fit" ? "garmin_fit" : null,
     effort: row.effort ? row.effort : null,

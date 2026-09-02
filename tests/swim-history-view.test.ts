@@ -5,7 +5,7 @@ import type { SwimHistoryItem } from "../app/swim/types.ts";
 
 const item = (over: Partial<SwimHistoryItem> & { id: number; date: string }): SwimHistoryItem => ({
   title: "Заплыв", distanceMeters: 1000, durationSeconds: 1800, paceLabel: "3:00",
-  avgHeartRate: null, source: "manual", effort: null, route: null, ...over,
+  avgHeartRate: null, avgSwolf: null, source: "manual", effort: null, route: null, ...over,
 });
 
 test("summarizeHistory складывает только реальные метрики, пропуски не считаются нулями в счётчике заплывов", () => {
