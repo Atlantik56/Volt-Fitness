@@ -9,7 +9,7 @@ import { db } from "@/lib/db";
 import { importFit } from "@/lib/fit-import-service";
 import { downloadIntervalsActivityFit, IntervalsApiError, isStravaSourced, listIntervalsActivities, listIntervalsWellness } from "@/lib/intervals-client";
 import { buildRecoveryBaseline, evaluateRecoveryLimiter, BASELINE_WINDOW_DAYS, type RecoveryLimiter, type RecoverySample } from "@/lib/recovery-baseline";
-import { autoConfirmImport } from "@/lib/import-auto-confirm";
+import { autoConfirmImport, AUTO_CONFIRM_MAX_AGE_DAYS } from "@/lib/import-auto-confirm";
 
 const INITIAL_LOOKBACK_DAYS=90;
 // Перекрытие на сутки: intervals.icu показывает локальные даты, а активность
@@ -121,6 +121,15 @@ export async function syncIntervalsActivities(fetcher:typeof fetch=fetch,now=new
     throw error;
    }
   }
+ }
+
+ // Отдельный проход по свежим непривязанным импортам. Нужен, когда импорт
+ // приехал раньше, чем появилась плановая тренировка на эту дату: сам по себе
+ // он больше не «новый» и в цикле выше не обработается. Функция идемпотентна,
+ // поэтому повторные проходы безопасны.
+ const sweepFrom=isoDay(shiftDays(now,-AUTO_CONFIRM_MAX_AGE_DAYS));
+ for(const pending of db.prepare("SELECT id FROM workout_imports WHERE draft_id IS NULL AND date(started_at)>=? ORDER BY started_at DESC LIMIT 20").all(sweepFrom) as {id:number}[]){
+  try{if(autoConfirmImport(pending.id).confirmed)result.autoConfirmed++}catch{}
  }
 
  db.prepare("UPDATE intervals_connection SET athlete_id=?,last_synced_at=?,last_activity_date=?,status=?,last_sync_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=1")
