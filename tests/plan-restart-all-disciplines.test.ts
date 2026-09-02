@@ -29,7 +29,7 @@ test("a completed swim counts towards the programme before any restart", () => {
   assert.equal(foundation()!.completedCount, 1, "выполненное засчитывается, пока цикл не перезапускали");
 });
 
-test("the restart succeeds and stops counting legacy completions", () => {
+test("restarting the plan returns swimming to the beginning together with the gym", () => {
   startTrainingPlanV3();
   // Перезапуск запрещён в день старта цикла — сдвигаем старт назад, как это
   // выглядело бы через несколько дней после запуска плана.
@@ -40,13 +40,12 @@ test("the restart succeeds and stops counting legacy completions", () => {
   assert.equal(restarted.ok, true);
   assert.ok(restarted.cycleId > 0, "создан новый цикл");
 
-  // ИЗВЕСТНОЕ ОГРАНИЧЕНИЕ (AI-14a, не закрыто): plan_key тренировки Foundation
-  // не содержит идентификатора цикла, потому что buildSwimSnapshot вшивает
-  // cycleId только при наличии programIdentity из реестра, а у Foundation его
-  // нет. Поэтому выполнения, записанные под текущим ключом, переживают
-  // перезапуск. Записи под старыми legacy-ключами перестают засчитываться.
-  // Полное обнуление требует изменения схемы plan_key — см. docs.
-  assert.equal(foundation()!.completedCount, 1, "документирует незакрытую часть AI-14a");
+  // Недели 1–3 Foundation не упоминаются ни одной версией плана, поэтому реестр
+  // не выдавал им идентичности и plan_key выходил независимым от цикла —
+  // выполнение переживало перезапуск. Теперь идентичность достраивается из
+  // самой программы, и новый цикл начинается чисто.
+  assert.equal(foundation()!.completedCount, 0, "новый цикл начинается чисто");
+  assert.equal(foundation()!.nextWorkout?.workout.id, foundation()!.workouts[0].workout.id, "следующая — первая тренировка программы");
 });
 
 test("the restart re-anchors swimming to the new cycle instead of leaving it behind", () => {

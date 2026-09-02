@@ -193,7 +193,9 @@ export function parseFit(bytes:Uint8Array):ImportFailure|{ok:true;workout:Import
 
 type DraftRow={id:number;date:string;snapshot:string;startedAt:string|null;finishedAt:string|null};
 const dbDate=(value:string|null)=>value?asDate(value.includes("T")?value:`${value.replace(" ","T")}Z`):null;
-const draftFamily=(type:string,title:string):ActivityFamily=>{
+// Классификация тренировки по её типу и названию. Экспортируется, потому что
+// тем же правилом должна пользоваться история дисциплин (AI-15).
+export const draftFamily=(type:string,title:string):ActivityFamily=>{
  const value=`${type} ${title}`.toLowerCase();
  if(value.includes("плав"))return "swim";
  if(isCyclingSlot({type,title}))return "bike";

@@ -12,6 +12,7 @@ import { weekRangeContaining, localIso as weekLocalIso } from "@/app/week-schedu
 import { getSwimPlanStartedAt } from "@/lib/swim/services";
 import { buildProgramDayForDate } from "@/app/personal-data";
 import { recoveryLimiterForDate } from "@/lib/intervals-service";
+import { buildDisciplineProgression } from "@/lib/discipline-progression-service";
 import { getTrainingPlanV3StartedAt } from "@/lib/training-plan-activation";
 import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
 import { purgeExpiredStravaData } from "@/lib/strava-service";
@@ -40,6 +41,9 @@ export async function GET(){
  // Вердикт ограничителя роста нагрузки: без него карточка готовности молчит о
  // том, почему прогрессия сегодня заблокирована.
  const recoveryLimiter=recoveryLimiterForDate(weekLocalIso(new Date()));
+ // Предложения прогрессии по бассейну и вело. Только объяснение: принятие и
+ // отклонение остаются у силового флоу, где есть что применять к весам.
+ const disciplineProgression=buildDisciplineProgression(weekLocalIso(new Date()));
  // Подходы силовой приходят с часов и лежат в метаданных импорта, а история
  // читает workout_logs. Связь идёт через черновик: импорт → черновик →
  // тренировка. Без этого повторы и веса с часов нигде не видны.
@@ -74,7 +78,7 @@ export async function GET(){
  const analyticsFrom=new Date();analyticsFrom.setFullYear(analyticsFrom.getFullYear()-1);
  const weekScheduleChanges=listWeekScheduleChanges(weekLocalIso(analyticsFrom),sundayIso);
  const analytics=buildAnalyticsBundle();
- return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,recoveryLimiter,importedSets,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,recoveryLimiter,disciplineProgression,importedSets,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){

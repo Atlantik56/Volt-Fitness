@@ -14,7 +14,7 @@ import { intervalTotalMeters, intervalTypeLabel, totalDistanceMeters } from "@/l
 import type { ResolvedSwimSlot, SwimInterval, SwimWorkoutDef } from "@/lib/swim/types";
 import { useRouter } from "next/navigation";
 import AuthGate from "./auth-gate";
-import { NutritionTools, Readiness, StrengthAdvice } from "./fitness-features";
+import { DisciplineProgression, NutritionTools, Readiness, StrengthAdvice } from "./fitness-features";
 import { BodyMap, PersonalRecords } from "./advanced-features";
 import { CoachCard } from "./coach-card";
 import { AnalyticsCoachPage } from "./analytics-coach-page";
@@ -334,6 +334,7 @@ export default function Home() {
          <div className="today-mosaic-main">
           <CoachCard result={coach} plan={todayPlan} date={today} ready={loaded} onAskCoach={goCoach}/>
           <Readiness data={data} refresh={load}/>
+          <DisciplineProgression data={data}/>
           <LastWorkoutCard workout={data.workouts?.[0]} onOpen={()=>{setNav("Моя история");setProgressTab("Тренировки")}}/>
          </div>
 

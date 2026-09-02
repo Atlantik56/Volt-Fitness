@@ -16,6 +16,7 @@
 import { normalizeSnapshot, type WorkoutSnapshot } from "@/lib/workout-snapshot";
 import { exerciseLabelRu, getExerciseById } from "@/lib/swim/exercise-catalog";
 import { trainingProgramRegistry } from "@/lib/training-program/registry";
+import { findWorkoutById } from "@/lib/swim/program-engine";
 import type { SwimInterval, SwimProgramDef, SwimWorkoutDef } from "@/lib/swim/types";
 
 export const SWIM_WORKOUT_TYPE_PREFIX = "Плавание";
@@ -62,7 +63,21 @@ export function swimWorkoutType(program: Pick<SwimProgramDef, "version">): strin
 
 export function buildSwimSnapshot(program: SwimProgramDef, workout: SwimWorkoutDef, cycleId?:number|null): WorkoutSnapshot | null {
   const baseIdentity = trainingProgramRegistry.identityForSwimWorkout(program.id, program.version, workout.id) ?? undefined;
-  const programIdentity=baseIdentity?{...baseIdentity,...(cycleId?{cycleId}:{})}:undefined;
+  // Недели 1–3 Foundation не упоминаются ни одной версией плана VOLT, поэтому
+  // реестр не выдаёт им идентичности — и plan_key выходил независимым от цикла.
+  // Из-за этого перезапуск плана не обнулял по ним счёт: выполнение продолжало
+  // засчитываться новому циклу. Достраиваем идентичность из самой программы,
+  // чтобы цикл попадал в ключ у всех дисциплин одинаково.
+  // Достраиваем ТОЛЬКО когда задан цикл. Без цикла снимок обязан остаться
+  // прежним: на legacy-ключах недель 1–3 висит уже записанная история, и её
+  // смена осиротила бы выполненные тренировки (см. тест «Foundation Weeks 1–3
+  // сохраняют существующие version 2 plan keys»).
+  const fallbackIdentity = baseIdentity || !cycleId ? undefined : (() => {
+    const found = findWorkoutById(program, workout.id);
+    return found ? { programId: program.id, programVersion: program.version, weekIndex: found.weekIndex, sessionId: workout.id } : undefined;
+  })();
+  const identity = baseIdentity ?? fallbackIdentity;
+  const programIdentity=identity?{...identity,...(cycleId?{cycleId}:{})}:undefined;
   const raw = {
     title: `${program.name} · ${workout.title}`,
     type: swimWorkoutType(program),

@@ -37,6 +37,28 @@ export function Readiness({data,refresh}:{data:any;refresh:()=>void}){
  return <section className={`readiness card ${decision.tone}`}><div className="readiness-score" style={{"--score-pct":score} as any}><b>{score}</b><span>из 100</span></div><div><p className="eyebrow">READINESS · ОЦЕНКА СОСТОЯНИЯ</p><h3>{assessment.title}</h3><p className="readiness-text">{assessment.text}</p><small className="readiness-summary">Сон {sleep?`${sleep.toFixed(1)} ч`:"—"}{measuredSleepSeconds>0?" (с часов)":" (со слов)"} · энергия {energy}/5 (субъективная) · боль {pain}/10</small>{health&&<div className="recovery-metrics" aria-label="Измеренные показатели восстановления">{health.sleepSeconds>0&&<span><b>{hhmm(health.sleepSeconds)}</b><small>СОН</small></span>}{health.sleepScore!=null&&<span><b>{health.sleepScore}</b><small>ОЦЕНКА СНА</small></span>}{health.hrvRmssd!=null&&<span><b>{health.hrvRmssd}</b><small>ВСР</small></span>}{health.restingHr!=null&&<span><b>{health.restingHr}</b><small>ПУЛЬС ПОКОЯ</small></span>}</div>}{limiter&&!limiter.allowGrowth&&<small className="recovery-limiter">{limiter.reason}</small>}{limiter&&limiter.allowGrowth&&limiter.limitedData&&<small className="recovery-limiter neutral">{limiter.reason}</small>}<a className="readiness-coach-link" href="#volt-coach">Решение по сегодняшнему плану — в карточке VOLT Coach ↓</a><form onSubmit={save}><label>Энергия<select name="energy" defaultValue={current.energy||3}>{[1,2,3,4,5].map(x=><option key={x}>{x}</option>)}</select></label><label>Боль 0–10<input name="pain" type="number" min="0" max="10" defaultValue={current.pain||0}/></label><label>Где болит<input name="painArea" placeholder="Например, тазобедренный" defaultValue={current.painArea||""}/></label><label>Комментарий<input name="note" placeholder="Самочувствие сегодня" defaultValue={current.note||""}/></label><button>Оценить</button></form>{pain>0&&<small className="readiness-warning">При боли в тазобедренном суставе замени силовую на прогулку или упражнения для верха тела. При повторяющейся боли обратись к врачу.</small>}</div></section>
 }
 
+// AI-15 — объяснение следующего шага в бассейне и на велостанке. Решение
+// принимает детерминированный код (lib/progression-swim-bike.ts), карточка
+// только показывает его вместе с использованными сигналами.
+const ACTION_LABEL:Record<string,string>={increase:"Можно добавить",maintain:"Сохраняем",decrease:"Снижаем",deload:"Разгрузка","no-change":"Без изменений"};
+export function DisciplineProgression({data}:{data:any}){
+ const items=[data.disciplineProgression?.swim,data.disciplineProgression?.bike].filter(Boolean) as any[];
+ const meaningful=items.filter(x=>x.reasonCode!=="no-history");
+ if(!meaningful.length)return null;
+ return <section className="discipline-progression card" aria-label="Прогрессия по дисциплинам">
+  <p className="eyebrow">ПРОГРЕССИЯ ПО ДИСЦИПЛИНАМ</p>
+  <h3>Следующий шаг в бассейне и на велостанке</h3>
+  <p className="detail-lead small">Шаг считает код по твоим данным. Силовые остаются в отдельной карточке — там нагрузка применяется к весам.</p>
+  {meaningful.map(item=><article key={item.discipline} className={`discipline-progression-item ${item.action}`}>
+   <header><b>{item.subject}</b><span>{ACTION_LABEL[item.action]??item.action}</span></header>
+   <p className="discipline-progression-load">{item.from}{item.to!==item.from&&<> → <strong>{item.to}</strong></>}</p>
+   <p className="discipline-progression-reason">{item.reason}</p>
+   {item.usedSignals?.length>0&&<div className="discipline-progression-signals">{item.usedSignals.map((signal:string,i:number)=><span key={i}>{signal}</span>)}</div>}
+   {item.limitedData&&<small className="discipline-progression-limited">Данных пока мало — предложение осторожное.</small>}
+  </article>)}
+ </section>;
+}
+
 export function ScheduleEditor({data,refresh}:{data:any;refresh:()=>void}){
  const notify=useToast();
  const [message,setMessage]=useState("");const plans=buildHomeWeek(data.profile?.programStart,data.profile?.trainingPlanV3StartedAt,undefined,data.profile?.trainingPlanV3CycleId).filter(x=>x.type!=="Отдых");
