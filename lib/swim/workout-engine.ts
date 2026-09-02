@@ -16,7 +16,6 @@
 import { normalizeSnapshot, type WorkoutSnapshot } from "@/lib/workout-snapshot";
 import { exerciseLabelRu, getExerciseById } from "@/lib/swim/exercise-catalog";
 import { trainingProgramRegistry } from "@/lib/training-program/registry";
-import { findWorkoutById } from "@/lib/swim/program-engine";
 import type { SwimInterval, SwimProgramDef, SwimWorkoutDef } from "@/lib/swim/types";
 
 export const SWIM_WORKOUT_TYPE_PREFIX = "Плавание";
@@ -72,9 +71,12 @@ export function buildSwimSnapshot(program: SwimProgramDef, workout: SwimWorkoutD
   // прежним: на legacy-ключах недель 1–3 висит уже записанная история, и её
   // смена осиротила бы выполненные тренировки (см. тест «Foundation Weeks 1–3
   // сохраняют существующие version 2 plan keys»).
+  // Неделя ищется прямо по определению программы, а НЕ через program-engine:
+  // тот тянет workout-plan-key → plan-key → node:crypto, а этот файл попадает
+  // в клиентский бандл через app/page.tsx. Импорт ломал сборку.
   const fallbackIdentity = baseIdentity || !cycleId ? undefined : (() => {
-    const found = findWorkoutById(program, workout.id);
-    return found ? { programId: program.id, programVersion: program.version, weekIndex: found.weekIndex, sessionId: workout.id } : undefined;
+    const weekIndex = program.weeks.find((week) => week.days.some((day) => day.workout?.id === workout.id))?.weekIndex;
+    return weekIndex === undefined ? undefined : { programId: program.id, programVersion: program.version, weekIndex, sessionId: workout.id };
   })();
   const identity = baseIdentity ?? fallbackIdentity;
   const programIdentity=identity?{...identity,...(cycleId?{cycleId}:{})}:undefined;
