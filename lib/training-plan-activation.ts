@@ -79,7 +79,10 @@ export function restartTrainingPlanV3(expectedStartedAt:string,now=new Date()):T
     if(ended!==1)return {ok:false,status:409,error:"План уже изменён. Обновите страницу и повторите."};
     const cycleId=Number(db.prepare(`INSERT INTO training_plan_cycles(program_id,program_version,started_at,restarted_from_cycle_id)
       VALUES(?,?,?,?)`).run(PROGRAM_ID,PROGRAM_VERSION,startedAt,active.id).lastInsertRowid);
-    db.prepare("UPDATE profile SET training_plan_v3_started_at=? WHERE id=1").run(startedAt);
+    // AI-14a: план общий для трёх дисциплин, поэтому перезапуск переякоривает
+    // и плавание. Иначе swim_plan_started_at остаётся на старой дате и
+    // плавательная программа продолжает свой отсчёт мимо нового цикла.
+    db.prepare("UPDATE profile SET training_plan_v3_started_at=?,swim_plan_started_at=? WHERE id=1").run(startedAt,startedAt);
     const clearedWeekChanges=db.prepare("DELETE FROM week_schedule_changes WHERE date>=?").run(startedAt).changes;
     const clearedScheduleOverrides=db.prepare("DELETE FROM schedule_overrides WHERE original_date>=? OR scheduled_date>=?").run(startedAt,startedAt).changes;
     const cancelledPlannedDrafts=db.prepare(`UPDATE workout_drafts SET status='cancelled',cancelled_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP

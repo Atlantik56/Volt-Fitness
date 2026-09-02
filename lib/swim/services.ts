@@ -170,8 +170,14 @@ export function getProgramProgress(programId: string): SwimProgramProgress | nul
   const program = getProgram(programId);
   if (!program || program.status !== "available") return null;
   const profile=getProfilePlanDates();
-  const cycleId=program.id==="endurance"?(profile.trainingPlanV3CycleId??null):null;
-  const includeUnscoped=program.id!=="endurance"||!profile.trainingPlanV3RestartedFromCycleId;
+  // AI-14a: цикл плана общий для всех дисциплин, поэтому выполнения
+  // ограничиваются им независимо от программы. Раньше это работало только для
+  // endurance, и перезапуск плана не возвращал Foundation в начало.
+  // includeUnscoped оставляет видимыми старые ключи без цикла — до первого
+  // перезапуска история продолжает засчитываться, а после него новый цикл
+  // начинается чисто, ничего не удаляя.
+  const cycleId=profile.trainingPlanV3CycleId??null;
+  const includeUnscoped=!profile.trainingPlanV3RestartedFromCycleId;
   const progress = computeProgramProgress(program, completedPlanKeys(), openDraftsByPlanKey(), completedActualsByPlanKey(),cycleId,includeUnscoped);
   return attachCalendar(progress);
 }
@@ -183,7 +189,7 @@ export function listProgramsWithProgress(): SwimProgramProgress[] {
   const profile=getProfilePlanDates();
   return listPrograms().map((program) =>
     program.status === "available"
-      ? attachCalendar(computeProgramProgress(program, completed, open, actuals,program.id==="endurance"?(profile.trainingPlanV3CycleId??null):null,program.id!=="endurance"||!profile.trainingPlanV3RestartedFromCycleId))
+      ? attachCalendar(computeProgramProgress(program, completed, open, actuals,profile.trainingPlanV3CycleId??null,!profile.trainingPlanV3RestartedFromCycleId))
       : { program, startedAt: getSwimPlanStartedAt(),planCycleId:null, completedCount: 0, totalCount: 0, currentWeekIndex: null, nextWorkout: null, workouts: [], calendarDays: [] },
   );
 }
