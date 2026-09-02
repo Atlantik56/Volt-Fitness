@@ -381,6 +381,23 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   );
   INSERT OR IGNORE INTO intervals_connection(id) VALUES(1);
  `},
+ // AI-13 — измеренные сигналы восстановления с часов (docs/AI_12_ADAPTIVE_PROGRESSION.md).
+ // Отдельно от daily_activity: там ручной ввод пользователя, здесь данные
+ // устройства. Источник хранится явно, чтобы не смешивать их в расчётах.
+ // Все метрики nullable: Garmin отдаёт разный набор в разные дни, и отсутствие
+ // значения должно читаться как «нет данных», а не как ноль.
+ {version:27,sql:`
+  CREATE TABLE IF NOT EXISTS daily_health (
+   date TEXT PRIMARY KEY,
+   sleep_seconds INTEGER,
+   sleep_score INTEGER,
+   hrv_rmssd REAL,
+   resting_hr INTEGER,
+   source TEXT NOT NULL DEFAULT 'intervals',
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  CREATE INDEX IF NOT EXISTS idx_daily_health_date ON daily_health(date DESC);
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

@@ -7,7 +7,8 @@
 // коуча — в отличие от Strava, исключённой политикой (docs/STRAVA_INTEGRATION.md).
 import { db } from "@/lib/db";
 import { importFit } from "@/lib/fit-import-service";
-import { downloadIntervalsActivityFit, IntervalsApiError, isStravaSourced, listIntervalsActivities } from "@/lib/intervals-client";
+import { downloadIntervalsActivityFit, IntervalsApiError, isStravaSourced, listIntervalsActivities, listIntervalsWellness } from "@/lib/intervals-client";
+import { buildRecoveryBaseline, evaluateRecoveryLimiter, BASELINE_WINDOW_DAYS, type RecoveryLimiter, type RecoverySample } from "@/lib/recovery-baseline";
 
 const INITIAL_LOOKBACK_DAYS=90;
 // Перекрытие на сутки: intervals.icu показывает локальные даты, а активность
@@ -118,4 +119,53 @@ export async function syncIntervalsActivities(fetcher:typeof fetch=fetch,now=new
  db.prepare("UPDATE intervals_connection SET athlete_id=?,last_synced_at=?,last_activity_date=?,status=?,last_sync_error=?,updated_at=CURRENT_TIMESTAMP WHERE id=1")
   .run(athleteId,now.toISOString(),latestDate,result.failed&&!result.imported&&!result.duplicates?"sync_error":"ok",result.errors.slice(0,3).join("; ").slice(0,400));
  return result;
+}
+
+// ---------- AI-13: измеренные сигналы восстановления ----------
+
+const WELLNESS_LOOKBACK_DAYS=60;
+
+export type IntervalsWellnessSyncResult={considered:number;stored:number;empty:number};
+
+/**
+ * Забор wellness и запись в daily_health. Пустые дни не сохраняются: строка
+ * без единой метрики неотличима от отсутствия данных, но мешает считать
+ * достаточность базовой линии.
+ */
+export async function syncIntervalsWellness(fetcher:typeof fetch=fetch,now=new Date()):Promise<IntervalsWellnessSyncResult>{
+ const {apiKey,athleteId}=getIntervalsConfig();
+ const records=await listIntervalsWellness(apiKey,athleteId,{
+  oldest:isoDay(shiftDays(now,-WELLNESS_LOOKBACK_DAYS)),newest:isoDay(now),
+ },fetcher);
+ const upsert=db.prepare(`INSERT INTO daily_health(date,sleep_seconds,sleep_score,hrv_rmssd,resting_hr,source,updated_at)
+  VALUES(?,?,?,?,?,'intervals',CURRENT_TIMESTAMP)
+  ON CONFLICT(date) DO UPDATE SET sleep_seconds=excluded.sleep_seconds,sleep_score=excluded.sleep_score,
+   hrv_rmssd=excluded.hrv_rmssd,resting_hr=excluded.resting_hr,updated_at=CURRENT_TIMESTAMP`);
+ const result:IntervalsWellnessSyncResult={considered:records.length,stored:0,empty:0};
+ const write=db.transaction((rows:typeof records)=>{
+  for(const row of rows){
+   if(row.sleepSeconds===null&&row.sleepScore===null&&row.hrvRmssd===null&&row.restingHr===null){result.empty++;continue}
+   upsert.run(row.date,row.sleepSeconds,row.sleepScore,row.hrvRmssd,row.restingHr);
+   result.stored++;
+  }
+ });
+ write(records);
+ return result;
+}
+
+const healthSelect="SELECT date,sleep_seconds sleepSeconds,hrv_rmssd hrvRmssd,resting_hr restingHr FROM daily_health";
+
+/** Измеренный сон за дату в часах; null — данных нет, вызывающий берёт самоотчёт. */
+export function measuredSleepHours(date:string):number|null{
+ const row=db.prepare(`${healthSelect} WHERE date=?`).get(date) as RecoverySample|undefined;
+ return row?.sleepSeconds?row.sleepSeconds/3600:null;
+}
+
+/** Ограничитель роста нагрузки на дату — вход для движка прогрессии (AI-14). */
+export function recoveryLimiterForDate(date:string):RecoveryLimiter{
+ const samples=db.prepare(`${healthSelect} WHERE date<=? AND date>date(?, '-${BASELINE_WINDOW_DAYS} days') ORDER BY date DESC`).all(date,date) as RecoverySample[];
+ const today=samples.find(sample=>sample.date===date)??null;
+ // Базовая линия строится по дням ДО текущего: сегодняшний провал не должен
+ // сам себя усреднять и тем самым маскироваться.
+ return evaluateRecoveryLimiter(today,buildRecoveryBaseline(samples.filter(sample=>sample.date!==date)));
 }

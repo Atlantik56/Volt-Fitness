@@ -31,6 +31,10 @@ export async function GET(){
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
  const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters,sleep_start sleepStart,sleep_end sleepEnd,sleep_minutes sleepMinutes,sleep_quality sleepQuality,water_logged waterLogged,alcohol_type alcoholType,alcohol_servings alcoholServings,alcohol_serving_volume_ml alcoholServingVolumeMl,alcohol_relative_amount alcoholRelativeAmount,alcohol_logged alcoholLogged,day_factor dayFactor,day_factor_note dayFactorNote FROM daily_activity ORDER BY date DESC LIMIT 400").all();
+ // AI-13: измеренные с часов сигналы восстановления. Отдаются отдельным полем,
+ // а не подмешиваются в activity: там ручной ввод пользователя, и смешивать
+ // источники в одном массиве значило бы терять происхождение данных.
+ const dailyHealth=db.prepare("SELECT date,sleep_seconds sleepSeconds,sleep_score sleepScore,hrv_rmssd hrvRmssd,resting_hr restingHr FROM daily_health ORDER BY date DESC LIMIT 120").all();
  const foodLogs=(db.prepare("SELECT id,date,meal_type mealType,items_json itemsJson,calories,protein,fat,carbs,note,created_at createdAt FROM food_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,items:JSON.parse(x.itemsJson),itemsJson:undefined}));
  const moodLogs=db.prepare("SELECT id,date,mood,note,created_at createdAt FROM mood_logs ORDER BY created_at DESC,id DESC LIMIT 30").all();
  const strengthLogs=db.prepare("SELECT id,date,exercise,weight,reps,difficulty,created_at createdAt FROM strength_logs ORDER BY date DESC,id DESC LIMIT 300").all();
@@ -57,7 +61,7 @@ export async function GET(){
  const analyticsFrom=new Date();analyticsFrom.setFullYear(analyticsFrom.getFullYear()-1);
  const weekScheduleChanges=listWeekScheduleChanges(weekLocalIso(analyticsFrom),sundayIso);
  const analytics=buildAnalyticsBundle();
- return Response.json({profile,workouts,workoutDrafts,measurements,activity,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){

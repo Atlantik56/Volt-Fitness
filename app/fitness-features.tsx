@@ -19,7 +19,11 @@ const READINESS_ASSESSMENT:Record<"good"|"low"|"stop",{title:string;text:string}
 
 export function Readiness({data,refresh}:{data:any;refresh:()=>void}){
  const notify=useToast();
- const today=iso(new Date()), current=(data.wellnessLogs||[]).find((x:any)=>x.date===today)||{}, sleep=Number((data.activity||[]).find((x:any)=>x.date===today)?.sleepHours)||0;
+ const today=iso(new Date()), current=(data.wellnessLogs||[]).find((x:any)=>x.date===today)||{};
+ // AI-13: сон с часов приоритетнее самоотчёта, но не заменяет его — при
+ // отсутствии измерения поведение прежнее (docs/AI_12_ADAPTIVE_PROGRESSION.md).
+ const measuredSleepSeconds=Number((data.dailyHealth||[]).find((x:any)=>x.date===today)?.sleepSeconds)||0;
+ const sleep=measuredSleepSeconds>0?measuredSleepSeconds/3600:Number((data.activity||[]).find((x:any)=>x.date===today)?.sleepHours)||0;
  const energy=Number(current.energy||3), pain=Number(current.pain||0), last=(data.workouts||[])[0];
  const {score,decision}=calculateReadiness({sleepHours:sleep,energy,pain,lastWorkoutPain:Number(last?.painAfter)||0});
  const assessment=READINESS_ASSESSMENT[decision.tone];

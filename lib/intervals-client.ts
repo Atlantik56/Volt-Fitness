@@ -4,6 +4,7 @@
 export const INTERVALS_API_BASE="https://intervals.icu/api/v1";
 
 export type IntervalsActivity={id:string;startDateLocal:string|null;type:string|null;name:string|null;source:string|null};
+export type IntervalsWellness={date:string;sleepSeconds:number|null;sleepScore:number|null;hrvRmssd:number|null;restingHr:number|null};
 
 /**
  * Активности, пришедшие в intervals.icu из Strava, недоступны через её API:
@@ -99,4 +100,36 @@ export async function downloadIntervalsActivityFit(
  const bytes=new Uint8Array(await response.arrayBuffer());
  if(!bytes.length)throw new IntervalsApiError("intervals.icu вернул пустой файл активности",502);
  return {bytes,original};
+}
+
+const numeric=(value:unknown,min:number,max:number):number|null=>{
+ const raw=typeof value==="number"?value:typeof value==="string"?Number(value):NaN;
+ return Number.isFinite(raw)&&raw>=min&&raw<=max?raw:null;
+};
+
+/**
+ * Wellness за диапазон дат. Пустые поля приходят как null и означают «нет
+ * данных за этот день», а не ноль: Garmin отдаёт разный набор в разные дни.
+ */
+export async function listIntervalsWellness(
+ apiKey:string,athleteId:string,range:{oldest:string;newest:string},fetcher:typeof fetch=fetch,
+):Promise<IntervalsWellness[]>{
+ const query=new URLSearchParams({oldest:range.oldest,newest:range.newest});
+ const response=await request(`/athlete/${encodeURIComponent(athleteId)}/wellness.json?${query}`,apiKey,fetcher);
+ let payload:unknown;
+ try{payload=await response.json()}catch{throw new IntervalsApiError("intervals.icu вернул некорректный JSON",502)}
+ if(!Array.isArray(payload))throw new IntervalsApiError("intervals.icu вернул неожиданный формат wellness",502);
+ const records:IntervalsWellness[]=[];
+ for(const raw of payload as any[]){
+  const date=typeof raw?.id==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(raw.id)?raw.id:null;
+  if(!date)continue;
+  records.push({
+   date,
+   sleepSeconds:numeric(raw?.sleepSecs,1,86_400),
+   sleepScore:numeric(raw?.sleepScore,0,100),
+   hrvRmssd:numeric(raw?.hrv,1,500),
+   restingHr:numeric(raw?.restingHR,20,200),
+  });
+ }
+ return records;
 }

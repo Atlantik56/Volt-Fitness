@@ -14,13 +14,15 @@ export async function register() {
   // базовый путь доставки: он не зависит от вебхуков и переживает простои.
   // Ошибки намеренно проглатываются: недоступность intervals.icu не должна
   // влиять на работу приложения, состояние видно в статусе интеграции.
-  const { isIntervalsConfigured, syncIntervalsActivities } = await import("./lib/intervals-service");
+  const { isIntervalsConfigured, syncIntervalsActivities, syncIntervalsWellness } = await import("./lib/intervals-service");
   if (!isIntervalsConfigured()) return;
   let syncing = false;
   const sync = () => {
     if (syncing) return;
     syncing = true;
-    syncIntervalsActivities().catch(() => {}).finally(() => { syncing = false; });
+    // Тренировки и wellness тянутся независимо: сбой одного не должен лишать
+    // приложение другого. Сон и ВСР нужны ограничителю роста нагрузки (AI-13).
+    Promise.allSettled([syncIntervalsActivities(), syncIntervalsWellness()]).finally(() => { syncing = false; });
   };
   setInterval(sync, INTERVALS_SYNC_INTERVAL_MS);
   sync();
