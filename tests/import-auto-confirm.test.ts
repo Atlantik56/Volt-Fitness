@@ -9,9 +9,11 @@ test.after(() => mock.timers.reset());
 
 process.env.DATA_DIR = mkdtempSync(path.join(tmpdir(), "volt-auto-confirm-"));
 const { db } = await import("@/lib/db.ts");
-const { autoConfirmImport, AUTO_CONFIRM_MAX_AGE_DAYS, importLocalDate } = await import("@/lib/import-auto-confirm.ts");
+const { autoConfirmImport, previewHistoricalImports, AUTO_CONFIRM_MAX_AGE_DAYS, importLocalDate } = await import("@/lib/import-auto-confirm.ts");
 
 db.prepare("UPDATE profile SET program_start=?,swim_plan_started_at=? WHERE id=1").run("2026-07-21", "2026-08-10");
+db.prepare(`INSERT INTO training_plan_cycles(program_id,program_version,started_at)
+  VALUES('volt-training',4,'2026-08-31')`).run();
 
 let seq = 0;
 function addImport(over: { date: string; type: string; duration: number; distance?: number }) {
@@ -27,15 +29,15 @@ function addImport(over: { date: string; type: string; duration: number; distanc
 const historyCount = () => (db.prepare("SELECT COUNT(*) c FROM workout_logs").get() as any).c;
 
 test("a fresh swim on a planned swim day is confirmed automatically", () => {
-  // 2026-09-02 — среда, в плане плавание.
-  const id = addImport({ date: "2026-09-02", type: "swim", duration: 2500 });
+  // 2026-09-04 — пятница, в Plan 4.0 плавание.
+  const id = addImport({ date: "2026-09-04", type: "swim", duration: 2500 });
   const before = historyCount();
   const result = autoConfirmImport(id) as any;
   assert.equal(result.confirmed, true, result.reason);
   assert.equal(historyCount(), before + 1);
 
   const log = db.prepare("SELECT date,duration_seconds d,avg_heart_rate hr,metrics_source ms FROM workout_logs ORDER BY id DESC LIMIT 1").get() as any;
-  assert.equal(log.date, "2026-09-02");
+  assert.equal(log.date, "2026-09-04");
   assert.equal(log.d, 2500, "длительность взята из импорта, а не из плана");
   assert.equal(log.hr, 140);
   assert.equal(log.ms, "imported_metric");
@@ -51,7 +53,7 @@ test("running it twice does not create a second workout", () => {
 });
 
 test("a discipline the day does not plan is left for manual review", () => {
-  const id = addImport({ date: "2026-09-02", type: "bike", duration: 2000 });
+  const id = addImport({ date: "2026-09-04", type: "bike", duration: 2000 });
   const result = autoConfirmImport(id) as any;
   assert.equal(result.confirmed, false);
   assert.match(result.reason, /нет тренировки дисциплины/);
@@ -72,6 +74,23 @@ test("old imports are never backfilled silently", () => {
   assert.equal(result.confirmed, false);
   assert.match(result.reason, new RegExp(`старше ${AUTO_CONFIRM_MAX_AGE_DAYS}`));
   assert.equal(historyCount(), before, "историю задним числом не переписываем");
+});
+
+test("old imports get a read-only legacy-slot and conflict preview without writes", () => {
+  const date = "2026-07-22";
+  const title = "Гантели по кругу";
+  db.prepare("INSERT INTO workout_logs(date,type,title,duration_seconds) VALUES(?, 'Силовая', ?, 2400)").run(date, title);
+  const id = addImport({ date, type: "strength", duration: 2400 });
+  const draftsBefore = (db.prepare("SELECT COUNT(*) count FROM workout_drafts").get() as any).count;
+  const linksBefore = (db.prepare("SELECT COUNT(*) count FROM workout_imports WHERE draft_id IS NOT NULL").get() as any).count;
+  const preview = previewHistoricalImports(new Date("2026-09-02T20:00:00Z"), 50).find((item:any) => item.importId === id)!;
+  assert.ok(preview);
+  assert.equal(preview.scheduledTitle, title);
+  assert.equal(preview.programVersion, null, "legacy preview must not invent a cycle identity");
+  assert.equal(preview.existingWorkoutConflict, true);
+  assert.equal(preview.eligible, false);
+  assert.equal((db.prepare("SELECT COUNT(*) count FROM workout_drafts").get() as any).count, draftsBefore);
+  assert.equal((db.prepare("SELECT COUNT(*) count FROM workout_imports WHERE draft_id IS NOT NULL").get() as any).count, linksBefore);
 });
 
 test("the local date comes from the file, not from the UTC timestamp", () => {

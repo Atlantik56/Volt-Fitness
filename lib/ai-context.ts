@@ -10,6 +10,7 @@ import { findEveningPatterns } from "./evening.ts";
 import { selectActiveProgramStage, type AiCoachContextData, type PersonalRecordRow } from "./ai-context-data.ts";
 import { toLlmSafeMilestone, type Milestone, type MilestoneLlmSafe } from "./milestones.ts";
 import { WEEK_SCHEDULE_REASON_LABELS, type WeekScheduleReasonCode } from "../app/week-schedule-model.ts";
+import { resolveActiveProgramPosition } from "./training-program/registry.ts";
 
 // Заметка самочувствия/настроения — пользовательский текст, а не системная
 // инструкция. Убираем управляющие символы (в т.ч. не покрытые \s — например ANSI-
@@ -68,6 +69,7 @@ export type AiCoachContext={
   date:string;
   profile:{name:string;height:number|null;startWeight:number|null;targetWeight:number|null};
   programWeek:number;
+  activeProgramVersion:number|null;
   phase:{p:string;n:string;g:string};
   poolActive:boolean;
   weight:CoachResult["summary"]["weight"];
@@ -112,8 +114,11 @@ export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
   const moodLogs=(input.moodLogs??[]) as any[];
   const wellnessLogs=(input.wellnessLogs??[]) as any[];
   const programStages=input.programStages??[];
-  const programWeek=currentProgramWeek(input.profile?.programStart,input.profile?.trainingPlanV3StartedAt);
-  const phase=phases.find((candidate)=>programWeek>=candidate.startWeek&&programWeek<=candidate.endWeek)??phases.at(-1)!;
+  const activeCycle=input.profile?.activeTrainingPlanCycle??null;
+  const activePosition=resolveActiveProgramPosition(activeCycle,input.date);
+  const programWeek=activePosition?.weekIndex??currentProgramWeek(input.profile?.programStart,activeCycle??input.profile?.trainingPlanV3StartedAt);
+  const phaseWeek=activePosition?.definitionWeekIndex??programWeek;
+  const phase=phases.find((candidate)=>phaseWeek>=candidate.startWeek&&phaseWeek<=candidate.endWeek)??phases.at(-1)!;
 
   const wellnessToday=wellnessLogs.find((w:any)=>w?.date===input.date)??null;
   const wellnessNoteText=wellnessToday?normalizeUserNote(wellnessToday.note):null;
@@ -156,12 +161,13 @@ export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
       targetWeight:Number(input.profile?.targetWeight)||null,
     },
     programWeek,
+    activeProgramVersion:activeCycle?.programVersion??null,
     phase:{p:phase.p,n:phase.n,g:phase.g},
     // Фаза «Недели 1–3» — статичная метка, охватывающая все три недели сразу; сама по
     // себе она не говорит модели, что бассейн по вторникам/четвергам уже подключился со
     // 2-й недели (см. app/personal-data.ts, buildHomeWeek) — без этого явного факта
     // модель либо гадает, либо отрицает бассейн даже когда он уже есть в плане.
-    poolActive:programWeek>1,
+    poolActive:activeCycle?activeCycle.programVersion>=2:programWeek>1,
     weight:result.summary.weight,
     weightWeekly:computeWeightWeeklyTrend(measurements,input.date),
     nutritionToday:result.summary.nutrition,
@@ -211,7 +217,9 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
   if(ctx.planChanged&&ctx.originalPlan)lines.push(`Пользователь изменил план на сегодня в приложении: исходно по программе было «${ctx.originalPlan.title}» (${ctx.originalPlan.type}), сейчас действует «${ctx.plan?.title??"—"}» (${ctx.plan?.type??"—"}). Считай действующим именно текущий план и не называй его пропуском исходного. Причина изменения: ${ctx.changeReasonCode?WEEK_SCHEDULE_REASON_LABELS[ctx.changeReasonCode as WeekScheduleReasonCode]?.toLowerCase()??"не указана":"не указана — не придумывай её"}.`);
   lines.push(`Фаза программы (неделя ${ctx.programWeek}): «${ctx.phase.p}» — ${ctx.phase.n}. Цель фазы: ${ctx.phase.g}.`);
   if(ctx.programStage.source==="program_stage")lines.push(`Фактический этап программы (из журнала пользователя, приоритетнее общей фазы выше): «${ctx.programStage.title}». Цель этапа: ${ctx.programStage.goal||"не указана"}.`);
-  lines.push(ctx.poolActive?"Бассейн по вторникам и четвергам уже включён в план (действует со 2-й недели программы) вместо ходьбы/велосипеда.":"Бассейн по вторникам и четвергам в план ещё не включён — начнётся со 2-й недели программы; сейчас в эти дни ходьба или велосипед.");
+  if(ctx.activeProgramVersion===4)lines.push("Активен Plan 4.0: Swim по понедельникам и пятницам; пятничная роль чередуется по неделям, а замена на Bike возможна только после явного выбора владельца.");
+  else if(ctx.activeProgramVersion===3)lines.push("Активен архивный по определению Plan 3.0: три Swim-сессии и один спокойный Bike-слот в неделю.");
+  else lines.push(ctx.poolActive?"Бассейн по вторникам и четвергам уже включён в legacy-план.":"Бассейн в legacy-план ещё не включён.");
   lines.push(`Ограничение по здоровью: ${safety}`);
   lines.push(`Принципы программы: ${rules.join("; ")}.`);
   if(ctx.wellness)lines.push(`Самочувствие сегодня: энергия ${ctx.wellness.energy??"не указана"}/5, боль ${ctx.wellness.pain??"не указана"}/10${ctx.wellness.painArea?`, область боли: ${ctx.wellness.painArea}`:""}.`);

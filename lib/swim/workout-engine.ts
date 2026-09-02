@@ -16,6 +16,7 @@
 import { normalizeSnapshot, type WorkoutSnapshot } from "@/lib/workout-snapshot";
 import { exerciseLabelRu, getExerciseById } from "@/lib/swim/exercise-catalog";
 import { trainingProgramRegistry } from "@/lib/training-program/registry";
+import type { TrainingPlanCycle } from "@/lib/training-program/types";
 import type { SwimInterval, SwimProgramDef, SwimWorkoutDef } from "@/lib/swim/types";
 
 export const SWIM_WORKOUT_TYPE_PREFIX = "Плавание";
@@ -60,8 +61,13 @@ export function swimWorkoutType(program: Pick<SwimProgramDef, "version">): strin
   return `${SWIM_WORKOUT_TYPE_PREFIX} v${program.version}`;
 }
 
-export function buildSwimSnapshot(program: SwimProgramDef, workout: SwimWorkoutDef, cycleId?:number|null): WorkoutSnapshot | null {
-  const baseIdentity = trainingProgramRegistry.identityForSwimWorkout(program.id, program.version, workout.id) ?? undefined;
+export function buildSwimSnapshot(program: SwimProgramDef, workout: SwimWorkoutDef, cycle?:number|TrainingPlanCycle|null): WorkoutSnapshot | null {
+  const cycleId=typeof cycle==="number"?cycle:cycle?.id??null;
+  const baseIdentity = trainingProgramRegistry.identityForSwimWorkout(
+    program.id,program.version,workout.id,
+    typeof cycle==="object"&&cycle?cycle.programId:undefined,
+    typeof cycle==="object"&&cycle?cycle.programVersion:undefined,
+  ) ?? undefined;
   // Недели 1–3 Foundation не упоминаются ни одной версией плана VOLT, поэтому
   // реестр не выдаёт им идентичности — и plan_key выходил независимым от цикла.
   // Из-за этого перезапуск плана не обнулял по ним счёт: выполнение продолжало

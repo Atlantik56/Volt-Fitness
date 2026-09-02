@@ -11,6 +11,7 @@ export const CYCLING_LOAD_FEEDBACK_LABELS: Record<Exclude<CyclingLoadFeedback, "
 
 type CyclingCandidate = {
   id?: unknown;
+  discipline?: unknown;
   type?: unknown;
   title?: unknown;
   name?: unknown;
@@ -27,7 +28,8 @@ const normalizedText = (value: unknown) =>
 export function isCyclingSlot(candidate: CyclingCandidate | string | null | undefined): boolean {
   if (typeof candidate === "string") return isCyclingText(candidate);
   if (!candidate) return false;
-  if (normalizedText(candidate.id) === CYCLING_SLOT_ID) return true;
+  if (normalizedText(candidate.discipline) === "bike") return true;
+  if (normalizedText(candidate.id).startsWith("bike-")) return true;
   return isCyclingText([candidate.type, candidate.title, candidate.name].filter(Boolean).join(" "));
 }
 

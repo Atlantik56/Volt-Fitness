@@ -8,7 +8,11 @@ export type SnapshotExercise = { name: string; order: number; target: string; re
 export type WorkoutSnapshotOrigin = "original" | "scheduled";
 import type { TrainingProgramIdentity } from "@/lib/training-program/types";
 
-export type WorkoutSnapshot = { title: string; type: string; rounds: number; exercises: SnapshotExercise[]; origin: WorkoutSnapshotOrigin; scheduleChangeId: number | null; programIdentity?: TrainingProgramIdentity };
+export type WorkoutSnapshot = {
+  title:string;type:string;rounds:number;exercises:SnapshotExercise[];origin:WorkoutSnapshotOrigin;
+  scheduledFor:string|null;scheduleChangeId:number|null;changeReasonCode:string;
+  programIdentity?:TrainingProgramIdentity;
+};
 
 const text = (x: unknown, max = 160) => (typeof x === "string" ? x.trim().slice(0, max) : "");
 const finite = (x: unknown, min: number, max: number) => {
@@ -36,12 +40,16 @@ export function normalizeSnapshot(raw: any): WorkoutSnapshot | null {
     exercises.push({ name, order: i, target, recommendedWeight: weight, ...parseTarget(target) });
   }
   const origin: WorkoutSnapshotOrigin = raw?.origin === "scheduled" ? "scheduled" : "original";
+  const scheduledFor=typeof raw?.scheduledFor==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(raw.scheduledFor)?raw.scheduledFor:null;
   const scheduleChangeId = Number.isSafeInteger(raw?.scheduleChangeId) && raw.scheduleChangeId > 0 ? raw.scheduleChangeId : null;
+  const allowedReasons=new Set(["mood","fatigue","pain","no_equipment","weather","schedule","other"]);
+  const changeReasonCode=allowedReasons.has(raw?.changeReasonCode)?String(raw.changeReasonCode):"";
   const identity = raw?.programIdentity;
   const programIdentity = identity && text(identity.programId, 80) && Number.isInteger(identity.programVersion) && identity.programVersion > 0
     && Number.isInteger(identity.weekIndex) && identity.weekIndex > 0 && text(identity.sessionId, 100)
     ? { programId: text(identity.programId, 80), programVersion: identity.programVersion, weekIndex: identity.weekIndex, sessionId: text(identity.sessionId, 100),
         ...(Number.isInteger(identity.cycleId) && identity.cycleId > 0 ? { cycleId: identity.cycleId } : {}) }
     : null;
-  return programIdentity ? { title, type, rounds, exercises, origin, scheduleChangeId, programIdentity } : { title, type, rounds, exercises, origin, scheduleChangeId };
+  const normalized={title,type,rounds,exercises,origin,scheduledFor,scheduleChangeId,changeReasonCode};
+  return programIdentity?{...normalized,programIdentity}:normalized;
 }

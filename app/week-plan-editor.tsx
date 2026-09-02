@@ -10,11 +10,11 @@ import { useToast } from "./toast";
 import {
   WEEK_SCHEDULE_REASON_CODES, WEEK_SCHEDULE_REASON_LABELS,
   previewReplaceText, previewSwapText, previewRestText,
-  type HomeWeekDay, type ResolvedDayPlan, type WeekScheduleReasonCode,
+  sessionsForDay, type HomeWeekDay, type ResolvedDayPlan, type WeekScheduleReasonCode,
 } from "./week-schedule-model";
 import { trainingLabelRu } from "../lib/training-display";
 
-type Mode = "replace" | "swap" | "rest";
+type Mode = "alternative" | "replace" | "swap" | "rest";
 
 const post = (body: Record<string, unknown>) =>
   fetch("/api/fitness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
@@ -36,6 +36,7 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
   const [reasonCode, setReasonCode] = useState<WeekScheduleReasonCode>("");
   const [targetDay, setTargetSourceDay] = useState<number>(homeWeek.find(x => x.type !== "Отдых" && x.day !== day.weekday)?.day ?? homeWeek[0].day);
   const [swapDate, setSwapDate] = useState<string>(weekDays.find(x => x.date !== day.date && !x.locked?.completed && !x.locked?.openDraft)?.date ?? "");
+  const [alternativeSessionId,setAlternativeSessionId]=useState<string>(day.original.alternatives?.[0]?.id??"");
   const [busy, setBusy] = useState(false);
 
   // Каталог тренировок недели для замены — без дублей по названию, только
@@ -48,7 +49,14 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
   const swapCandidates = weekDays.filter(x => x.date !== day.date);
   const locked = day.locked;
 
-  const preview = mode === "replace"
+  const selectedAlternative=day.original.alternatives?.find(item=>item.id===alternativeSessionId)??null;
+  const swimCountAfterAlternative=weekDays.reduce((count,weekDay)=>count+(weekDay.date===day.date?0:sessionsForDay(weekDay.scheduled).filter(session=>session.discipline==="swim").length),0)
+    +(selectedAlternative?.discipline==="swim"?1:0);
+  const swimCountLabel=swimCountAfterAlternative===1?"одно плавание":swimCountAfterAlternative>=2&&swimCountAfterAlternative<=4
+    ?`${swimCountAfterAlternative} плавания`:`${swimCountAfterAlternative} плаваний`;
+  const preview = mode === "alternative"&&selectedAlternative
+    ? `${day.original.d} — ${trainingLabelRu(selectedAlternative.title)}. После замены в этой неделе останется ${swimCountLabel}.`
+    : mode === "replace"
     ? previewReplaceText(day.original.d, trainingLabelRu(catalog.find(x => x.day === targetDay)?.title ?? ""))
     : mode === "rest"
     ? previewRestText(day.original.d)
@@ -60,7 +68,8 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
     if (!mode) return;
     setBusy(true);
     try {
-      const body = mode === "replace" ? { action: "weekScheduleReplace", date: day.date, assignedSourceDay: targetDay, reasonCode }
+      const body = mode === "alternative" ? {action:"weekScheduleAlternative",date:day.date,alternativeSessionId,reasonCode}
+        : mode === "replace" ? { action: "weekScheduleReplace", date: day.date, assignedSourceDay: targetDay, reasonCode }
         : mode === "rest" ? { action: "weekScheduleRest", date: day.date, reasonCode }
         : { action: "weekScheduleSwap", dateA: day.date, dateB: swapDate, reasonCode };
       const r = await post(body);
@@ -103,6 +112,7 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
 
       {!locked?.anyCompleted && !locked?.openDraft && <>
         <div className="week-plan-editor-actions" role="group" aria-label="Действие">
+          {!!day.original.alternatives?.length&&<button type="button" className={mode === "alternative" ? "active" : ""} onClick={() => setMode("alternative")}>Выбрать альтернативу слота</button>}
           <button type="button" className={mode === "replace" ? "active" : ""} onClick={() => setMode("replace")}>Заменить тренировку</button>
           <button type="button" className={mode === "swap" ? "active" : ""} onClick={() => setMode("swap")}>Поменять с другим днём</button>
           <button type="button" className={mode === "rest" ? "active" : ""} onClick={() => setMode("rest")}>Назначить отдых</button>
@@ -111,6 +121,10 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
         {mode === "replace" && <label>Новая тренировка<select value={targetDay} onChange={e => setTargetSourceDay(Number(e.target.value))}>
           {catalog.filter(x => x.type !== "Отдых").map(x => <option key={x.day} value={x.day}>{trainingLabelRu(x.title)}</option>)}
         </select></label>}
+
+        {mode === "alternative"&&<label>Альтернатива пятничного слота<select value={alternativeSessionId} onChange={e=>setAlternativeSessionId(e.target.value)}>
+          {day.original.alternatives?.map(item=><option key={item.id} value={item.id}>{trainingLabelRu(item.title)}</option>)}
+        </select><small>Это явная замена Swim на Bike только для выбранной даты. Автоматически дисциплина не меняется.</small></label>}
 
         {mode === "swap" && <label>Поменять с<select value={swapDate} onChange={e => setSwapDate(e.target.value)}>
           {swapCandidates.map(x => <option key={x.date} value={x.date} disabled={x.locked?.completed || x.locked?.openDraft}>
@@ -129,7 +143,7 @@ export function WeekPlanEditor({ day, weekDays, homeWeek, onClose, refresh }: {
             {day.changed && <button type="button" className="ghost-btn" disabled={busy} onClick={cancelChange}>Отменить это изменение</button>}
             <button type="button" className="ghost-btn" disabled={busy} onClick={resetWeek}>Сбросить всю неделю</button>
           </div>
-          <button type="button" disabled={busy || !mode || (mode === "swap" && !swapDate)} onClick={save}>{busy ? "Сохраняю…" : "Сохранить"}</button>
+          <button type="button" disabled={busy || !mode || (mode === "swap" && !swapDate)||(mode==="alternative"&&!alternativeSessionId)} onClick={save}>{busy ? "Сохраняю…" : "Сохранить"}</button>
         </footer>
       </>}
     </section>

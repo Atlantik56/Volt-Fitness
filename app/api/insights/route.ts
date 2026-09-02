@@ -13,6 +13,9 @@ import { filterVisibleInsights, markInsightsShown, dismissInsightRecord } from "
 import { buildHomeWeek } from "../../personal-data";
 import { COACH_TARGETS } from "@/lib/coach";
 import type { Insight } from "@/lib/insights/types";
+import { getTrainingPlanCycles } from "@/lib/training-plan-activation";
+import { listWeekScheduleChanges } from "@/lib/week-schedule-service";
+import { buildWeekSchedule, sessionsForDay, weekRangeContaining } from "@/app/week-schedule-model";
 
 export const runtime = "nodejs";
 
@@ -22,8 +25,8 @@ type Surface = (typeof SURFACES)[number];
 
 function buildCandidates(surface: Surface, date: string): Insight[] {
   if (surface === "card") {
-    const profile = db.prepare(`SELECT program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt, target_weight targetWeight,
-      (SELECT id FROM training_plan_cycles WHERE program_id='volt-training' AND program_version=3 AND ended_at IS NULL ORDER BY id DESC LIMIT 1) trainingPlanV3CycleId FROM profile WHERE id=1`).get() as any;
+    const profile = db.prepare("SELECT program_start programStart,target_weight targetWeight FROM profile WHERE id=1").get() as any;
+    const trainingPlanCycles=getTrainingPlanCycles();
     const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
     const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
     const workouts = db.prepare("SELECT date,type,title FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC,id DESC LIMIT 200").all(date) as any[];
@@ -33,7 +36,11 @@ function buildCandidates(surface: Surface, date: string): Insight[] {
     ).all(date, date) as any[];
     const moodLogs = db.prepare("SELECT id,date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
     const activity = db.prepare("SELECT date,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
-    const planDays = buildHomeWeek(profile?.programStart,profile?.trainingPlanV3StartedAt,date,profile?.trainingPlanV3CycleId).map((d: any) => ({ day: d.day, type: d.type }));
+    const {mondayIso,sundayIso}=weekRangeContaining(date);
+    const planDays = buildWeekSchedule(
+      buildHomeWeek(profile?.programStart,trainingPlanCycles,date),
+      listWeekScheduleChanges(mondayIso,sundayIso),mondayIso,
+    ).flatMap((day)=>sessionsForDay(day.scheduled).map((session)=>({day:day.weekday,type:session.type})));
     return buildCardInsights({
       date, measurements, workouts, foodLogs, strengthLogs, planDays, scheduleOverrides,
       targets: { calories: COACH_TARGETS.calories, protein: COACH_TARGETS.protein },

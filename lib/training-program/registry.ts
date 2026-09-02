@@ -5,6 +5,7 @@ import type {
   TrainingProgramIdentity,
   TrainingSessionDefinition,
   TrainingWeekDefinition,
+  TrainingPlanCycle,
 } from "@/lib/training-program/types";
 
 function assertProgram(program: TrainingProgramDefinition): void {
@@ -74,8 +75,8 @@ export class TrainingProgramRegistry {
     return session ? { program, week, session } : null;
   }
 
-  identityForSwimWorkout(programId: string, programVersion: number, workoutId: string): TrainingProgramIdentity | null {
-    for (const program of this.programs) {
+  identityForSwimWorkout(programId: string, programVersion: number, workoutId: string,ownerProgramId?:string,ownerProgramVersion?:number): TrainingProgramIdentity | null {
+    for (const program of this.programs.filter(candidate=>(ownerProgramId===undefined||candidate.id===ownerProgramId)&&(ownerProgramVersion===undefined||candidate.version===ownerProgramVersion))) {
       for (const week of program.weeks) {
         const session = week.sessions.find((candidate) => candidate.workoutRef.kind === "swim"
           && candidate.workoutRef.programId === programId && candidate.workoutRef.programVersion === programVersion
@@ -104,7 +105,7 @@ export type ActivatedPlanPosition = {
   definitionWeekIndex: number;
 };
 
-export function activatedPlanPosition(startedAt: string | null | undefined, dateIso: string, definitionWeekOffset = 8): ActivatedPlanPosition | null {
+export function activatedPlanPosition(startedAt: string | null | undefined, dateIso: string, definitionWeekOffset: number): ActivatedPlanPosition | null {
   if (!startedAt || !/^\d{4}-\d{2}-\d{2}$/.test(startedAt) || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return null;
   const startMs = Date.parse(`${startedAt}T00:00:00Z`);
   const dateMs = Date.parse(`${dateIso}T00:00:00Z`);
@@ -115,6 +116,21 @@ export function activatedPlanPosition(startedAt: string | null | undefined, date
   const dateMondayMs = dateMs - (isoWeekday(dateMs) - 1) * 86_400_000;
   const weekIndex = Math.floor((dateMondayMs - startMondayMs) / (7 * 86_400_000)) + 1;
   return { weekIndex, dayIndex: isoWeekday(dateMs), elapsedDays, definitionWeekIndex: definitionWeekOffset + weekIndex };
+}
+
+export function resolveActiveProgramPosition(cycle: TrainingPlanCycle | null | undefined, dateIso: string): ActivatedPlanPosition | null {
+  if (!cycle || (cycle.endedAt && dateIso > cycle.endedAt)) return null;
+  const program = trainingProgramRegistry.programs.find((candidate) =>
+    candidate.id === cycle.programId && candidate.version === cycle.programVersion,
+  );
+  if (!program) return null;
+  return activatedPlanPosition(cycle.startedAt, dateIso, program.effectiveFromWeek - 1);
+}
+
+export function trainingPlanCycleForDate(cycles: readonly TrainingPlanCycle[] | null | undefined, dateIso: string): TrainingPlanCycle | null {
+  return [...(cycles ?? [])]
+    .filter((cycle) => cycle.startedAt <= dateIso && (!cycle.endedAt || cycle.endedAt >= dateIso))
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt) || b.id - a.id)[0] ?? null;
 }
 
 export function programWeekForDate(programStart: string | undefined, dateIso: string): number {

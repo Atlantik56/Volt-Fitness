@@ -5,6 +5,7 @@
 // компактная LLM-проекция находятся в lib/ai-context.ts.
 import type Database from "better-sqlite3";
 import { buildAutomaticMilestones, type Milestone } from "./milestones.ts";
+import type { TrainingPlanCycle } from "./training-program/types.ts";
 
 // Поля отмечены опциональными, а не строго обязательными: сама БД (lib/db.ts)
 // хранит их с NOT NULL DEFAULT и всегда возвращает значение, но buildAiCoachContext
@@ -18,6 +19,7 @@ export type ProfileRow = {
   targetWeight?: number;
   programStart?: string;
   trainingPlanV3StartedAt?: string | null;
+  activeTrainingPlanCycle?: TrainingPlanCycle | null;
 } | null;
 
 // weight/waist/... в measurements — единственные по-настоящему nullable колонки
@@ -129,9 +131,16 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
   const workoutsLimit = options.workoutsLimit ?? DEFAULT_WORKOUTS_LIMIT;
   const personalRecordsLimit = options.personalRecordsLimit ?? DEFAULT_PERSONAL_RECORDS_LIMIT;
 
-  const profile = (db.prepare(
+  const profileBase = (db.prepare(
     "SELECT name,height,start_weight startWeight,target_weight targetWeight,program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt FROM profile WHERE id=1",
   ).get() ?? null) as ProfileRow;
+  // Context can be built for a historical/boundary date. Select the cycle
+  // covering that date, not merely the currently open (possibly future) one.
+  const activeTrainingPlanCycle=db.prepare(`SELECT id,program_id programId,program_version programVersion,started_at startedAt,
+    ended_at endedAt,restarted_from_cycle_id restartedFromCycleId FROM training_plan_cycles
+    WHERE program_id='volt-training' AND started_at<=? AND (ended_at IS NULL OR ended_at>=?)
+    ORDER BY started_at DESC,id DESC LIMIT 1`).get(date,date) as TrainingPlanCycle|undefined;
+  const profile=profileBase?{...profileBase,activeTrainingPlanCycle:activeTrainingPlanCycle??null}:null;
 
   const windowStart = historyDays > 0 ? calendarWindowStart(date, historyDays) : null;
 

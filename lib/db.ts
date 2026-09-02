@@ -465,14 +465,38 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   );
   ALTER TABLE progression_decisions ADD COLUMN discipline TEXT NOT NULL DEFAULT 'strength';
  `},
+ // Один общий план не может иметь два открытых цикла разных версий. Раньше
+ // unique index включал program_version и допускал одновременно v3 и v4.
+ // Миграция не переписывает циклы: на неконсистентной базе создание индекса
+ // атомарно откажет, оставив данные без частичных изменений.
+ {version:31,sql:`
+  CREATE TABLE IF NOT EXISTS training_plan_cycles (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   program_id TEXT NOT NULL,
+   program_version INTEGER NOT NULL,
+   started_at TEXT NOT NULL,
+   ended_at TEXT,
+   restarted_from_cycle_id INTEGER REFERENCES training_plan_cycles(id),
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   CHECK(ended_at IS NULL OR ended_at >= started_at)
+  );
+  DROP INDEX IF EXISTS idx_training_plan_cycles_open;
+  CREATE UNIQUE INDEX idx_training_plan_cycles_open
+   ON training_plan_cycles(program_id) WHERE ended_at IS NULL;
+  CREATE INDEX IF NOT EXISTS idx_training_plan_cycles_dates
+   ON training_plan_cycles(program_id,program_version,started_at,ended_at);
+ `},
 ];
-for(const migration of migrations){
- if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
-  const apply=db.transaction(()=>{
-   if(migration.sql)for(const statement of migration.sql.split(";").map(x=>x.trim()).filter(Boolean)){try{db.exec(statement)}catch(error){if(!String(error).includes("duplicate column"))throw error}}
-   if(migration.run)migration.run(db);
-   db.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)").run(migration.version);
-  });
-  apply();
+export function applyDatabaseMigrations(database:Database.Database=db):void{
+ for(const migration of migrations){
+  if(!database.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){
+   const apply=database.transaction(()=>{
+    if(migration.sql)for(const statement of migration.sql.split(";").map(x=>x.trim()).filter(Boolean)){try{database.exec(statement)}catch(error){if(!String(error).includes("duplicate column"))throw error}}
+    if(migration.run)migration.run(database);
+    database.prepare("INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)").run(migration.version);
+   });
+   apply();
+  }
  }
 }
+applyDatabaseMigrations();

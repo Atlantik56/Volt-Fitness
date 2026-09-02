@@ -19,12 +19,16 @@ test("origin по умолчанию 'original', scheduleChangeId по умол�
   const draft = service.startWorkoutDraft({ date: "2026-06-01", snapshot: snapshot() }).draft!;
   assert.equal(draft.snapshot.origin, "original");
   assert.equal(draft.snapshot.scheduleChangeId, null);
+  assert.equal(draft.snapshot.scheduledFor,null);
+  assert.equal(draft.snapshot.changeReasonCode,"");
 });
 
 test("origin='scheduled' и scheduleChangeId сохраняются и читаются обратно без изменений", () => {
-  const draft = service.startWorkoutDraft({ date: "2026-06-02", snapshot: snapshot({ origin: "scheduled", scheduleChangeId: 42 }) }).draft!;
+  const draft = service.startWorkoutDraft({ date: "2026-06-02", snapshot: snapshot({ origin: "scheduled", scheduledFor:"2026-06-02",scheduleChangeId: 42,changeReasonCode:"schedule" }) }).draft!;
   assert.equal(draft.snapshot.origin, "scheduled");
   assert.equal(draft.snapshot.scheduleChangeId, 42);
+  assert.equal(draft.snapshot.scheduledFor,"2026-06-02");
+  assert.equal(draft.snapshot.changeReasonCode,"schedule");
 });
 
 test("некорректный origin по значению отбрасывается к 'original', а не принимается как есть", () => {

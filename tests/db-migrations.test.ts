@@ -54,6 +54,15 @@ test("migration v25 создаёт историю циклов общего тр
  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_training_plan_cycles_open'").get());
 });
 
+test("migration v31 разрешает историю версий, но только один открытый цикл программы",()=>{
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=31").get());
+ assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_training_plan_cycles_open'").get());
+ const indexes=db.prepare("PRAGMA index_list(training_plan_cycles)").all() as any[];
+ const open=indexes.find(index=>index.name==="idx_training_plan_cycles_open");
+ assert.equal(open?.unique,1);
+ assert.equal(open?.partial,1);
+});
+
 test("однозначное совпадение по дате и упражнению — связывается", () => {
  const workoutId = insertWorkout("2026-01-01", [detail("Жим гантелей лёжа")]);
  const logId = insertOrphanStrengthLog("2026-01-01", "Жим гантелей лёжа");

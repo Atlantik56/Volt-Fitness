@@ -3,6 +3,9 @@ import { requireAuth } from "@/lib/auth";
 import { buildCardInsights } from "@/lib/insights/registry";
 import { buildHomeWeek } from "../../../personal-data";
 import { COACH_TARGETS } from "@/lib/coach";
+import { getTrainingPlanCycles } from "@/lib/training-plan-activation";
+import { listWeekScheduleChanges } from "@/lib/week-schedule-service";
+import { buildWeekSchedule, sessionsForDay, weekRangeContaining } from "@/app/week-schedule-model";
 
 export const runtime = "nodejs";
 
@@ -16,8 +19,8 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const date = dateOk(url.searchParams.get("date")) ? (url.searchParams.get("date") as string) : new Date().toISOString().slice(0, 10);
 
-  const profile = db.prepare(`SELECT program_start programStart,training_plan_v3_started_at trainingPlanV3StartedAt, target_weight targetWeight,
-    (SELECT id FROM training_plan_cycles WHERE program_id='volt-training' AND program_version=3 AND ended_at IS NULL ORDER BY id DESC LIMIT 1) trainingPlanV3CycleId FROM profile WHERE id=1`).get() as any;
+  const profile = db.prepare("SELECT program_start programStart,target_weight targetWeight FROM profile WHERE id=1").get() as any;
+  const trainingPlanCycles=getTrainingPlanCycles();
   const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
   const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
   const workouts = db
@@ -30,7 +33,11 @@ export async function GET(req: Request) {
     "SELECT original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle FROM schedule_overrides WHERE original_date<=? OR scheduled_date<=? ORDER BY scheduled_date,id",
   ).all(date, date) as any[];
 
-  const planDays = buildHomeWeek(profile?.programStart,profile?.trainingPlanV3StartedAt,date,profile?.trainingPlanV3CycleId).map((d: any) => ({ day: d.day, type: d.type }));
+  const {mondayIso,sundayIso}=weekRangeContaining(date);
+  const planDays = buildWeekSchedule(
+    buildHomeWeek(profile?.programStart,trainingPlanCycles,date),
+    listWeekScheduleChanges(mondayIso,sundayIso),mondayIso,
+  ).flatMap((day)=>sessionsForDay(day.scheduled).map((session)=>({day:day.weekday,type:session.type})));
 
   // AI-4: этот route не имеет ни одного потребителя в коде (проверено grep по
   // всему репозиторию) — задокументированное решение (docs/INSIGHT_ENGINE.md)

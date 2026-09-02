@@ -194,6 +194,19 @@ function SettingsRow({icon,title,description,active,onClick,status}:{icon:React.
   </button>;
 }
 
+function HistoricalImportPreviews({items}:{items:any[]}){
+ if(!items.length)return null;
+ return <section className="historical-import-previews" aria-label="Предпросмотр старых импортов">
+  <header><div><p className="eyebrow">ТОЛЬКО PREVIEW</p><h3>Старые импорты без автозаписи</h3></div><b>{items.length}</b></header>
+  <p>Это разбор без изменения истории: VOLT не создаёт черновики и не связывает эти записи автоматически.</p>
+  <div>{items.map(item=><article key={item.importId}>
+   <span><b>{item.date??"Дата неизвестна"}</b><small>{item.activityType??"Тип неизвестен"}</small></span>
+   <span><b>{item.scheduledTitle??"Без однозначного слота"}</b><small>{item.programVersion?`Plan ${item.programVersion}.0 · cycle ${item.cycleId}`:item.reason}</small></span>
+   <em>{item.existingWorkoutConflict?"Конфликт: такой плановый слот уже есть в истории. ":""}{item.reason}</em>
+  </article>)}</div>
+ </section>;
+}
+
 export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:ProfileSettingsPageProps){
   const [openPanel,setOpenPanel]=useState<SettingsPanel>(null);
   useEffect(()=>{const timer=window.setTimeout(()=>{if(new URLSearchParams(window.location.search).has("strava"))setOpenPanel("strava")},0);return()=>window.clearTimeout(timer)},[]);
@@ -207,7 +220,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
   const totalDelta=Math.max(0,startWeight-targetWeight),completed=Math.max(0,startWeight-currentWeight);
   const goalProgress=totalDelta>0?Math.min(100,Math.max(0,Math.round(completed/totalDelta*100))):0;
   const remaining=Math.max(0,currentWeight-targetWeight);
-  const programWeek=currentProgramWeek(profile.programStart);
+  const programWeek=currentProgramWeek(profile.programStart,profile.trainingPlanCycles??profile.trainingPlanV3StartedAt);
   const startLabel=profile.programStart?new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"short",year:"numeric"}).format(new Date(`${profile.programStart}T12:00:00`)):"Не указан";
   const toggle=(panel:Exclude<SettingsPanel,null>)=>setOpenPanel(current=>current===panel?null:panel);
 
@@ -250,7 +263,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
         <div className="profile-settings-group profile-settings-integrations">
           <div className="profile-settings-group-title"><Upload size={18}/><span><b>Интеграции и данные</b><small>Только доступные подключения</small></span></div>
           <SettingsRow icon={<Upload size={20}/>} title="Garmin FIT import" description="Импортировать файл тренировки и связать с черновиком" active={openPanel==="garmin"} onClick={()=>toggle("garmin")} status="FIT"/>
-          {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/></div>}
+          {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/><HistoricalImportPreviews items={data.historicalImportPreviews??[]}/></div>}
           <SettingsRow icon={<Activity size={20}/>} title="Strava" description="OAuth-подключение и ручная синхронизация активностей" active={openPanel==="strava"} onClick={()=>toggle("strava")} status="OAuth"/>
           {openPanel==="strava"&&<div className="profile-settings-detail profile-strava-detail"><StravaIntegration refresh={refresh}/></div>}
         </div>

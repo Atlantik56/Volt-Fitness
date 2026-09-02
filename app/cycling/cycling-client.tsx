@@ -34,7 +34,7 @@ import { useToast } from "@/app/toast";
 import { VoltGlobalNavigation } from "@/app/volt-global-navigation";
 
 type FitnessData = {
-  profile?: { programStart?: string; trainingPlanV3StartedAt?: string | null; trainingPlanV3CycleId?: number | null };
+  profile?: { programStart?: string; trainingPlanV3StartedAt?: string | null; trainingPlanV3CycleId?: number | null; trainingPlanCycles?: any[] };
   workouts?: CyclingWorkoutRecord[];
   workoutDrafts?: CyclingDraftRecord[];
   weekScheduleChanges?: any[];
@@ -113,6 +113,7 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
     programStart: data.profile?.programStart,
     trainingPlanV3StartedAt: data.profile?.trainingPlanV3StartedAt,
     trainingPlanV3CycleId: data.profile?.trainingPlanV3CycleId,
+    trainingPlanCycles: data.profile?.trainingPlanCycles,
     today,
     selectedDate: initialDate,
     weekScheduleChanges: data.weekScheduleChanges,

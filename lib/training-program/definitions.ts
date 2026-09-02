@@ -18,6 +18,7 @@ export const PLAN_V4_PROGRAM_VERSION = 4;
 export const PLAN_V4_EFFECTIVE_WEEK = 17;
 // Цикл Плана 4.0 — восемь недель, как и у прежних версий.
 export const PLAN_V4_LAST_DEFINED_WEEK = 24;
+export const ACTIVE_PROGRAM_VERSION = PLAN_V4_PROGRAM_VERSION;
 
 
 const duration = (minMinutes: number, maxMinutes = minMinutes): TrainingDuration => ({ minMinutes, maxMinutes });
@@ -216,12 +217,9 @@ export const PLAN_V3_TRAINING_PROGRAM: TrainingProgramDefinition = {
 };
 
 // ---------- План 4.0 (docs/PLAN_V4.md) ----------
-// Неделя стабильна: 2 плавания + 2 вело + 2 силовые. Меняется тип нагрузки, а
-// не число дней — от этого зависит рост FTP. Пятничное плавание объявлено
-// необязательным: это гибкий слот (в вело-блок становится третьим заездом) и
-// одновременно клапан по самочувствию, поскольку шесть тренировочных дней
-// подряд при коротком сне регулярно упирались бы в ограничитель
-// восстановления из AI-13.
+// Неделя стабильна: 2 плавания + 2 вело + 2 силовые. Пятничный Swim
+// остаётся обязательным, пока владелец явно не выберет объявленную Bike-альтернативу;
+// каноническая сессия не может тихо исчезнуть из-за самочувствия.
 const PLAN_V4_WEEK_META: Record<number, { title: string; phase: string; longBikeMinutes: number }> = {
   17: { title: "Адаптация", phase: "v4-adaptation", longBikeMinutes: 30 },
   18: { title: "Адаптация", phase: "v4-adaptation", longBikeMinutes: 35 },
@@ -238,15 +236,18 @@ function planV4Sessions(weekIndex: number): readonly TrainingSessionDefinition[]
   // Неделя разгрузки заканчивается тестом FTP: без него зоны остаются словом
   // без числа, а прогрессию вело не с чем сравнивать.
   const isTestWeek = PLAN_V4_WEEK_META[weekIndex]?.phase === "v4-control";
+  const cycleWeek = weekIndex - PLAN_V4_EFFECTIVE_WEEK + 1;
+  const fridayRole = cycleWeek % 2 === 1 ? "aerobic" : "endurance";
   return [
     session({ id: "swim-v4-technique", day: 1, discipline: "swim", role: "technique", required: true, title: "Плавание — техника", duration: duration(40, 50), workoutRef: planV4Swim(weekIndex, "technique") }),
     session({ id: "strength-v4-a", day: 2, discipline: "strength", role: "strength-a", required: true, title: "Силовая тренировка А — тренажёры", duration: duration(50, 60), workoutRef: catalog("strength-v3-a") }),
-    session({ id: "bike-v4-quality", day: 3, discipline: "bike", role: "intervals", required: true, title: isTestWeek ? "Вело — тест FTP, 20 минут" : "Вело — качество", duration: duration(35, 45), workoutRef: catalog("bike-v4-quality") }),
+    session({ id: "bike-v4-quality", day: 3, discipline: "bike", role: "intervals", required: true, title: isTestWeek ? "Вело — тест FTP, 20 минут" : "Вело — качество", duration: isTestWeek ? duration(20) : duration(35, 45), workoutRef: catalog(isTestWeek ? "bike-v4-ftp-test" : "bike-v4-quality") }),
     session({ id: "strength-v4-b", day: 4, discipline: "strength", role: "strength-b", required: true, title: "Силовая тренировка Б — тренажёры", duration: duration(50, 60), workoutRef: catalog("strength-v3-b") }),
-    // Гибкий слот: обычно плавание, в вело-блок заменяется третьим заездом
-    // через механизм гибкой недели.
+    // Гибкий слот: базовая обязательная сессия — Swim. Дисциплина меняется
+    // только явным выбором альтернативы; слот нельзя тихо потерять как
+    // необязательный. Роль чередуется по неделям цикла.
     {
-      ...session({ id: "swim-v4-aerobic", day: 5, discipline: "swim", role: "aerobic", required: false, title: "Плавание — аэробная тренировка", duration: duration(45, 60), workoutRef: planV4Swim(weekIndex, "aerobic") }),
+      ...session({ id: "swim-v4-friday", day: 5, discipline: "swim", role: fridayRole, required: true, title: fridayRole === "aerobic" ? "Плавание — аэробная тренировка" : "Плавание — выносливость", duration: duration(45, 60), workoutRef: planV4Swim(weekIndex, fridayRole) }),
       alternatives: [{
         id: "bike-v4-extra", discipline: "bike", role: "zone-2",
         title: "Вело — третий заезд", estimatedDuration: duration(30, 45),

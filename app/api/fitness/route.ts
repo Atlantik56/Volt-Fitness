@@ -13,10 +13,11 @@ import { getSwimPlanStartedAt } from "@/lib/swim/services";
 import { buildProgramDayForDate } from "@/app/personal-data";
 import { recoveryLimiterForDate } from "@/lib/intervals-service";
 import { buildDisciplineProgression } from "@/lib/discipline-progression-service";
-import { getTrainingPlanV3StartedAt } from "@/lib/training-plan-activation";
+import { getActiveTrainingPlanCycle, getTrainingPlanCycleForDate, getTrainingPlanCycles } from "@/lib/training-plan-activation";
 import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
 import { purgeExpiredStravaData } from "@/lib/strava-service";
 import { buildAnalyticsBundle } from "@/lib/analytics-service";
+import { previewHistoricalImports } from "@/lib/import-auto-confirm";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -26,10 +27,14 @@ const text=(x:any,max=120)=>typeof x==="string"?x.trim().slice(0,max):"";
 export async function GET(){
  const denied=await requireAuth();if(denied)return denied;
  purgeExpiredStravaData();
- const profile=db.prepare(`SELECT id,name,height,start_weight startWeight,target_weight targetWeight,program_start programStart,
-  training_plan_v3_started_at trainingPlanV3StartedAt,
-  (SELECT id FROM training_plan_cycles WHERE program_id='volt-training' AND program_version=3 AND ended_at IS NULL ORDER BY id DESC LIMIT 1) trainingPlanV3CycleId
-  FROM profile WHERE id=1`).get();
+ const profileRow=db.prepare(`SELECT id,name,height,start_weight startWeight,target_weight targetWeight,program_start programStart,
+  training_plan_v3_started_at trainingPlanV3StartedAt FROM profile WHERE id=1`).get() as any;
+ const trainingPlanCycles=getTrainingPlanCycles();
+ const activeTrainingPlanCycle=getActiveTrainingPlanCycle();
+ const profile=profileRow?{...profileRow,trainingPlanCycles,activeTrainingPlanCycle,
+  // Compatibility for cached older clients; active business logic uses the
+  // complete cycle object/array above.
+  trainingPlanV3CycleId:activeTrainingPlanCycle?.programVersion===3?activeTrainingPlanCycle.id:null}:profileRow;
  const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,load_feedback loadFeedback,metrics_source metricsSource,external_activity_source externalActivitySource,external_activity_id externalActivityId,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
  const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
@@ -78,7 +83,10 @@ export async function GET(){
  const analyticsFrom=new Date();analyticsFrom.setFullYear(analyticsFrom.getFullYear()-1);
  const weekScheduleChanges=listWeekScheduleChanges(weekLocalIso(analyticsFrom),sundayIso);
  const analytics=buildAnalyticsBundle();
- return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,recoveryLimiter,disciplineProgression,importedSets,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
+ // Read-only explanations for historical unlinked imports. They are never fed
+ // into autoConfirmImport; the owner must review them explicitly.
+ const historicalImportPreviews=previewHistoricalImports(new Date(),50);
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,recoveryLimiter,disciplineProgression,importedSets,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,historicalImportPreviews,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -97,7 +105,7 @@ export async function POST(req:Request){
  }else if(b.action==="workout"){
   const result=saveWorkout(b);if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(["startWorkoutDraft","finishWorkoutDraft","cancelWorkoutDraft","confirmWorkoutDraft"].includes(b.action)){
-  if(b.action==="startWorkoutDraft"&&typeof b.snapshot?.type==="string"&&b.snapshot.type.startsWith(`${SWIM_WORKOUT_TYPE_PREFIX} `)&&!getSwimPlanStartedAt()&&!getTrainingPlanV3StartedAt())return Response.json({error:"Сначала начните тренировочный план"},{status:409});
+  if(b.action==="startWorkoutDraft"&&typeof b.snapshot?.type==="string"&&b.snapshot.type.startsWith(`${SWIM_WORKOUT_TYPE_PREFIX} `)&&!getSwimPlanStartedAt()&&!getActiveTrainingPlanCycle())return Response.json({error:"Сначала начните тренировочный план"},{status:409});
   const result:any=b.action==="startWorkoutDraft"?startWorkoutDraft(b):b.action==="finishWorkoutDraft"?finishWorkoutDraft(b):b.action==="cancelWorkoutDraft"?cancelWorkoutDraft(b):confirmWorkoutDraft(b);
   if(!result.ok)return Response.json({error:result.error},{status:result.status});
   return Response.json({ok:true,draft:result.draft,summary:result.summary});
@@ -139,9 +147,8 @@ export async function POST(req:Request){
   // подставить чужую тренировку.
   const todayIso=weekLocalIso(new Date());
   if(!dateOk(b.date))return Response.json({error:"Некорректная дата"},{status:400});
-  const profileRow=db.prepare("SELECT program_start programStart,training_plan_v3_started_at v3 FROM profile WHERE id=1").get() as any;
-  const cycle=db.prepare("SELECT id FROM training_plan_cycles WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1").get() as any;
-  const day=buildProgramDayForDate(profileRow?.programStart,profileRow?.v3,b.date,cycle?.id??null);
+  const profileRow=db.prepare("SELECT program_start programStart FROM profile WHERE id=1").get() as any;
+  const day=buildProgramDayForDate(profileRow?.programStart,getTrainingPlanCycleForDate(b.date),b.date);
   const result=applyAlternative({
    date:b.date,
    alternativeSessionId:b.alternativeSessionId===null||b.alternativeSessionId===undefined?null:String(b.alternativeSessionId),

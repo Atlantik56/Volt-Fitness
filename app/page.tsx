@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { buildHomeWeek, currentProgramWeek, meals, planV3WeekCatalog, safety, week } from "./personal-data";
+import { buildHomeWeek, currentProgramWeek, meals, planV4WeekCatalog, safety, week } from "./personal-data";
 import { ExerciseVideo } from "./exercise-video";
 import { ActiveWorkout, type ActiveDraft } from "./active-workout";
 import { WeekPlanEditor } from "./week-plan-editor";
@@ -40,7 +40,8 @@ import {
   buildHistory, computeMetricCards, computeMetricStats, computeProgressSummary, computeTrendPoints, filterHistoryByPeriod, groupHistoryByMonth,
   type HistoryEntry, type Measurement, type MetricCardData, type MetricKey, type MetricPoint, type MetricStats, type Period, type ProgressSummary,
 } from "./progress-model";
-import { activatedPlanPosition } from "@/lib/training-program/registry";
+import { resolveActiveProgramPosition, trainingPlanCycleForDate } from "@/lib/training-program/registry";
+import type { TrainingPlanCycle } from "@/lib/training-program/types";
 
 const gymExercises = Array.from(new Set(week.flatMap((d: any) => d.x.map((x: any) => x[0]))));
 const isSwimSession=(session:HomeWeekSession)=>session.type==="Кардио"&&(session.title==="Бассейн"||session.id?.startsWith("swim-")===true);
@@ -114,12 +115,13 @@ export default function Home() {
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
   const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
-  const trainingPlanV3StartedAt=data.profile?.trainingPlanV3StartedAt??null;
-  const trainingPlanV3CycleId=data.profile?.trainingPlanV3CycleId??null;
-  const activePlanPosition=activatedPlanPosition(trainingPlanV3StartedAt,today);
-  const programWeek=currentProgramWeek(data.profile?.programStart,trainingPlanV3StartedAt);
+  const trainingPlanCycles=(data.profile?.trainingPlanCycles??[]) as TrainingPlanCycle[];
+  const activeTrainingPlanCycle=(data.profile?.activeTrainingPlanCycle??null) as TrainingPlanCycle|null;
+  const todayPlanCycle=trainingPlanCycleForDate(trainingPlanCycles,today);
+  const activePlanPosition=resolveActiveProgramPosition(todayPlanCycle,today);
+  const programWeek=currentProgramWeek(data.profile?.programStart,trainingPlanCycles);
   const displayProgramWeek=activePlanPosition?.weekIndex??programWeek;
-  const homeWeek=buildHomeWeek(data.profile?.programStart,trainingPlanV3StartedAt,today,trainingPlanV3CycleId);
+  const homeWeek=buildHomeWeek(data.profile?.programStart,trainingPlanCycles,today);
   // AI-11 — Гибкая неделя: план на дату = каноническая программа (homeWeek) +
   // пользовательские изменения текущей недели (week_schedule_changes). Никогда
   // не переходит на следующую неделю — see app/week-schedule-model.ts.
@@ -188,8 +190,8 @@ export default function Home() {
   const goAnalytics=()=>{setAnalyticsMode("insights");setNav("Аналитика");setMobileMenu(false)};
   const motivation=todayWorkouts>0?"Ты уже сделал главное — пришёл и выполнил.":streak>1?`У тебя серия ${streak} дня. Сегодня добавь к ней ещё один.`:"Начни с первого движения. Остальное сделает ритм.";
   const saveActivity=async(e:any)=>{e.preventDefault();const b=Object.fromEntries(new FormData(e.currentTarget));const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"activity",date:today,...b})});notify(r.ok?"Активность за сегодня обновлена":"Не удалось сохранить активность",r.ok?"good":"warn");load()};
-  const startWorkout=async(plan:any,origin:"original"|"scheduled"="original",scheduleChangeId:number|null=null)=>{
-   const snapshot={title:plan.title,type:plan.type,rounds:plan.rounds??1,origin,scheduleChangeId,programIdentity:plan.programIdentity,exercises:plan.exercises.map((exercise:any[])=>({name:exercise[0],target:exercise[2],recommendedWeight:data.progressionOverrides?.[exercise[0]]?.weight??data.strengthLogs?.find((log:any)=>log.exercise===exercise[0])?.weight??0}))};
+  const startWorkout=async(plan:any,origin:"original"|"scheduled"="original",scheduleChangeId:number|null=null,scheduledFor=today,changeReasonCode="")=>{
+   const snapshot={title:plan.title,type:plan.type,rounds:plan.rounds??1,origin,scheduledFor,scheduleChangeId,changeReasonCode,programIdentity:plan.programIdentity,exercises:plan.exercises.map((exercise:any[])=>({name:exercise[0],target:exercise[2],recommendedWeight:data.progressionOverrides?.[exercise[0]]?.weight??data.strengthLogs?.find((log:any)=>log.exercise===exercise[0])?.weight??0}))};
    const response=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"startWorkoutDraft",date:today,snapshot})});
    const json=await response.json().catch(()=>({}));
    if(!response.ok)return notify(json.error||"Не удалось начать тренировку","warn");
@@ -213,7 +215,7 @@ export default function Home() {
     return;
    }
    if(isTodayCycling){router.push(`/cycling?date=${encodeURIComponent(todayResolved.date)}`);return}
-   if(!isTodaySwim)return void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId);
+   if(!isTodaySwim)return void startWorkout(todayPlan,todayResolved.changed?"scheduled":"original",todayResolved.changeId,todayResolved.scheduledFor,todayResolved.reasonCode);
    if(!swimToday){notify("Не удалось определить тренировку Swim на сегодня","warn");return}
    if(swimToday.kind==="unresolved"){notify("Сегодня запланирован бассейн, но тренировка базового плана не определена","warn");return}
    router.push(swimToday.route);
@@ -230,7 +232,7 @@ export default function Home() {
     return;
    }
    if(isSelectedToday)return startTodayWorkout();
-   void startWorkout(selectedPlan,selectedResolved.changed?"scheduled":"original",selectedResolved.changeId);
+   void startWorkout(selectedPlan,selectedResolved.changed?"scheduled":"original",selectedResolved.changeId,selectedResolved.scheduledFor,selectedResolved.reasonCode);
   };
 
   return (
@@ -392,8 +394,8 @@ export default function Home() {
           isSelectedToday={isSelectedToday} onSelectDate={selectPlanDate} onEditDate={setEditingDate}
           onStartSelected={startSelectedWorkout} planMeta={planActionMeta(selectedResolved,isSelectedToday,selectedPlanCompleted,!!openDraftToday)}
           selectedSwim={selectedSwim} selectedSwimLoading={selectedSwimLoading}
-          programWeek={displayProgramWeek} planStartedAt={trainingPlanV3StartedAt}
-          onPlanStarted={(startedAt)=>{setData((current:any)=>({...current,profile:{...current.profile,trainingPlanV3StartedAt:startedAt}}));load();loadSwimToday()}}
+          programWeek={displayProgramWeek} activeCycle={activeTrainingPlanCycle}
+          onPlanStarted={()=>{load();loadSwimToday()}}
         /> : nav==="Аналитика" ? <AnalyticsCoachPage
           data={data} analyticsStatus={loadError?"error":loaded?"ready":"loading"} onRetry={load} coach={coach} today={today} mode={analyticsMode} onModeChange={setAnalyticsMode}
           plan={todayPlan?{title:todayPlan.title,type:todayPlan.type}:null}
@@ -421,13 +423,13 @@ export default function Home() {
 // выбранная/следующая тренировка, её состав и спокойная справочная программа.
 // Данные и действия остаются прежними: WeekPlanEditor по-прежнему единственная
 // точка replace/swap/rest, а запуск использует существующие обработчики.
-function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessions,selectedSessionId,onSelectSession,isSelectedToday,onSelectDate,onEditDate,onStartSelected,planMeta,selectedSwim,selectedSwimLoading,programWeek,planStartedAt,onPlanStarted}:{
+function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessions,selectedSessionId,onSelectSession,isSelectedToday,onSelectDate,onEditDate,onStartSelected,planMeta,selectedSwim,selectedSwimLoading,programWeek,activeCycle,onPlanStarted}:{
   today:string;weekPlan:ResolvedDayPlan[];selectedResolved:ResolvedDayPlan;selectedPlan:any;isSelectedToday:boolean;
   selectedSessions:HomeWeekSession[];selectedSessionId:string|null;onSelectSession:(id:string|null)=>void;
   onSelectDate:(date:string)=>void;onEditDate:(date:string)=>void;onStartSelected:()=>void;
   planMeta:{label:string;cls:string;repeat:boolean};
   selectedSwim:ResolvedSwimSlot|null;selectedSwimLoading:boolean;
-  programWeek:number;planStartedAt:string|null;onPlanStarted:(startedAt:string)=>void;
+  programWeek:number;activeCycle:TrainingPlanCycle|null;onPlanStarted:()=>void;
 }){
  const weekSessions=weekPlan.flatMap(day=>sessionsForDay(day.scheduled).map(session=>({day,session})));
  const strengthDays=weekSessions.filter(({session})=>session.type==="Силовая").length;
@@ -447,9 +449,9 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
  const isCycling=isCyclingSession(selectedPlan);
  const isRest=selectedPlan.type==="Отдых";
  const resolvedSwim=selectedSwim?.kind==="workout"?selectedSwim:null;
- const swimWorkout=resolvedSwim?.workout??null;
+ const swimWorkout=isSwim?(resolvedSwim?.workout??null):null;
  const focusTitle=isSwim?(swimWorkout?.title??(selectedSwimLoading?"Загрузка тренировки…":"Тренировка не определена")):(selectedPlan.type==="Отдых"?"Отдых":trainingLabelRu(selectedPlan.title));
- const focusType=isSwim?"VOLT Swim · базовый план":isCycling?"VOLT Cycling · общий план":isRest?"День восстановления":selectedPlan.type;
+ const focusType=isSwim?`VOLT Swim · ${resolvedSwim?.programId==="endurance"?"общий план":"базовый план"}`:isCycling?"VOLT Cycling · общий план":isRest?"День восстановления":selectedPlan.type;
  const actionMeta=isSwim?{
   label:selectedSwimLoading?"Загрузка…":resolvedSwim?.status==="completed"?"Тренировка выполнена":resolvedSwim?.status==="in_progress"?"Продолжить тренировку":resolvedSwim?.status==="awaiting_confirmation"?"Подтвердить результат":resolvedSwim?"Открыть тренировку":"Тренировка недоступна",
   cls:resolvedSwim?.status==="completed"?"repeat-btn":"start-btn",
@@ -457,12 +459,12 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
  }:planMeta;
 
  return <div className="plan-screen">
-  <TrainingPlanStartAction startedAt={planStartedAt} today={today} todayTitle={todayTitles} nextTitle={upcomingEntry?trainingLabelRu(upcomingEntry.session.title):null} onStarted={onPlanStarted}/>
+  <TrainingPlanStartAction cycle={activeCycle} today={today} todayTitle={todayTitles} nextTitle={upcomingEntry?trainingLabelRu(upcomingEntry.session.title):null} onStarted={onPlanStarted}/>
   <section className="plan-hero">
    <div className="plan-hero-shade"/>
    <div className="plan-hero-head">
     <div className="plan-hero-copy">
-     <p className="eyebrow">ТЕКУЩАЯ НЕДЕЛЯ · {planStartedAt?"НОВЫЙ ПЛАН":"ПЛАН 2.0"}</p>
+     <p className="eyebrow">ТЕКУЩАЯ НЕДЕЛЯ · {activeCycle?`ПЛАН ${activeCycle.programVersion}.0`:"ПЛАН 2.0"}</p>
      <h2>Неделя {programWeek}</h2>
      <p className="plan-hero-summary"><b>{completedDays} из {plannedDays} обязательных сессий</b><span>{strengthDays} силовых</span><span>{swimDays} плавательных</span></p>
      <p className="plan-hero-note">Техника, устойчивый ритм и восстановление без перегруза.</p>
@@ -538,10 +540,10 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
   </section>
 
   <section className="plan-program">
-   <div className="section-head plan-program-head"><div><p className="eyebrow">НОВЫЙ ПЛАН · ПРЕДПРОСМОТР</p><h3>8-недельный цикл</h3></div><p>Дни считаются от фактической даты запуска, а не от понедельника.</p></div>
+   <div className="section-head plan-program-head"><div><p className="eyebrow">НОВЫЙ ПЛАН · ПРЕДПРОСМОТР</p><h3>8-недельный цикл</h3></div><p>Календарные дни сохраняются: запуск в середине недели начинается с текущего дня.</p></div>
    <Notice/>
    <div className="plan-program-phases single">
-    <PlanProgramPhase number="01" period="НЕДЕЛИ 1–8 · ДНИ 1–7" title="Зал, плавание и велосипед" note="Тренажёры и блоки, три плавания, велосипед в зоне 2, два дня восстановления" days={planV3WeekCatalog.map((d:any)=>({day:`День ${["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"].indexOf(d.d)+1}`,type:d.t,title:d.n,time:d.time,exercises:d.x}))}/>
+    <PlanProgramPhase number="01" period="НЕДЕЛИ 1–8 · ДНИ 1–7" title="План 4.0: зал, плавание и велосипед" note="Две силовые, два Swim, два заезда; субботняя длинная база обязательна, пятничный Swim меняется на Bike только вручную" days={planV4WeekCatalog.map((d:any)=>({day:`День ${["Понедельник","Вторник","Среда","Четверг","Пятница","Суббота","Воскресенье"].indexOf(d.d)+1}`,type:d.t,title:d.n,time:d.time,exercises:d.x}))}/>
    </div>
   </section>
  </div>;

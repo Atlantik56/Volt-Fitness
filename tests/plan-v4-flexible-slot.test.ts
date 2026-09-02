@@ -23,7 +23,8 @@ const resolveFriday = () => resolvePlanForDate(fridayDate, week, changes());
 
 test("the Friday slot declares a cycling alternative", () => {
   assert.equal(friday.discipline, "swim");
-  assert.equal(friday.optional, true, "гибкий слот помечен необязательным");
+  assert.equal(friday.required, true, "Swim не исчезает из плана без явного выбора");
+  assert.equal(friday.optional, false);
   assert.equal(friday.alternatives?.length, 1);
   assert.equal(friday.alternatives?.[0].discipline, "bike");
 });
@@ -61,7 +62,7 @@ test("passing null returns the slot to its original discipline", () => {
   });
   assert.equal(result.ok, true);
   assert.equal(resolveFriday().scheduled.discipline, "swim");
-  assert.equal(db.prepare("SELECT COUNT(*) c FROM week_schedule_changes WHERE date=?").get(fridayDate) as any ? true : true, true);
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM week_schedule_changes WHERE date=?").get(fridayDate) as any).c, 0);
 });
 
 test("an unknown alternative is refused instead of silently stored", () => {

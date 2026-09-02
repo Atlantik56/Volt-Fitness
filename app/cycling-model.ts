@@ -14,8 +14,8 @@ import {
   isCyclingWorkoutRecord,
   type CyclingLoadFeedback,
 } from "@/lib/cycling";
-import { activatedPlanPosition, programWeekForDate } from "@/lib/training-program/registry";
-import type { TrainingProgramIdentity } from "@/lib/training-program/types";
+import { programWeekForDate, resolveActiveProgramPosition, trainingPlanCycleForDate } from "@/lib/training-program/registry";
+import type { TrainingPlanCycle, TrainingProgramIdentity } from "@/lib/training-program/types";
 
 export type CyclingDraftStatus = "planned" | "active" | "awaiting_confirmation" | "completed" | "cancelled";
 export type CyclingDraftRecord = {
@@ -31,7 +31,9 @@ export type CyclingDraftRecord = {
     title?: string;
     exercises?: unknown[];
     origin?: "original" | "scheduled";
+    scheduledFor?: string;
     scheduleChangeId?: number | null;
+    changeReasonCode?: string;
     programIdentity?: TrainingProgramIdentity;
   };
   confirmation?: Record<string, unknown>;
@@ -58,6 +60,7 @@ export type CyclingResolution = {
   optional: boolean;
   changed: boolean;
   scheduleChangeId: number | null;
+  changeReasonCode: string;
   origin: "original" | "scheduled";
   status: "planned" | "active" | "awaiting_confirmation" | "completed";
   draft: CyclingDraftRecord | null;
@@ -71,6 +74,7 @@ export type ResolveCyclingInput = {
   programStart?: string;
   trainingPlanV3StartedAt?: string | null;
   trainingPlanV3CycleId?: number | null;
+  trainingPlanCycles?: readonly TrainingPlanCycle[];
   today: string;
   selectedDate?: string | null;
   weekScheduleChanges?: WeekScheduleChange[];
@@ -111,10 +115,15 @@ function sessionFromDraft(draft: CyclingDraftRecord): HomeWeekSession {
 
 function cyclingCandidates(input: ResolveCyclingInput, date: string) {
   const { mondayIso, sundayIso } = weekRangeContaining(date);
-  const programWeek = activatedPlanPosition(input.trainingPlanV3StartedAt,date)?.weekIndex
+  const legacyCycles:TrainingPlanCycle[]=input.trainingPlanV3StartedAt?[{
+    id:input.trainingPlanV3CycleId??0,programId:"volt-training",programVersion:3,
+    startedAt:input.trainingPlanV3StartedAt,endedAt:null,restartedFromCycleId:null,
+  }]:[];
+  const cycles=input.trainingPlanCycles??legacyCycles;
+  const programWeek = resolveActiveProgramPosition(trainingPlanCycleForDate(cycles,date),date)?.weekIndex
     ?? programWeekForDate(input.programStart,date);
   const schedule = buildWeekSchedule(
-    buildHomeWeek(input.programStart,input.trainingPlanV3StartedAt,date,input.trainingPlanV3CycleId),
+    buildHomeWeek(input.programStart,cycles,date),
     input.weekScheduleChanges ?? [],
     mondayIso,
   );
@@ -151,6 +160,7 @@ export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingRes
       optional: true,
       changed: openDraft.snapshot.origin === "scheduled",
       scheduleChangeId: openDraft.snapshot.scheduleChangeId ?? null,
+      changeReasonCode: openDraft.snapshot.changeReasonCode ?? "",
       origin: openDraft.snapshot.origin === "scheduled" ? "scheduled" : "original",
       status: openDraft.status === "awaiting_confirmation" ? "awaiting_confirmation" : "active",
       draft: openDraft,
@@ -166,7 +176,7 @@ export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingRes
     : null;
   const anchorDate = selectedDate ?? input.today;
   let context = cyclingCandidates(input, anchorDate);
-  const activationBoundary=input.trainingPlanV3StartedAt??"0000-00-00";
+  const activationBoundary=trainingPlanCycleForDate(input.trainingPlanCycles,anchorDate)?.startedAt??input.trainingPlanV3StartedAt??"0000-00-00";
   const eligible=()=>context.candidates.filter(({day})=>day.date>=activationBoundary);
   let selected = (selectedDate ? eligible().find(({ day }) => day.date === selectedDate) : null)
     ?? eligible().find(({ day }) => day.date >= input.today);
@@ -198,6 +208,7 @@ export function resolveCyclingAssignment(input: ResolveCyclingInput): CyclingRes
     optional: selected.session.optional === true,
     changed: selected.day.changed,
     scheduleChangeId: selected.day.changeId,
+    changeReasonCode: selected.day.reasonCode,
     origin: selected.day.changed ? "scheduled" : "original",
     status,
     draft,
@@ -214,7 +225,9 @@ export function cyclingSnapshotFor(resolution: CyclingResolution) {
     type: resolution.session.type,
     rounds: resolution.session.rounds || 1,
     origin: resolution.origin,
+    scheduledFor: resolution.date,
     scheduleChangeId: resolution.scheduleChangeId,
+    changeReasonCode: resolution.changeReasonCode,
     programIdentity: resolution.session.programIdentity,
     exercises: resolution.session.exercises.map((exercise: any[]) => ({
       name: String(exercise[0] ?? "Этап тренировки"),

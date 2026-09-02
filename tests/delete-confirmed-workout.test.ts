@@ -13,6 +13,8 @@ const { autoConfirmImport } = await import("@/lib/import-auto-confirm.ts");
 const { deleteWorkout } = await import("@/lib/workout-service.ts");
 
 db.prepare("UPDATE profile SET program_start=?,swim_plan_started_at=? WHERE id=1").run("2026-07-21", "2026-08-10");
+db.prepare(`INSERT INTO training_plan_cycles(program_id,program_version,started_at)
+  VALUES('volt-training',4,'2026-08-31')`).run();
 
 function addSwimImport(date: string) {
   return Number(db.prepare(`INSERT INTO workout_imports
@@ -22,7 +24,7 @@ function addSwimImport(date: string) {
     .lastInsertRowid);
 }
 
-const importId = addSwimImport("2026-09-02");
+const importId = addSwimImport("2026-09-04");
 const confirmed = autoConfirmImport(importId) as any;
 const workoutId = () => (db.prepare("SELECT id FROM workout_logs ORDER BY id DESC LIMIT 1").get() as any)?.id;
 
@@ -55,5 +57,5 @@ test("a dismissed import is never re-confirmed, so the deletion sticks", () => {
   const again = autoConfirmImport(importId) as any;
   assert.equal(again.confirmed, false);
   assert.match(again.reason, /отклонён/);
-  assert.equal((db.prepare("SELECT COUNT(*) c FROM workout_logs WHERE date='2026-09-02'").get() as any).c, 0, "удалённая тренировка не должна вернуться");
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM workout_logs WHERE date='2026-09-04'").get() as any).c, 0, "удалённая тренировка не должна вернуться");
 });

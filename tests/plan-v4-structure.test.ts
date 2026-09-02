@@ -41,11 +41,19 @@ test("no day is ever doubled up — the v3 Monday stacking is gone", () => {
   assert.equal(v3Monday.length, 2, "исходная сдвоенность v3 зафиксирована для сравнения");
 });
 
-test("Friday swim is the flexible slot; everything else is mandatory", () => {
+test("Friday swim is mandatory but declares an explicit cycling alternative", () => {
   const optional = training(PLAN_V4_EFFECTIVE_WEEK).filter((s: any) => !s.required);
-  assert.equal(optional.length, 1);
-  assert.equal(optional[0].day, 5);
-  assert.equal(optional[0].discipline, "swim");
+  assert.equal(optional.length, 0);
+  const friday = training(PLAN_V4_EFFECTIVE_WEEK).find((s: any) => s.day === 5);
+  assert.equal(friday.discipline, "swim");
+  assert.equal(friday.alternatives.length, 1);
+  assert.equal(friday.alternatives[0].discipline, "bike");
+});
+
+test("Friday alternates aerobic and endurance roles by cycle week", () => {
+  assert.equal(training(17).find((s: any) => s.day === 5).role, "aerobic");
+  assert.equal(training(18).find((s: any) => s.day === 5).role, "endurance");
+  assert.equal(training(19).find((s: any) => s.day === 5).role, "aerobic");
 });
 
 test("the long ride grows across the cycle while the cycle ends in a deload", () => {

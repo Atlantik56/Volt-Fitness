@@ -28,6 +28,20 @@ export type TrainingProgramIdentity = {
   cycleId?: number;
 };
 
+/**
+ * Immutable activation boundary for one version of the shared VOLT program.
+ * Open (`endedAt === null`) means the current/future cycle selected by the
+ * application; historical dates are still resolved through closed cycles.
+ */
+export type TrainingPlanCycle = {
+  id: number;
+  programId: string;
+  programVersion: number;
+  startedAt: string;
+  endedAt: string | null;
+  restartedFromCycleId: number | null;
+};
+
 export type TrainingWorkoutReference =
   | { kind: "catalog"; workoutId: string }
   | { kind: "swim"; programId: string; programVersion: number; workoutId: string | null };

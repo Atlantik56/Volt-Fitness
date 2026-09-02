@@ -77,6 +77,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
   const [weekIndex, setWeekIndex] = useState<number | null>(null);
   const [status, setStatus] = useState<SwimWorkoutProgressStatus | null>(null);
   const [calendar, setCalendar] = useState<SwimCalendarSlot | null>(null);
+  const [changeReasonCode,setChangeReasonCode]=useState("");
   const [planCycleId,setPlanCycleId]=useState<number|null>(null);
   const [draft, setDraft] = useState<ApiDraft | null>(null);
   // Активная тренировка работает на уровне крупных блоков (разминка/основная
@@ -103,7 +104,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
       fetch(`/api/swim/programs/${programId}`, { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
       fetch("/api/fitness", { cache: "no-store" }).then((r) => (r.ok ? r.json() : Promise.reject(r.status))),
     ])
-      .then(([programJson, fitnessJson]: [{ progress: SwimProgramProgress }, { workoutDrafts: ApiDraft[] }]) => {
+      .then(([programJson, fitnessJson]: [{ progress: SwimProgramProgress }, { workoutDrafts: ApiDraft[];weekScheduleChanges?:{id:number;reasonCode?:string}[] }]) => {
         if (!programJson.progress.startedAt) {
           setProgram(programJson.progress.program);
           setPhase("plan_not_started");
@@ -120,6 +121,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
         setWeekIndex(wp.weekIndex);
         setStatus(wp.status);
         setCalendar(wp.calendar);
+        setChangeReasonCode(String(fitnessJson.weekScheduleChanges?.find(change=>change.id===wp.calendar?.scheduleChangeId)?.reasonCode??""));
         if (wp.status === "completed") {
           setPhase("completed");
           return;
@@ -140,12 +142,14 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
 
   const start = async () => {
     if (!program || !workout) return;
-    const snapshot = buildSwimSnapshot(program, workout,planCycleId);
-    if (!snapshot) return setActionError("Не удалось подготовить тренировку");
+    const baseSnapshot = buildSwimSnapshot(program, workout,planCycleId);
+    if (!baseSnapshot) return setActionError("Не удалось подготовить тренировку");
+    const scheduledFor=calendar?.date??localIso(new Date());
+    const snapshot={...baseSnapshot,origin:calendar?.scheduleChangeId?"scheduled":"original",scheduledFor,scheduleChangeId:calendar?.scheduleChangeId??null,changeReasonCode};
     setBusy(true);
     setActionError(null);
     try {
-      const res = await fetch("/api/fitness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "startWorkoutDraft", date: localIso(new Date()), snapshot }) });
+      const res = await fetch("/api/fitness", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ action: "startWorkoutDraft", date: scheduledFor, snapshot }) });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) return setActionError(json.error || "Не удалось начать тренировку");
       setDraft(json.draft);

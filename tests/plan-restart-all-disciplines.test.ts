@@ -9,7 +9,7 @@ test.after(() => mock.timers.reset());
 
 process.env.DATA_DIR = mkdtempSync(path.join(tmpdir(), "volt-plan-restart-"));
 const { db } = await import("@/lib/db.ts");
-const { startTrainingPlanV3, restartTrainingPlanV3 } = await import("@/lib/training-plan-activation.ts");
+const { getActiveTrainingPlanCycle, startTrainingPlanV3, restartTrainingPlanV3 } = await import("@/lib/training-plan-activation.ts");
 const { getProgramProgress } = await import("@/lib/swim/services.ts");
 
 db.prepare("UPDATE profile SET program_start=?,swim_plan_started_at=? WHERE id=1").run("2026-07-21", "2026-08-10");
@@ -48,9 +48,10 @@ test("restarting the plan returns swimming to the beginning together with the gy
   assert.equal(foundation()!.nextWorkout?.workout.id, foundation()!.workouts[0].workout.id, "следующая — первая тренировка программы");
 });
 
-test("the restart re-anchors swimming to the new cycle instead of leaving it behind", () => {
+test("the shared cycle is authoritative while the legacy swim anchor remains history", () => {
   const profile = db.prepare("SELECT swim_plan_started_at s,training_plan_v3_started_at v FROM profile WHERE id=1").get() as any;
-  assert.equal(profile.s, profile.v, "план общий для трёх дисциплин: один якорь на всех");
+  assert.equal(profile.s, "2026-08-10", "исторический Swim-якорь не переписываем");
+  assert.equal(getActiveTrainingPlanCycle()?.startedAt, profile.v, "общий cycle — единственный боевой якорь");
 });
 
 test("nothing is deleted — completed sessions stay in history", () => {

@@ -141,6 +141,9 @@ function buildRestPlan(homeWeek: HomeWeekDay[], targetDay: number, targetLabel: 
 
 export type ResolvedDayPlan = {
   date: string;
+  // Calendar date on which the resolved session will actually run. Kept
+  // explicit so snapshots and projections never have to infer it again.
+  scheduledFor: string;
   weekday: number;
   original: HomeWeekDay;
   scheduled: HomeWeekDay;
@@ -163,11 +166,11 @@ export function resolvePlanForDate(
   const original = findDay(homeWeek, weekday) ?? homeWeek[0];
   const change = changesByDate.get(date);
   if (!change) {
-    return { date, weekday, original, scheduled: original, changed: false, action: null, reasonCode: "", swapWithDate: null, changeId: null };
+    return { date, scheduledFor: date, weekday, original, scheduled: original, changed: false, action: null, reasonCode: "", swapWithDate: null, changeId: null };
   }
   if (change.action === "rest") {
     return {
-      date, weekday, original,
+      date, scheduledFor: date, weekday, original,
       scheduled: buildRestPlan(homeWeek, weekday, original.d),
       changed: true, action: "rest", reasonCode: change.reasonCode, swapWithDate: null, changeId: change.id,
     };
@@ -180,13 +183,16 @@ export function resolvePlanForDate(
     : null;
   if (alternative) {
     return {
-      date, weekday, original,
+      date, scheduledFor: date, weekday, original,
       scheduled: {
         ...original,
         id: alternative.id, title: alternative.title, time: alternative.time, type: alternative.type,
         rounds: alternative.rounds, image: alternative.image, exercises: alternative.exercises,
         warmup: alternative.warmup, discipline: alternative.discipline, role: alternative.role,
         workoutRef: alternative.workoutRef,
+        programIdentity: original.programIdentity
+          ? {...original.programIdentity,sessionId:alternative.id}
+          : undefined,
       },
       changed: true, action: change.action, reasonCode: change.reasonCode,
       swapWithDate: null, changeId: change.id,
@@ -195,7 +201,7 @@ export function resolvePlanForDate(
   const assignedDay = change.assignedSourceDay != null ? findDay(homeWeek, change.assignedSourceDay) : null;
   const scheduled = assignedDay ? { ...assignedDay, day: weekday, d: original.d } : original;
   return {
-    date, weekday, original, scheduled,
+    date, scheduledFor: date, weekday, original, scheduled,
     changed: assignedDay != null,
     action: change.action, reasonCode: change.reasonCode, swapWithDate: change.swapWithDate, changeId: change.id,
   };
