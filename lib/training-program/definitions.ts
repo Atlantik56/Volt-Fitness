@@ -14,6 +14,10 @@ export const PLAN_V2_EFFECTIVE_WEEK = 4;
 export const PLAN_V3_PROGRAM_VERSION = 3;
 export const PLAN_V3_EFFECTIVE_WEEK = 9;
 export const PLAN_V3_LAST_DEFINED_WEEK = 16;
+export const PLAN_V4_PROGRAM_VERSION = 4;
+export const PLAN_V4_EFFECTIVE_WEEK = 17;
+// Цикл Плана 4.0 — восемь недель, как и у прежних версий.
+export const PLAN_V4_LAST_DEFINED_WEEK = 24;
 
 const duration = (minMinutes: number, maxMinutes = minMinutes): TrainingDuration => ({ minMinutes, maxMinutes });
 const catalog = (workoutId: string): TrainingWorkoutReference => ({ kind: "catalog", workoutId });
@@ -203,8 +207,66 @@ export const PLAN_V3_TRAINING_PROGRAM: TrainingProgramDefinition = {
   },
 };
 
+// ---------- План 4.0 (docs/PLAN_V4.md) ----------
+// Неделя стабильна: 2 плавания + 2 вело + 2 силовые. Меняется тип нагрузки, а
+// не число дней — от этого зависит рост FTP. Пятничное плавание объявлено
+// необязательным: это гибкий слот (в вело-блок становится третьим заездом) и
+// одновременно клапан по самочувствию, поскольку шесть тренировочных дней
+// подряд при коротком сне регулярно упирались бы в ограничитель
+// восстановления из AI-13.
+const PLAN_V4_WEEK_META: Record<number, { title: string; phase: string; longBikeMinutes: number }> = {
+  17: { title: "Адаптация", phase: "v4-adaptation", longBikeMinutes: 30 },
+  18: { title: "Адаптация", phase: "v4-adaptation", longBikeMinutes: 35 },
+  19: { title: "Адаптация", phase: "v4-adaptation", longBikeMinutes: 40 },
+  20: { title: "Развитие", phase: "v4-development", longBikeMinutes: 45 },
+  21: { title: "Развитие", phase: "v4-development", longBikeMinutes: 45 },
+  22: { title: "Развитие", phase: "v4-development", longBikeMinutes: 50 },
+  23: { title: "Удержание", phase: "v4-peak", longBikeMinutes: 60 },
+  24: { title: "Разгрузка и тест FTP", phase: "v4-control", longBikeMinutes: 40 },
+};
+
+function planV4Sessions(weekIndex: number): readonly TrainingSessionDefinition[] {
+  const longBikeMinutes = PLAN_V4_WEEK_META[weekIndex]?.longBikeMinutes ?? 50;
+  // Неделя разгрузки заканчивается тестом FTP: без него зоны остаются словом
+  // без числа, а прогрессию вело не с чем сравнивать.
+  const isTestWeek = PLAN_V4_WEEK_META[weekIndex]?.phase === "v4-control";
+  return [
+    session({ id: "swim-v4-technique", day: 1, discipline: "swim", role: "technique", required: true, title: "Плавание — техника", duration: duration(40, 50), workoutRef: enduranceSwim(weekIndex, "technique") }),
+    session({ id: "strength-v4-a", day: 2, discipline: "strength", role: "strength-a", required: true, title: "Силовая тренировка А — тренажёры", duration: duration(50, 60), workoutRef: catalog("strength-v3-a") }),
+    session({ id: "bike-v4-quality", day: 3, discipline: "bike", role: "intervals", required: true, title: isTestWeek ? "Вело — тест FTP, 20 минут" : "Вело — качество", duration: duration(35, 45), workoutRef: catalog("bike-v4-quality") }),
+    session({ id: "strength-v4-b", day: 4, discipline: "strength", role: "strength-b", required: true, title: "Силовая тренировка Б — тренажёры", duration: duration(50, 60), workoutRef: catalog("strength-v3-b") }),
+    // Гибкий слот: обычно плавание, в вело-блок заменяется третьим заездом
+    // через механизм гибкой недели.
+    session({ id: "swim-v4-aerobic", day: 5, discipline: "swim", role: "aerobic", required: false, title: "Плавание — аэробная тренировка", duration: duration(45, 60), workoutRef: enduranceSwim(weekIndex, "aerobic") }),
+    session({ id: "bike-v4-long", day: 6, discipline: "bike", role: "zone-2", required: true, title: "Вело — длинная база", duration: duration(longBikeMinutes), workoutRef: catalog("bike-v4-long") }),
+    recovery(7, "rest-v4-sunday"),
+  ];
+}
+
+const planV4Week = (index: number): TrainingWeekDefinition => ({
+  index,
+  title: PLAN_V4_WEEK_META[index]?.title ?? "Устойчивый ритм",
+  phase: PLAN_V4_WEEK_META[index]?.phase ?? "v4-continuation",
+  sessions: planV4Sessions(index),
+});
+
+export const PLAN_V4_TRAINING_PROGRAM: TrainingProgramDefinition = {
+  id: VOLT_PROGRAM_ID,
+  version: PLAN_V4_PROGRAM_VERSION,
+  name: "VOLT Plan v4",
+  description: "Стабильная неделя: два плавания, два заезда и две силовые. Суббота — обязательная длинная база, среда — интервалы сидя. Прогрессия в каждой дисциплине.",
+  effectiveFromWeek: PLAN_V4_EFFECTIVE_WEEK,
+  weeks: Array.from({ length: PLAN_V4_LAST_DEFINED_WEEK - PLAN_V4_EFFECTIVE_WEEK + 1 }, (_, index) => planV4Week(PLAN_V4_EFFECTIVE_WEEK + index)),
+  continuationWeek: {
+    title: "Устойчивый ритм",
+    phase: "v4-continuation",
+    sessions: planV4Sessions(PLAN_V4_LAST_DEFINED_WEEK + 1),
+  },
+};
+
 export const TRAINING_PROGRAMS: readonly TrainingProgramDefinition[] = [
   LEGACY_TRAINING_PROGRAM,
   PLAN_V2_TRAINING_PROGRAM,
   PLAN_V3_TRAINING_PROGRAM,
+  PLAN_V4_TRAINING_PROGRAM,
 ];

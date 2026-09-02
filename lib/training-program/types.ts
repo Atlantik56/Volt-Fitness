@@ -9,6 +9,8 @@ export type TrainingSessionRole =
   | "aerobic"
   | "endurance"
   | "zone-2"
+  // План 4.0: интервальная работа на станке, выполняется сидя.
+  | "intervals"
   | "recovery";
 
 export type TrainingDuration = {
