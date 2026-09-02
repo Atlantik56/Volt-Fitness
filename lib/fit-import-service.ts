@@ -18,12 +18,28 @@ export type ImportedWorkout={
  averageHeartRate:number|null;
  maxHeartRate:number|null;
  calories:number|null;
- metadata:{averageCadence:number|null;trainingEffect:number|null;fitSport:string;distanceMeters:number|null;laps:FitLap[];[key:string]:unknown};
+ metadata:{averageCadence:number|null;trainingEffect:number|null;fitSport:string;distanceMeters:number|null;laps:FitLap[];
+  // Подробности по дисциплинам. null означает «в файле этого нет», пустой
+  // массив — «сообщения есть, но подходящих записей не оказалось».
+  sets?:FitSet[]|null;swim?:FitSwimDetail|null;power?:FitPowerDetail|null;[key:string]:unknown};
 };
 // Отрезки (lapMesgs) FIT-файла — используются только для сопоставления
 // фактических метров/времени со спланированными блоками тренировки Swim
 // (см. lib/swim/fit-match.ts). Для не-swim активностей остаётся [].
 export type FitLap={distanceMeters:number;durationSeconds:number;numLengths:number|null};
+
+// Подход силовой тренировки. Часы пишут повторы всегда, вес — только если он
+// введён; распознанное упражнение приходит тройкой догадок и как источник
+// «какое это было движение» не годится, поэтому категория сохраняется лишь
+// первым кандидатом и справочно.
+export type FitSet={repetitions:number|null;weightKg:number|null;durationSeconds:number|null;category:string|null};
+
+// Длина бассейна. SWOLF в FIT не хранится и считается здесь: время длины в
+// секундах плюс число гребков — стандартное определение.
+export type FitSwimLength={strokes:number|null;durationSeconds:number|null;swolf:number|null;stroke:string|null};
+
+export type FitSwimDetail={poolLengthMeters:number|null;activeLengths:number;avgSwolf:number|null;avgStrokesPerLength:number|null;paceSecondsPer100m:number|null;lengths:FitSwimLength[]};
+export type FitPowerDetail={avgWatts:number|null;maxWatts:number|null;normalizedWatts:number|null;kilojoules:number|null};
 export type DraftCandidate={id:number;title:string;startedAt:string|null;finishedAt:string|null;confidence:MatchConfidence;reasons:string[]};
 export type StoredImport={id:number;workout:ImportedWorkout;draftId:number|null;duplicate:boolean;autoLinked:boolean;candidates:DraftCandidate[]};
 export type ImportFailure={ok:false;error:string;status:number};
@@ -34,6 +50,7 @@ export type TargetedImportRequest={expectedActivityType:unknown;draftId:unknown;
 const finite=(value:unknown,min:number,max:number)=>{
  const n=Number(value);return Number.isFinite(n)&&n>=min&&n<=max?n:null;
 };
+const asInteger=(value:unknown,min:number,max:number)=>{const n=finite(value,min,max);return n===null?null:Math.round(n)};
 const asDate=(value:unknown)=>{
  const date=value instanceof Date?value:new Date(String(value??""));
  return Number.isFinite(date.getTime())?date:null;
@@ -59,6 +76,49 @@ export function validateFitUpload(name:string,size:number):ImportFailure|null{
  return null;
 }
 
+const average=(values:number[])=>values.length?Math.round((values.reduce((sum,value)=>sum+value,0)/values.length)*10)/10:null;
+
+/** Рабочие подходы силовой из сообщений set. Отдых отбрасывается. */
+export function computeFitSets(rawSets:unknown):FitSet[]|null{
+ if(!Array.isArray(rawSets))return null;
+ return rawSets.filter((set:any)=>set?.setType==="active").map((set:any)=>({
+  repetitions:asInteger(set?.repetitions,1,1000),
+  // Вес пишется только когда он введён на часах; ноль означает «не задан»,
+  // а не «нулевая нагрузка», поэтому от отсутствия его не отличаем.
+  weightKg:finite(set?.weight,0.1,1000),
+  durationSeconds:finite(set?.duration,0,86_400),
+  category:Array.isArray(set?.category)?String(set.category[0]??"")||null:null,
+ }));
+}
+
+/**
+ * Длины бассейна и производные метрики. SWOLF в FIT не хранится: это время
+ * длины в секундах плюс число гребков — стандартное определение.
+ */
+export function computeFitSwimDetail(
+ rawLengths:unknown,session:{poolLengthMeters:number|null;totalDistanceMeters:number|null;durationSeconds:number},
+):FitSwimDetail|null{
+ if(!Array.isArray(rawLengths))return null;
+ const lengths:FitSwimLength[]=rawLengths.filter((item:any)=>item?.lengthType==="active").map((item:any)=>{
+  const strokes=asInteger(item?.totalStrokes,1,500);
+  const seconds=finite(item?.totalTimerTime??item?.totalElapsedTime,1,3600);
+  return {
+   strokes,durationSeconds:seconds,
+   swolf:strokes!==null&&seconds!==null?Math.round(seconds+strokes):null,
+   stroke:typeof item?.swimStroke==="string"?item.swimStroke:null,
+  };
+ });
+ const distance=session.totalDistanceMeters;
+ return {
+  poolLengthMeters:session.poolLengthMeters,
+  activeLengths:lengths.length,
+  avgSwolf:average(lengths.map(item=>item.swolf).filter((value):value is number=>value!==null)),
+  avgStrokesPerLength:average(lengths.map(item=>item.strokes).filter((value):value is number=>value!==null)),
+  paceSecondsPer100m:distance!==null&&distance>0?Math.round(session.durationSeconds/distance*100):null,
+  lengths,
+ };
+}
+
 export function parseFit(bytes:Uint8Array):ImportFailure|{ok:true;workout:ImportedWorkout}{
  if(bytes.byteLength===0)return {ok:false,error:"FIT-файл пуст",status:400};
  if(bytes.byteLength>MAX_FIT_FILE_SIZE)return {ok:false,error:"FIT-файл больше 10 МБ",status:413};
@@ -77,6 +137,22 @@ export function parseFit(bytes:Uint8Array):ImportFailure|{ok:true;workout:Import
   const fileId=(messages.fileIdMesgs??[])[0] as FileIdMesg|undefined;
   const externalParts=[fileId?.manufacturer,fileId?.product,fileId?.serialNumber,asDate(fileId?.timeCreated)?.toISOString()].filter(x=>x!==undefined&&x!==null&&x!=="");
   const integer=(value:unknown,min:number,max:number)=>{const n=finite(value,min,max);return n===null?null:Math.round(n)};
+  const sets=activityType==="strength"?computeFitSets((messages as any).setMesgs):null;
+  const swim=activityType==="swim"?computeFitSwimDetail((messages as any).lengthMesgs,{
+   poolLengthMeters:finite((session as any).poolLength,1,100),
+   totalDistanceMeters:finite(session.totalDistance,1,1_000_000),
+   durationSeconds:duration,
+  }):null;
+  // Вело: названия полей мощности взяты из профиля FIT. Если прибор их не
+  // пишет, значения останутся null и прогрессия честно скажет о нехватке
+  // данных, вместо того чтобы считать по выдуманным числам.
+  const power:FitPowerDetail|null=activityType==="bike"?{
+   avgWatts:finite((session as any).avgPower,0,3000),
+   maxWatts:finite((session as any).maxPower,0,5000),
+   normalizedWatts:finite((session as any).normalizedPower,0,3000),
+   kilojoules:(()=>{const joules=finite((session as any).totalWork,0,100_000_000);return joules===null?null:Math.round(joules/1000)})(),
+  }:null;
+
   const laps:FitLap[]=activityType==="swim"?(messages.lapMesgs??[])
    .filter((lap:LapMesg)=>finite(lap.totalDistance,0,100_000)!==null&&finite(lap.totalTimerTime??lap.totalElapsedTime,0,86_400)!==null)
    .map((lap:LapMesg)=>({
@@ -100,6 +176,9 @@ export function parseFit(bytes:Uint8Array):ImportFailure|{ok:true;workout:Import
     fitSport:String(session.sport??""),
     distanceMeters:finite(session.totalDistance,0,1_000_000),
     laps,
+    sets,
+    swim,
+    power,
    },
   }};
  }catch{
@@ -176,6 +255,14 @@ export function storeImportedWorkout(workout:ImportedWorkout):ImportSuccess{
   const draftRows=db.prepare("SELECT id,date,snapshot,started_at startedAt,finished_at finishedAt FROM workout_drafts WHERE status='awaiting_confirmation' ORDER BY id DESC LIMIT 50").all() as DraftRow[];
   const candidates=rankDrafts(workout,draftRows);
   if(duplicate){
+   // Тот же файл, разобранный более новым парсером, несёт больше подробностей
+   // (подходы силовой, длины и SWOLF бассейна, мощность вело). Обновляем
+   // только метаданные: связь с черновиком, статус ревью и всё остальное
+   // принадлежит пользователю и переразбором файла не затрагивается.
+   if(workout.source!=="strava"){
+    db.prepare("UPDATE workout_imports SET metadata=?,updated_at=CURRENT_TIMESTAMP WHERE id=?")
+     .run(JSON.stringify(workout.metadata),duplicate.id);
+   }
    // Strava activity details may change after the original upload. Refresh the
    // normalized cache in place while preserving the existing draft link.
    if(workout.source==="strava"){
