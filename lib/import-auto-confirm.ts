@@ -21,7 +21,7 @@ export type AutoConfirmSkip={confirmed:false;reason:string;match?:ActivityMatch|
 export type AutoConfirmDone={confirmed:true;draftId:number;match:ActivityMatch};
 export type AutoConfirmResult=AutoConfirmSkip|AutoConfirmDone;
 
-type ImportRow={id:number;startedAt:string;duration:number;activityType:string;draftId:number|null;metadata:string};
+type ImportRow={id:number;startedAt:string;duration:number;activityType:string;draftId:number|null;reviewStatus:string;metadata:string};
 
 const parse=(value:unknown):Record<string,any>=>{try{const p=JSON.parse(String(value??"{}"));return p&&typeof p==="object"?p:{}}catch{return {}}};
 const skip=(reason:string,match:ActivityMatch|null=null):AutoConfirmSkip=>({confirmed:false,reason,match});
@@ -70,9 +70,12 @@ function snapshotForSession(date:string,session:any):Record<string,any>|null{
  * high или на эту дату уже есть тренировка — дублей быть не должно.
  */
 export function autoConfirmImport(importId:number):AutoConfirmResult{
- const row=db.prepare("SELECT id,started_at startedAt,duration_seconds duration,activity_type activityType,draft_id draftId,metadata FROM workout_imports WHERE id=?").get(importId) as ImportRow|undefined;
+ const row=db.prepare("SELECT id,started_at startedAt,duration_seconds duration,activity_type activityType,draft_id draftId,review_status reviewStatus,metadata FROM workout_imports WHERE id=?").get(importId) as ImportRow|undefined;
  if(!row)return skip("импорт не найден");
  if(row.draftId!==null)return skip("импорт уже связан с тренировкой");
+ // Отклонённый импорт — это удалённая владельцем тренировка. Подтверждать
+ // его заново нельзя: запись вернулась бы после следующей синхронизации.
+ if(row.reviewStatus==="dismissed")return skip("импорт отклонён владельцем");
 
  const metadata=parse(row.metadata);
  const date=importLocalDate(row.startedAt,metadata);

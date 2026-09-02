@@ -211,6 +211,18 @@ export function deleteWorkout(b: any): ActionResult {
  db.transaction(() => {
   purgeProgressionForWorkout(id);
   db.prepare("DELETE FROM strength_logs WHERE workout_id=?").run(id);
+  // Тренировка, подтверждённая через черновик, была неудаляемой: у
+  // workout_drafts.workout_id внешний ключ на workout_logs, а foreign_keys
+  // включены, поэтому DELETE падал с constraint failed.
+  //
+  // Импорт помечаем dismissed, а не просто отвязываем: иначе следующая
+  // синхронизация подтвердила бы его заново, и удалённая запись вернулась бы.
+  // Сам импорт сохраняем — это сырое свидетельство с часов.
+  db.prepare(`UPDATE workout_imports SET draft_id=NULL,review_status='dismissed',updated_at=CURRENT_TIMESTAMP
+   WHERE draft_id IN (SELECT id FROM workout_drafts WHERE workout_id=?)`).run(id);
+  // Черновик удаляется вместе с тренировкой: оставленный со статусом
+  // completed, он продолжал бы засчитываться программе как выполненный.
+  db.prepare("DELETE FROM workout_drafts WHERE workout_id=?").run(id);
   const result = db.prepare("DELETE FROM workout_logs WHERE id=?").run(id);
   changed = result.changes;
  })();
