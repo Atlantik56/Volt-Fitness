@@ -41,7 +41,10 @@ export type FitSet={repetitions:number|null;weightKg:number|null;bodyweight:bool
 // секундах плюс число гребков — стандартное определение.
 export type FitSwimLength={strokes:number|null;durationSeconds:number|null;swolf:number|null;stroke:string|null};
 
-export type FitSwimDetail={poolLengthMeters:number|null;activeLengths:number;avgSwolf:number|null;avgStrokesPerLength:number|null;paceSecondsPer100m:number|null;lengths:FitSwimLength[]};
+// movingSeconds — время В ВОДЕ: сумма активных длин. totalTimerTime сессии
+// включает отдых у бортика и для темпа не годится: он давал 3:06/100м там, где
+// Garmin показывает 2:23/100м. Отдельного поля с moving time в FIT бассейна нет.
+export type FitSwimDetail={poolLengthMeters:number|null;activeLengths:number;movingSeconds:number|null;avgSwolf:number|null;avgStrokesPerLength:number|null;paceSecondsPer100m:number|null;lengths:FitSwimLength[]};
 export type FitPowerDetail={avgWatts:number|null;maxWatts:number|null;normalizedWatts:number|null;kilojoules:number|null};
 export type DraftCandidate={id:number;title:string;startedAt:string|null;finishedAt:string|null;confidence:MatchConfidence;reasons:string[]};
 export type StoredImport={id:number;workout:ImportedWorkout;draftId:number|null;duplicate:boolean;autoLinked:boolean;candidates:DraftCandidate[]};
@@ -114,12 +117,17 @@ export function computeFitSwimDetail(
   };
  });
  const distance=session.totalDistanceMeters;
+ // Время в воде: сумма активных длин. Отдых у бортика в темп попадать не должен.
+ const swimSeconds=lengths.reduce((sum,item)=>sum+(item.durationSeconds??0),0);
+ const movingSeconds=swimSeconds>0?Math.round(swimSeconds):null;
+ const paceBase=movingSeconds??session.durationSeconds;
  return {
   poolLengthMeters:session.poolLengthMeters,
   activeLengths:lengths.length,
+  movingSeconds,
   avgSwolf:average(lengths.map(item=>item.swolf).filter((value):value is number=>value!==null)),
   avgStrokesPerLength:average(lengths.map(item=>item.strokes).filter((value):value is number=>value!==null)),
-  paceSecondsPer100m:distance!==null&&distance>0?Math.round(session.durationSeconds/distance*100):null,
+  paceSecondsPer100m:distance!==null&&distance>0?Math.round(paceBase/distance*100):null,
   lengths,
  };
 }

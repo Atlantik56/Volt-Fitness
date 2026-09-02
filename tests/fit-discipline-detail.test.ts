@@ -32,10 +32,23 @@ test("idle lengths are excluded — resting at the wall is not a swum length", (
   assert.equal(detail.avgStrokesPerLength, 13);
 });
 
-test("pace per 100m comes from real distance and duration", () => {
-  const detail = computeFitSwimDetail([length(12, 38)], {
+test("pace counts only time in the water, not rest at the wall", () => {
+  // Длительность сессии 2099 с включает отдых; активного плавания — 1900 с.
+  // Темп обязан считаться по второму: иначе выходит 3:06/100м там, где Garmin
+  // показывает 2:23/100м.
+  const lengths = Array.from({ length: 50 }, () => length(12, 38));
+  const detail = computeFitSwimDetail(lengths, {
+    poolLengthMeters: 25, totalDistanceMeters: 1250, durationSeconds: 2500,
+  })!;
+  assert.equal(detail.movingSeconds, 1900, "время в воде — сумма активных длин");
+  assert.equal(detail.paceSecondsPer100m, 152, "1900 с на 1250 м = 152 с/100 м");
+});
+
+test("without lengths the pace falls back to the session duration", () => {
+  const detail = computeFitSwimDetail([], {
     poolLengthMeters: 25, totalDistanceMeters: 1150, durationSeconds: 2099,
   })!;
+  assert.equal(detail.movingSeconds, null);
   assert.equal(detail.paceSecondsPer100m, 183);
 });
 

@@ -53,13 +53,14 @@ export function getSwimHomeData(): SwimHomeData {
   const activeProgress=getActiveSwimProgramProgress();
   const nextWorkout = buildNextWorkoutView(activeProgress);
 
+  const swimPace = paceResolver(swimMetricsByWorkoutId());
   const lastLog = logs[0];
   const lastSwim: SwimLastSwimView = lastLog
     ? {
         date: lastLog.date,
         distanceMeters: lastLog.distanceMeters > 0 ? lastLog.distanceMeters : null,
         durationSeconds: lastLog.durationSeconds > 0 ? lastLog.durationSeconds : null,
-        paceLabel: formatPace100m(lastLog.distanceMeters, lastLog.durationSeconds),
+        paceLabel: swimPace(lastLog),
         poolLengthMeters: null,
         source: lastLog.metricsSource === "imported_metric" ? "imported_metric" : "manual",
         provider: lastLog.externalActivitySource === "strava" ? "strava" : lastLog.externalActivitySource === "garmin_fit" ? "garmin_fit" : null,
@@ -82,17 +83,17 @@ export function getSwimHomeData(): SwimHomeData {
     dailyMeters: weekDates.map((date) => weekLogs.filter((row) => row.date === date).reduce((sum, row) => sum + Math.max(0, row.distanceMeters), 0)),
   };
 
-  const recentWithPace = logs.find((row) => formatPace100m(row.distanceMeters, row.durationSeconds) !== null);
+  const recentWithPace = logs.find((row) => swimPace(row) !== null);
   const recentWithHeartRate = logs.find((row) => row.avgHeartRate > 0);
   const recentWithCalories = logs.find((row) => row.calories > 0);
   const metrics: SwimMetricsView = {
-    avgPaceLabel: recentWithPace ? formatPace100m(recentWithPace.distanceMeters, recentWithPace.durationSeconds) : null,
+    avgPaceLabel: recentWithPace ? swimPace(recentWithPace) : null,
     swolf: null,
     avgHeartRate: recentWithHeartRate ? recentWithHeartRate.avgHeartRate : null,
     calories: recentWithCalories ? recentWithCalories.calories : null,
   };
 
-  const toRecent = (row: WorkoutLogRow): SwimRecentSessionView => ({ id: row.id, date: row.date, title: row.title, distanceMeters: row.distanceMeters > 0 ? row.distanceMeters : null, durationSeconds: row.durationSeconds > 0 ? row.durationSeconds : null, paceLabel: formatPace100m(row.distanceMeters, row.durationSeconds), avgHeartRate: row.avgHeartRate > 0 ? row.avgHeartRate : null, effort: row.effort || null });
+  const toRecent = (row: WorkoutLogRow): SwimRecentSessionView => ({ id: row.id, date: row.date, title: row.title, distanceMeters: row.distanceMeters > 0 ? row.distanceMeters : null, durationSeconds: row.durationSeconds > 0 ? row.durationSeconds : null, paceLabel: swimPace(row), avgHeartRate: row.avgHeartRate > 0 ? row.avgHeartRate : null, effort: row.effort || null });
   const recentSwims = logs.slice(0, 3).map(toRecent);
   const monthPrefix = now.toISOString().slice(0, 7);
   const monthBest = logs.filter((row) => row.date.startsWith(monthPrefix) && row.distanceMeters > 0).sort((a, b) => b.distanceMeters - a.distanceMeters)[0];
@@ -130,33 +131,61 @@ function swimRouteByPlanKey(): Map<string, { programId: string; workoutId: strin
  * По дате связывать нельзя: в один день может быть и импортированный заплыв, и
  * запись, заведённая вручную, — тогда чужой SWOLF приписался бы второй.
  */
-function swolfByWorkoutId(): Map<number, number> {
-  const map = new Map<number, number>();
+type SwimImportMetrics = { avgSwolf: number | null; movingSeconds: number | null; paceSecondsPer100m: number | null };
+
+function swimMetricsByWorkoutId(): Map<number, SwimImportMetrics> {
+  const map = new Map<number, SwimImportMetrics>();
   const rows = db.prepare(`SELECT d.workout_id workoutId,i.metadata FROM workout_imports i
     JOIN workout_drafts d ON d.id=i.draft_id
     WHERE i.activity_type='swim' AND d.workout_id IS NOT NULL ORDER BY i.id ASC`).all() as { workoutId: number; metadata: string }[];
+  const positive = (value: unknown) => { const n = Number(value); return Number.isFinite(n) && n > 0 ? n : null; };
   for (const row of rows) {
     try {
-      const value = Number(JSON.parse(row.metadata || "{}")?.swim?.avgSwolf);
-      if (Number.isFinite(value) && value > 0) map.set(Number(row.workoutId), value);
+      const swim = JSON.parse(row.metadata || "{}")?.swim ?? {};
+      map.set(Number(row.workoutId), {
+        avgSwolf: positive(swim.avgSwolf),
+        movingSeconds: positive(swim.movingSeconds),
+        paceSecondsPer100m: positive(swim.paceSecondsPer100m),
+      });
     } catch { /* повреждённые метаданные не должны ронять историю */ }
   }
   return map;
 }
 
+const paceLabelFromSeconds = (seconds: number) => `${Math.floor(seconds / 60)}:${String(Math.round(seconds % 60)).padStart(2, "0")}`;
+
+/**
+ * Единый источник темпа для всех экранов Swim. Темп обязан считаться только по
+ * активному плаванию: длительность сессии включает отдых у бортика и давала
+ * 3:06/100м там, где Garmin показывает 2:23/100м. Общее время при этом
+ * показывается как есть — оно и есть длительность занятия.
+ */
+function paceResolver(metrics: Map<number, SwimImportMetrics>) {
+  return (row: { id: number; distanceMeters: number; durationSeconds: number }): string | null => {
+    const pace = metrics.get(row.id)?.paceSecondsPer100m;
+    if (pace != null) return paceLabelFromSeconds(pace);
+    return formatPace100m(row.distanceMeters, row.durationSeconds);
+  };
+}
+
 export function getSwimHistory(): SwimHistoryData {
   const routeByPlanKey = swimRouteByPlanKey();
-  const swolf = swolfByWorkoutId();
+  const swimMetrics = swimMetricsByWorkoutId();
+  const historyPace = paceResolver(swimMetrics);
   const rows = (db.prepare(selectHistoryLogs).all() as HistoryLogRow[]).filter((row) => isSwimActivity(row.type, row.title));
   const items: SwimHistoryItem[] = rows.map((row) => ({
     id: row.id,
     date: row.date,
     title: row.title,
     distanceMeters: row.distanceMeters > 0 ? row.distanceMeters : null,
+    // Общее время тренировки показываем как есть — оно и есть длительность
+    // занятия. А темп обязан считаться ТОЛЬКО по активному плаванию: отдых у
+    // бортика в темп попадать не должен, иначе выходит 3:06/100м там, где
+    // Garmin показывает 2:23/100м.
     durationSeconds: row.durationSeconds > 0 ? row.durationSeconds : null,
-    paceLabel: formatPace100m(row.distanceMeters, row.durationSeconds),
+    paceLabel: historyPace(row),
     avgHeartRate: row.avgHeartRate > 0 ? row.avgHeartRate : null,
-    avgSwolf: swolf.get(row.id) ?? null,
+    avgSwolf: swimMetrics.get(row.id)?.avgSwolf ?? null,
     source: row.metricsSource === "imported_metric" ? "imported_metric" : "manual",
     provider: row.externalActivitySource === "strava" ? "strava" : row.externalActivitySource === "garmin_fit" ? "garmin_fit" : null,
     effort: row.effort ? row.effort : null,
