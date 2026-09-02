@@ -148,6 +148,14 @@ const WORKOUTS: readonly TrainingWorkoutDefinition[] = [
   },
   {
     // Длинная база выходного дня: растёт время, а не сопротивление.
+    id: "bike-v4-extra", type: "Кардио", title: "Вело — третий заезд", rounds: 1,
+    image: "/workouts/road-cycling.webp", exercises: [
+      ["Разминка", "Лёгкое сопротивление, педалирование сидя.", "5 мин", "/workouts/road-cycling.webp"],
+      ["Аэробная работа", "Ровный разговорный темп, как в субботнем заезде, но короче. Без интервалов и без вставания с седла.", "25–40 мин", "/workouts/road-cycling.webp"],
+      ["Заминка", "Снижение темпа.", "5 мин", "/workouts/road-cycling.webp"],
+    ],
+  },
+  {
     id: "bike-v4-long", type: "Кардио", title: "Вело — длинная база", rounds: 1,
     image: "/workouts/road-cycling.webp", exercises: [
       ["Разминка", "Минимальное сопротивление, педалирование сидя.", "5 мин", "/workouts/road-cycling.webp"],

@@ -414,6 +414,27 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   CREATE UNIQUE INDEX IF NOT EXISTS idx_workout_imports_external
    ON workout_imports(source,external_id) WHERE external_id IS NOT NULL;
  `},
+ // План 4.0: выбор альтернативы гибкого слота (например, вместо пятничного
+ // плавания — третий заезд). Хранится рядом с переносами дней, потому что это
+ // тоже изменение недели поверх канонической программы, а не правка программы.
+ // Колонка аддитивная: CHECK на action не трогаем, замена дисциплины ездит
+ // с action='replace' и пустым assigned_source_day.
+ // CREATE IF NOT EXISTS повторён намеренно: миграция должна применяться на
+ // базе любой формы, включая ту, где таблица ещё не создавалась. Повторный
+ // ALTER безопасен — runner глотает ошибку «duplicate column».
+ {version:29,sql:`
+  CREATE TABLE IF NOT EXISTS week_schedule_changes (
+   id INTEGER PRIMARY KEY AUTOINCREMENT,
+   date TEXT NOT NULL UNIQUE,
+   action TEXT NOT NULL CHECK(action IN ('replace','swap','rest')),
+   assigned_source_day INTEGER,
+   swap_with_date TEXT,
+   reason_code TEXT NOT NULL DEFAULT '',
+   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  ALTER TABLE week_schedule_changes ADD COLUMN alternative_session_id TEXT;
+ `},
 ];
 for(const migration of migrations){
  if(!db.prepare("SELECT 1 FROM schema_migrations WHERE version=?").get(migration.version)){

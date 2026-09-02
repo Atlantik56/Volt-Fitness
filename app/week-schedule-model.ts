@@ -24,7 +24,26 @@ export type HomeWeekDay = {
   required?: boolean;
   workoutRef?: TrainingWorkoutReference;
   programIdentity?: TrainingProgramIdentity;
+  // Непустой список делает слот гибким: дисциплину можно заменить на выбранную
+  // дату, не трогая каноническую программу.
+  alternatives?: HomeWeekAlternative[];
   sessions?: HomeWeekSession[];
+};
+
+// Альтернатива несёт готовое содержимое тренировки: модель расписания
+// остаётся чистой и не обращается к каталогу упражнений.
+export type HomeWeekAlternative = {
+  id: string;
+  discipline: TrainingDiscipline;
+  role: TrainingSessionRole;
+  title: string;
+  time: string;
+  type: string;
+  rounds: number;
+  image: string;
+  exercises: any[];
+  warmup?: any[];
+  workoutRef: TrainingWorkoutReference;
 };
 
 export type HomeWeekSession = Omit<HomeWeekDay, "day" | "d" | "sessions"> & { day?: number; d?: string };
@@ -53,6 +72,8 @@ export const WEEK_SCHEDULE_REASON_LABELS: Record<WeekScheduleReasonCode, string>
 };
 
 export type WeekScheduleChange = {
+  // Выбранная альтернатива гибкого слота, если дисциплину заменили.
+  alternativeSessionId?: string | null;
   id: number;
   date: string;
   action: WeekScheduleAction;
@@ -149,6 +170,26 @@ export function resolvePlanForDate(
       date, weekday, original,
       scheduled: buildRestPlan(homeWeek, weekday, original.d),
       changed: true, action: "rest", reasonCode: change.reasonCode, swapWithDate: null, changeId: change.id,
+    };
+  }
+  // Замена дисциплины в гибком слоте: день остаётся на месте, меняется его
+  // содержимое. Каноническая программа не трогается — выбор живёт только в
+  // week_schedule_changes, как и переносы дней.
+  const alternative = change.alternativeSessionId
+    ? original.alternatives?.find((item) => item.id === change.alternativeSessionId) ?? null
+    : null;
+  if (alternative) {
+    return {
+      date, weekday, original,
+      scheduled: {
+        ...original,
+        id: alternative.id, title: alternative.title, time: alternative.time, type: alternative.type,
+        rounds: alternative.rounds, image: alternative.image, exercises: alternative.exercises,
+        warmup: alternative.warmup, discipline: alternative.discipline, role: alternative.role,
+        workoutRef: alternative.workoutRef,
+      },
+      changed: true, action: change.action, reasonCode: change.reasonCode,
+      swapWithDate: null, changeId: change.id,
     };
   }
   const assignedDay = change.assignedSourceDay != null ? findDay(homeWeek, change.assignedSourceDay) : null;

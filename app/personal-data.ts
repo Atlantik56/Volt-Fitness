@@ -31,7 +31,22 @@ function sessionToHomeDay(session:TrainingSessionDefinition,resolved:ReturnType<
  return {
   id:session.id,day:session.day,d:DAY_LABELS[session.day],type:workout.type,title:session.title,time:durationLabel(session.estimatedDuration),rounds:workout.rounds,image:workout.image,
   exercises:mutableExercises(workout.exercises),warmup:workout.warmup?mutableExercises(workout.warmup):undefined,
-  optional:!session.required&&session.discipline==="bike",availability:workout.availability,
+  // Гибким слот делает !required, а не дисциплина: в Плане 4.0 необязательное
+  // плавание — такой же гибкий слот, каким в 3.0 было вело. Дни отдыха при
+  // этом «опциональными» не считаются.
+  optional:!session.required&&session.discipline!=="recovery",availability:workout.availability,
+  alternatives:session.alternatives?.map(alternative=>{
+   const alternativeWorkout=alternative.workoutRef.kind==="catalog"
+    ?getTrainingWorkout(alternative.workoutRef.workoutId)
+    :getTrainingWorkout(alternative.workoutRef.programId==="endurance"?"swim-endurance":"swim-foundation");
+   return {
+    id:alternative.id,discipline:alternative.discipline,role:alternative.role,title:alternative.title,
+    time:durationLabel(alternative.estimatedDuration),type:alternativeWorkout.type,rounds:alternativeWorkout.rounds,
+    image:alternativeWorkout.image,exercises:mutableExercises(alternativeWorkout.exercises),
+    warmup:alternativeWorkout.warmup?mutableExercises(alternativeWorkout.warmup):undefined,
+    workoutRef:alternative.workoutRef,
+   };
+  }),
   discipline:session.discipline,role:session.role,required:session.required,workoutRef:session.workoutRef,
   programIdentity:{...trainingProgramRegistry.identityFor(program,week,session),...(cycleId?{cycleId}:{})},
  };

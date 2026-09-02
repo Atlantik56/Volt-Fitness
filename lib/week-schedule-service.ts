@@ -20,12 +20,13 @@ function rowToChange(row: any): WeekScheduleChange {
     id: row.id, date: row.date, action: row.action,
     assignedSourceDay: row.assignedSourceDay ?? null,
     swapWithDate: row.swapWithDate ?? null,
+    alternativeSessionId: row.alternativeSessionId ?? null,
     reasonCode: row.reasonCode ?? "",
     createdAt: row.createdAt, updatedAt: row.updatedAt,
   };
 }
 
-const selectChanges = `SELECT id,date,action,assigned_source_day assignedSourceDay,swap_with_date swapWithDate,reason_code reasonCode,created_at createdAt,updated_at updatedAt FROM week_schedule_changes`;
+const selectChanges = `SELECT id,date,action,assigned_source_day assignedSourceDay,swap_with_date swapWithDate,alternative_session_id alternativeSessionId,reason_code reasonCode,created_at createdAt,updated_at updatedAt FROM week_schedule_changes`;
 
 export function listWeekScheduleChanges(mondayIso: string, sundayIso: string): WeekScheduleChange[] {
   return (db.prepare(`${selectChanges} WHERE date BETWEEN ? AND ? ORDER BY date ASC`).all(mondayIso, sundayIso) as any[]).map(rowToChange);
@@ -54,10 +55,11 @@ function breakExistingSwapPairing(date: string) {
   if (row?.action === "swap" && row.swapWithDate) db.prepare("DELETE FROM week_schedule_changes WHERE date=?").run(row.swapWithDate);
 }
 
-const upsertChange = db.prepare(`INSERT INTO week_schedule_changes(date,action,assigned_source_day,swap_with_date,reason_code)
- VALUES(@date,@action,@assignedSourceDay,@swapWithDate,@reasonCode)
+const upsertChange = db.prepare(`INSERT INTO week_schedule_changes(date,action,assigned_source_day,swap_with_date,alternative_session_id,reason_code)
+ VALUES(@date,@action,@assignedSourceDay,@swapWithDate,@alternativeSessionId,@reasonCode)
  ON CONFLICT(date) DO UPDATE SET action=excluded.action,assigned_source_day=excluded.assigned_source_day,
-  swap_with_date=excluded.swap_with_date,reason_code=excluded.reason_code,updated_at=CURRENT_TIMESTAMP`);
+  swap_with_date=excluded.swap_with_date,alternative_session_id=excluded.alternative_session_id,
+  reason_code=excluded.reason_code,updated_at=CURRENT_TIMESTAMP`);
 
 export function applyReplace(params: { date: string; assignedSourceDay: number; reasonCode?: string; todayIso: string }): ActionResult {
   if (!dateOk(params.date) || !dateOk(params.todayIso)) return { ok: false, error: "Некорректная дата", status: 400 };
@@ -68,7 +70,35 @@ export function applyReplace(params: { date: string; assignedSourceDay: number; 
   if (error) return { ok: false, error, status: 409 };
   db.transaction(() => {
     breakExistingSwapPairing(params.date);
-    upsertChange.run({ date: params.date, action: "replace" as WeekScheduleAction, assignedSourceDay: params.assignedSourceDay, swapWithDate: null, reasonCode });
+    upsertChange.run({ date: params.date, action: "replace" as WeekScheduleAction, assignedSourceDay: params.assignedSourceDay, swapWithDate: null, alternativeSessionId: null, reasonCode });
+  })();
+  return { ok: true };
+}
+
+/**
+ * Замена дисциплины в гибком слоте: пятничное плавание Плана 4.0 меняется на
+ * третий заезд и обратно. День остаётся на месте, меняется его содержимое.
+ * Каноническая программа не трогается — как и при переносах дней.
+ *
+ * `alternativeSessionId: null` возвращает слот к исходной дисциплине.
+ */
+export function applyAlternative(params: { date: string; alternativeSessionId: string | null; alternativesForDate: readonly { id: string }[]; reasonCode?: string; todayIso: string }): ActionResult {
+  if (!dateOk(params.date) || !dateOk(params.todayIso)) return { ok: false, error: "Некорректная дата", status: 400 };
+  const reasonCode = params.reasonCode ?? "";
+  if (!isValidReason(reasonCode)) return { ok: false, error: "Некорректная причина", status: 400 };
+  if (!params.alternativesForDate.length) return { ok: false, error: "У этого дня нет альтернатив", status: 409 };
+  if (params.alternativeSessionId !== null && !params.alternativesForDate.some((item) => item.id === params.alternativeSessionId))
+    return { ok: false, error: "Неизвестная альтернатива для этого дня", status: 400 };
+  const error = editabilityError(params.date, params.todayIso);
+  if (error) return { ok: false, error, status: 409 };
+  db.transaction(() => {
+    breakExistingSwapPairing(params.date);
+    if (params.alternativeSessionId === null) {
+      // Возврат к исходной дисциплине — это отсутствие изменения, а не новое.
+      db.prepare("DELETE FROM week_schedule_changes WHERE date=?").run(params.date);
+      return;
+    }
+    upsertChange.run({ date: params.date, action: "replace" as WeekScheduleAction, assignedSourceDay: null, swapWithDate: null, alternativeSessionId: params.alternativeSessionId, reasonCode });
   })();
   return { ok: true };
 }
@@ -81,7 +111,7 @@ export function applyRest(params: { date: string; reasonCode?: string; todayIso:
   if (error) return { ok: false, error, status: 409 };
   db.transaction(() => {
     breakExistingSwapPairing(params.date);
-    upsertChange.run({ date: params.date, action: "rest" as WeekScheduleAction, assignedSourceDay: null, swapWithDate: null, reasonCode });
+    upsertChange.run({ date: params.date, action: "rest" as WeekScheduleAction, assignedSourceDay: null, swapWithDate: null, alternativeSessionId: null, reasonCode });
   })();
   return { ok: true };
 }
@@ -99,8 +129,8 @@ export function applySwap(params: { dateA: string; dateB: string; reasonCode?: s
   db.transaction(() => {
     breakExistingSwapPairing(params.dateA);
     breakExistingSwapPairing(params.dateB);
-    upsertChange.run({ date: params.dateA, action: "swap" as WeekScheduleAction, assignedSourceDay: weekdayB, swapWithDate: params.dateB, reasonCode });
-    upsertChange.run({ date: params.dateB, action: "swap" as WeekScheduleAction, assignedSourceDay: weekdayA, swapWithDate: params.dateA, reasonCode });
+    upsertChange.run({ date: params.dateA, action: "swap" as WeekScheduleAction, assignedSourceDay: weekdayB, swapWithDate: params.dateB, alternativeSessionId: null, reasonCode });
+    upsertChange.run({ date: params.dateB, action: "swap" as WeekScheduleAction, assignedSourceDay: weekdayA, swapWithDate: params.dateA, alternativeSessionId: null, reasonCode });
   })();
   return { ok: true };
 }

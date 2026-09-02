@@ -7,9 +7,10 @@ import { MOOD_OPTIONS } from "@/lib/mood";
 import { saveEveningCheckin } from "@/lib/evening-checkin-service";
 import { listManualMilestones, createManualMilestone, updateManualMilestone, deleteManualMilestone } from "@/lib/milestone-service";
 import { listOpenWorkoutDrafts,startWorkoutDraft,finishWorkoutDraft,cancelWorkoutDraft,confirmWorkoutDraft } from "@/lib/active-workout-service";
-import { listWeekScheduleChanges,applyReplace,applyRest,applySwap,cancelChange,resetWeek } from "@/lib/week-schedule-service";
+import { listWeekScheduleChanges,applyAlternative,applyReplace,applyRest,applySwap,cancelChange,resetWeek } from "@/lib/week-schedule-service";
 import { weekRangeContaining, localIso as weekLocalIso } from "@/app/week-schedule-model";
 import { getSwimPlanStartedAt } from "@/lib/swim/services";
+import { buildProgramDayForDate } from "@/app/personal-data";
 import { getTrainingPlanV3StartedAt } from "@/lib/training-plan-activation";
 import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
 import { purgeExpiredStravaData } from "@/lib/strava-service";
@@ -116,6 +117,22 @@ export async function POST(req:Request){
   const energy=num(b.energy,1,5),pain=num(b.pain,0,10);if(!dateOk(b.date)||energy===null||pain===null)return Response.json({error:"Проверьте самочувствие"},{status:400});db.prepare("INSERT INTO wellness_logs(date,energy,pain,pain_area,note) VALUES(?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET energy=excluded.energy,pain=excluded.pain,pain_area=excluded.pain_area,note=excluded.note").run(b.date,energy,pain,text(b.painArea,80),text(b.note,300))
  }else if(b.action==="schedule"){
   if(!dateOk(b.originalDate)||!dateOk(b.scheduledDate)||!text(b.planTitle))return Response.json({error:"Проверьте даты"},{status:400});db.prepare("INSERT INTO schedule_overrides(original_date,scheduled_date,plan_title,replacement_title) VALUES(?,?,?,?) ON CONFLICT(original_date) DO UPDATE SET scheduled_date=excluded.scheduled_date,replacement_title=excluded.replacement_title").run(b.originalDate,b.scheduledDate,text(b.planTitle),text(b.replacementTitle))
+ }else if(b.action==="weekScheduleAlternative"){
+  // План 4.0: замена дисциплины в гибком слоте. Список альтернатив берётся из
+  // канонической программы на сервере, а не из тела запроса — клиент не может
+  // подставить чужую тренировку.
+  const todayIso=weekLocalIso(new Date());
+  if(!dateOk(b.date))return Response.json({error:"Некорректная дата"},{status:400});
+  const profileRow=db.prepare("SELECT program_start programStart,training_plan_v3_started_at v3 FROM profile WHERE id=1").get() as any;
+  const cycle=db.prepare("SELECT id FROM training_plan_cycles WHERE ended_at IS NULL ORDER BY id DESC LIMIT 1").get() as any;
+  const day=buildProgramDayForDate(profileRow?.programStart,profileRow?.v3,b.date,cycle?.id??null);
+  const result=applyAlternative({
+   date:b.date,
+   alternativeSessionId:b.alternativeSessionId===null||b.alternativeSessionId===undefined?null:String(b.alternativeSessionId),
+   alternativesForDate:day.alternatives??[],
+   reasonCode:b.reasonCode,todayIso,
+  });
+  if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else if(["weekScheduleReplace","weekScheduleRest","weekScheduleSwap","weekScheduleCancel","weekScheduleReset"].includes(b.action)){
   // AI-11 — сегодняшний server-день, а не клиентский, чтобы редактирование
   // всегда проверялось против реального "текущей недели", а не подделанной даты.

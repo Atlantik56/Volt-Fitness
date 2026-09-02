@@ -237,7 +237,14 @@ function planV4Sessions(weekIndex: number): readonly TrainingSessionDefinition[]
     session({ id: "strength-v4-b", day: 4, discipline: "strength", role: "strength-b", required: true, title: "Силовая тренировка Б — тренажёры", duration: duration(50, 60), workoutRef: catalog("strength-v3-b") }),
     // Гибкий слот: обычно плавание, в вело-блок заменяется третьим заездом
     // через механизм гибкой недели.
-    session({ id: "swim-v4-aerobic", day: 5, discipline: "swim", role: "aerobic", required: false, title: "Плавание — аэробная тренировка", duration: duration(45, 60), workoutRef: enduranceSwim(weekIndex, "aerobic") }),
+    {
+      ...session({ id: "swim-v4-aerobic", day: 5, discipline: "swim", role: "aerobic", required: false, title: "Плавание — аэробная тренировка", duration: duration(45, 60), workoutRef: enduranceSwim(weekIndex, "aerobic") }),
+      alternatives: [{
+        id: "bike-v4-extra", discipline: "bike", role: "zone-2",
+        title: "Вело — третий заезд", estimatedDuration: duration(30, 45),
+        workoutRef: catalog("bike-v4-extra"),
+      }],
+    },
     session({ id: "bike-v4-long", day: 6, discipline: "bike", role: "zone-2", required: true, title: "Вело — длинная база", duration: duration(longBikeMinutes), workoutRef: catalog("bike-v4-long") }),
     recovery(7, "rest-v4-sunday"),
   ];

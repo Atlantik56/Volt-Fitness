@@ -32,6 +32,17 @@ export type TrainingWorkoutReference =
   | { kind: "catalog"; workoutId: string }
   | { kind: "swim"; programId: string; programVersion: number; workoutId: string | null };
 
+// Альтернатива гибкого слота: чем можно заменить сессию, не трогая
+// каноническую программу. Выбор пользователя живёт в week_schedule_changes.
+export type TrainingSessionAlternative = {
+  id: string;
+  discipline: TrainingDiscipline;
+  role: TrainingSessionRole;
+  title: string;
+  estimatedDuration: TrainingDuration | null;
+  workoutRef: TrainingWorkoutReference;
+};
+
 export type TrainingSessionDefinition = {
   id: string;
   day: number;
@@ -41,6 +52,9 @@ export type TrainingSessionDefinition = {
   title: string;
   estimatedDuration: TrainingDuration | null;
   workoutRef: TrainingWorkoutReference;
+  // Непустой список делает слот гибким: пользователь может выбрать одну из
+  // альтернатив на конкретную дату.
+  alternatives?: readonly TrainingSessionAlternative[];
 };
 
 export type TrainingWeekDefinition = {
