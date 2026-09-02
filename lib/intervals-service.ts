@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { importFit } from "@/lib/fit-import-service";
 import { downloadIntervalsActivityFit, IntervalsApiError, isStravaSourced, listIntervalsActivities, listIntervalsWellness } from "@/lib/intervals-client";
 import { buildRecoveryBaseline, evaluateRecoveryLimiter, BASELINE_WINDOW_DAYS, type RecoveryLimiter, type RecoverySample } from "@/lib/recovery-baseline";
+import { autoConfirmImport } from "@/lib/import-auto-confirm";
 
 const INITIAL_LOOKBACK_DAYS=90;
 // Перекрытие на сутки: intervals.icu показывает локальные даты, а активность
@@ -20,7 +21,7 @@ export type IntervalsStatus={
  configured:boolean;status:"idle"|"ok"|"sync_error"|"unauthorized";
  athleteId:string;lastSyncedAt:string|null;lastActivityDate:string|null;lastSyncError:string;
 };
-export type IntervalsSyncResult={considered:number;imported:number;duplicates:number;skippedStrava:number;failed:number;errors:string[]};
+export type IntervalsSyncResult={considered:number;imported:number;duplicates:number;skippedStrava:number;autoConfirmed:number;failed:number;errors:string[]};
 
 type ConnectionRow={athleteId:string;lastSyncedAt:string|null;lastActivityDate:string|null;lastSyncError:string;status:IntervalsStatus["status"]};
 const connectionSelect="SELECT athlete_id athleteId,last_synced_at lastSyncedAt,last_activity_date lastActivityDate,last_sync_error lastSyncError,status FROM intervals_connection WHERE id=1";
@@ -72,7 +73,7 @@ const markStatus=(status:IntervalsStatus["status"],error:string)=>{
 export async function syncIntervalsActivities(fetcher:typeof fetch=fetch,now=new Date()):Promise<IntervalsSyncResult>{
  const {apiKey,athleteId}=getIntervalsConfig();
  const row=readConnection();
- const result:IntervalsSyncResult={considered:0,imported:0,duplicates:0,skippedStrava:0,failed:0,errors:[]};
+ const result:IntervalsSyncResult={considered:0,imported:0,duplicates:0,skippedStrava:0,autoConfirmed:0,failed:0,errors:[]};
 
  let activities;
  try{
@@ -102,7 +103,13 @@ export async function syncIntervalsActivities(fetcher:typeof fetch=fetch,now=new
    const {bytes}=await downloadIntervalsActivityFit(apiKey,activity.id,fetcher);
    const imported=importFit(bytes);
    if(!imported.ok){result.failed++;result.errors.push(`${activity.id}: ${imported.error}`);continue}
-   if(imported.result.duplicate)result.duplicates++;else result.imported++;
+   if(imported.result.duplicate)result.duplicates++;else{
+    result.imported++;
+    // AI-16: свежий импорт подтверждает плановую тренировку сам, если день и
+    // дисциплина сходятся однозначно. Всё неуверенное остаётся на ручной
+    // разбор, поэтому отказ здесь — штатный исход, а не ошибка синхронизации.
+    try{if(autoConfirmImport(imported.result.id).confirmed)result.autoConfirmed++}catch{}
+   }
    const day=activity.startDateLocal?.slice(0,10)??null;
    if(day&&/^\d{4}-\d{2}-\d{2}$/.test(day)&&(!latestDate||day>latestDate))latestDate=day;
   }catch(error){
