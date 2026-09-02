@@ -280,6 +280,11 @@ export default function Home() {
             <p className="eyebrow">СЛЕДУЮЩАЯ ТРЕНИРОВКА{todayResolved.changed&&<span className="plan-changed-badge">План изменён</span>}</p>
             <h3>{trainingLabelRu(todayPlan.title)}</h3>
             <p className="next-workout-type">{todayPlan.type}</p>
+            {/* Программа назначила эту тренировку на другой день: на сегодня у
+                неё своей сессии нет. Молча подменять день нельзя — показываем,
+                что это перенос, иначе расписание выглядит противоречивым. */}
+            {isTodaySwim&&swimToday?.kind==="workout"&&swimToday.scheduledFor&&
+             <p className="next-workout-shifted">По программе назначена на {dayLabel(swimToday.scheduledFor,today)}. На сегодня своей сессии в программе нет.</p>}
             {todayPlanCompleted&&<div className="hero-done-status" role="status"><span className="hero-done-icon" aria-hidden="true">✓</span><div><b>{todayPlan.type==="Отдых"?"План дня выполнен":"Тренировка выполнена"}</b><small>Отличная работа сегодня</small></div></div>}
             {todaySessions.length>1&&<div className="today-session-list" aria-label="Сессии на сегодня">{todaySessions.map((session,index)=><button type="button" key={session.id??`${session.title}-${index}`} onClick={()=>{setSelectedPlanDate(today);setSelectedPlanSessionId(session.id??null);setNav("План")}}><span>{sessionCompleted(session,today,data.workouts||[]) ? "✓" : String(index+1).padStart(2,"0")}</span><b>{trainingLabelRu(session.title)}</b><small>{session.optional?"Опционально":session.type}</small></button>)}</div>}
             <div className="next-workout-meta">

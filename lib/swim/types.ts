@@ -183,6 +183,12 @@ export type ResolvedSwimSlot =
       draftId: number | null;
       scheduleChangeId: number | null;
       origin: SwimCalendarOrigin;
+      // Дата, на которую программа сама назначила эту тренировку, если она не
+      // совпадает с запрошенным днём. Заполняется, когда план VOLT говорит
+      // «сегодня бассейн», а календарь Foundation на этот день ничего не
+      // назначил: тогда подставляется ближайшая по программе тренировка, и
+      // интерфейс обязан показать, что это не расписание сегодняшнего дня.
+      scheduledFor: string | null;
       route: string;
     }
   | {

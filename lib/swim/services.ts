@@ -231,9 +231,35 @@ export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimS
   const program = swimRef?.kind === "swim" ? getProgram(swimRef.programId) : null;
   const activationAt=program?.id==="endurance"?trainingPlanV3StartedAt:swimPlanStartedAt;
   const progress = program && activationAt ? getProgramProgress(program.id) : null;
-  const match = swimRef?.kind === "swim" && swimRef.workoutId
-    ? progress?.workouts.find((w) => w.workout.id === swimRef.workoutId && w.calendar?.date === calendarDate) ?? null
+  // Источник истины по дате — календарь программы: assignSwimCalendar учитывает
+  // выполненные тренировки, закреплённые даты и изменения недели, поэтому
+  // фактическое назначение уезжает от статичного workoutId в определении плана
+  // VOLT. Сначала берём то, что программа назначила на эту дату, и лишь среди
+  // назначенного предпочитаем тренировку, названную в слоте плана.
+  const scheduledForDate = progress?.workouts.filter((w) => w.calendar?.date === calendarDate) ?? [];
+  const preferred = swimRef?.kind === "swim" && swimRef.workoutId
+    ? scheduledForDate.find((w) => w.workout.id === swimRef.workoutId) ?? null
     : null;
+  // План VOLT говорит «сегодня бассейн», а программа на этот день ничего не
+  // назначила — так бывает, когда выполненные тренировки сдвинули её календарь.
+  // Дать пустую карточку с неработающей кнопкой хуже, чем предложить ближайшую
+  // невыполненную тренировку и честно пометить это переносом.
+  // Тренировка, названная в слоте плана, может стоять в календаре программы на
+  // другой день. Если она ещё не выполнена — это дублирование дня (например,
+  // среда продублирована на субботу), и подставлять замену нельзя: иначе одна
+  // сессия покажется в неделе дважды. Замена уместна только когда названная
+  // тренировка уже позади и день остался бы пустым.
+  const referenced = swimRef?.kind === "swim" && swimRef.workoutId
+    ? progress?.workouts.find((w) => w.workout.id === swimRef.workoutId) ?? null
+    : null;
+  const referencedStillAhead = !!referenced && referenced.status !== "completed" && !!referenced.calendar;
+  // Берём штатный nextWorkout программы, а не первую невыполненную: в истории
+  // остаются пропущенные тренировки многонедельной давности, и предлагать
+  // сегодня августовскую сессию бессмысленно.
+  const fallback = scheduledForDate.length === 0 && !referencedStillAhead
+    ? progress?.nextWorkout ?? null
+    : null;
+  const match = preferred ?? scheduledForDate[0] ?? fallback;
   if (!program || !progress || !match || !match.calendar) return { kind: "unresolved", ...base };
 
   return {
@@ -245,6 +271,7 @@ export function resolveScheduledSwimWorkout(calendarDate: string): ResolvedSwimS
     status: match.status,
     draftId: match.draftId,
     origin: match.calendar.origin,
+    scheduledFor: match.calendar.date === calendarDate ? null : match.calendar.date,
     route: `/swim/workouts/${program.id}/${match.workout.id}`,
   };
 }
