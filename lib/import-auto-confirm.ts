@@ -156,7 +156,12 @@ function analyzeImport(importId:number,now=new Date(),includeHistoricalAnalysis=
  const snapshot=snapshotForSession(date,session,cycle,resolved.changed,resolved.changeId,resolved.reasonCode);
  if(!snapshot)return done(withCycle({...sessionFields,reason:"плановый слот не разрешён однозначно"}),row,metadata,cycle,session);
  const readOnlyReason=cycle.endedAt!==null?"дата относится к архивному циклу — только ручное подтверждение":historicalReason;
- return done(withCycle({...sessionFields,eligible:readOnlyReason===null,reason:readOnlyReason}),row,metadata,cycle,session,snapshot);
+ // Конфликт проверяется по тому названию, под которым запись действительно
+ // появится в истории. У плавания заголовок snapshot отличается от названия
+ // планового слота, и проверка по слоту молча пропускала бы дубль.
+ const writeTitle=String(snapshot.title??session.title??"");
+ const snapshotConflict=Boolean(db.prepare("SELECT 1 FROM workout_logs WHERE date=? AND title=? LIMIT 1").get(date,writeTitle));
+ return done(withCycle({...sessionFields,existingWorkoutConflict:snapshotConflict,eligible:readOnlyReason===null,reason:readOnlyReason}),row,metadata,cycle,session,snapshot);
 }
 
 /** Read-only explanation for one import. It never creates or links a draft. */
@@ -173,18 +178,25 @@ export function previewHistoricalImports(now=new Date(),limit=50):ImportAutoConf
  );
 }
 
-export function autoConfirmImport(importId:number):AutoConfirmResult{
- const analysis=analyzeImport(importId,new Date());
+/**
+ * Shared write path for both the automatic and the manual decision: draft →
+ * finish → confirm, never a direct INSERT into `workout_logs`. The caller
+ * decides whether an open cycle is required; the identity of the cycle the
+ * preview was built on is re-checked inside the transaction either way.
+ */
+function commitImportAsWorkout(analysis:ImportAnalysis,{requireOpenCycle}:{requireOpenCycle:boolean}):AutoConfirmResult{
  const {preview,row,metadata,cycle,session,snapshot}=analysis;
- if(!preview.eligible||!row||!cycle||!session||!snapshot)return skip(preview.reason??"импорт не готов к автоподтверждению",preview.match);
+ if(!row||!cycle||!session||!snapshot)return skip(preview.reason??"импорт не готов к подтверждению",preview.match);
  const date=preview.date!;
  const best=preview.match!;
 
  try{
   return db.transaction(():AutoConfirmResult=>{
-   const stillActive=db.prepare(`SELECT 1 FROM training_plan_cycles
-    WHERE id=? AND program_id=? AND program_version=? AND ended_at IS NULL`).get(cycle.id,cycle.programId,cycle.programVersion);
-   if(!stillActive)throw new AbortAutoConfirm("активный цикл изменился — нужен новый разбор");
+   const cycleRow=db.prepare(`SELECT ended_at endedAt FROM training_plan_cycles
+    WHERE id=? AND program_id=? AND program_version=?`).get(cycle.id,cycle.programId,cycle.programVersion) as {endedAt:string|null}|undefined;
+   if(!cycleRow)throw new AbortAutoConfirm("цикл плана изменился — нужен новый разбор");
+   if(requireOpenCycle&&cycleRow.endedAt!==null)throw new AbortAutoConfirm("активный цикл изменился — нужен новый разбор");
+   if(!requireOpenCycle&&cycleRow.endedAt!==cycle.endedAt)throw new AbortAutoConfirm("границы цикла изменились — нужен новый разбор");
    const existing=db.prepare("SELECT 1 FROM workout_logs WHERE date=? AND title=? LIMIT 1").get(date,String(snapshot.title??session.title));
    if(existing)throw new AbortAutoConfirm("тренировка на эту дату уже подтверждена");
 
@@ -209,4 +221,34 @@ export function autoConfirmImport(importId:number):AutoConfirmResult{
   if(error instanceof AbortAutoConfirm)return skip(error.message,best);
   throw error;
  }
+}
+
+export function autoConfirmImport(importId:number):AutoConfirmResult{
+ const analysis=analyzeImport(importId,new Date());
+ if(!analysis.preview.eligible)return skip(analysis.preview.reason??"импорт не готов к автоподтверждению",analysis.preview.match);
+ return commitImportAsWorkout(analysis,{requireOpenCycle:true});
+}
+
+/**
+ * Manual review of a historical import. The owner takes the decision the age
+ * gate deliberately refuses to take, so the freshness and the archived-cycle
+ * checks no longer apply — but the slot still has to be unambiguous. A date
+ * without a recorded cycle has no writable identity and stays preview-only.
+ */
+export function confirmHistoricalImport(importId:number,now=new Date()):AutoConfirmResult{
+ const analysis=analyzeImport(importId,now,true);
+ const {preview}=analysis;
+ if(!analysis.cycle||!analysis.session||!analysis.snapshot)
+  return skip(preview.reason??"у импорта нет однозначного планового слота",preview.match);
+ if(preview.existingWorkoutConflict)return skip("на эту дату уже есть тренировка с таким названием",preview.match);
+ return commitImportAsWorkout(analysis,{requireOpenCycle:false});
+}
+
+/** The owner says this import should never become a workout. */
+export function dismissHistoricalImport(importId:number):{ok:true}|{ok:false;error:string;status:number}{
+ const row=db.prepare("SELECT draft_id draftId FROM workout_imports WHERE id=?").get(importId) as {draftId:number|null}|undefined;
+ if(!row)return {ok:false,error:"Импорт не найден",status:404};
+ if(row.draftId!==null)return {ok:false,error:"Импорт уже связан с тренировкой",status:409};
+ db.prepare("UPDATE workout_imports SET review_status='dismissed',updated_at=CURRENT_TIMESTAMP WHERE id=? AND draft_id IS NULL").run(importId);
+ return {ok:true};
 }

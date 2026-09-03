@@ -194,16 +194,47 @@ function SettingsRow({icon,title,description,active,onClick,status}:{icon:React.
   </button>;
 }
 
-function HistoricalImportPreviews({items}:{items:any[]}){
+function HistoricalImportRow({item,refresh}:{item:any;refresh:()=>void}){
+ const notify=useToast();
+ const [busy,setBusy]=useState<""|"confirm"|"dismiss">("");
+ // Привязать можно только то, что разобрано однозначно: есть цикл, ровно один
+ // слот этой дисциплины и на дату нет такой же записи. Всё остальное остаётся
+ // preview — гадать за владельца нельзя.
+ const attachable=Boolean(item.cycleId&&item.scheduledTitle&&!item.existingWorkoutConflict);
+ const send=async(kind:"confirm"|"dismiss")=>{
+  setBusy(kind);
+  try{
+   const response=await fetch("/api/fitness",{
+    method:"POST",headers:{"content-type":"application/json"},
+    body:JSON.stringify({action:kind==="confirm"?"confirmHistoricalImport":"dismissHistoricalImport",importId:item.importId}),
+   });
+   const json=await response.json().catch(()=>({}));
+   if(!response.ok){notify(json.error||"Не удалось выполнить действие","warn");return}
+   notify(kind==="confirm"?"Импорт записан в историю тренировок":"Импорт отклонён","good");refresh();
+  }catch{notify("Нет связи с сервером","warn")}
+  finally{setBusy("")}
+ };
+ return <article>
+  <span><b>{item.date??"Дата неизвестна"}</b><small>{item.activityType??"Тип неизвестен"}</small></span>
+  <span><b>{item.scheduledTitle??"Без однозначного слота"}</b><small>{item.programVersion?`Plan ${item.programVersion}.0 · cycle ${item.cycleId}`:item.reason}</small></span>
+  <em>{item.existingWorkoutConflict?"Конфликт: такой плановый слот уже есть в истории. ":""}{item.reason}</em>
+  <div className="historical-import-actions">
+   {attachable&&<button type="button" disabled={Boolean(busy)} onClick={()=>send("confirm")}>
+    {busy==="confirm"?"Записываю…":`Привязать к «${item.scheduledTitle}»`}
+   </button>}
+   <button type="button" className="ghost" disabled={Boolean(busy)} onClick={()=>send("dismiss")}>
+    {busy==="dismiss"?"Убираю…":"Отклонить"}
+   </button>
+  </div>
+ </article>;
+}
+
+function HistoricalImportPreviews({items,refresh}:{items:any[];refresh:()=>void}){
  if(!items.length)return null;
- return <section className="historical-import-previews" aria-label="Предпросмотр старых импортов">
-  <header><div><p className="eyebrow">ТОЛЬКО PREVIEW</p><h3>Старые импорты без автозаписи</h3></div><b>{items.length}</b></header>
-  <p>Это разбор без изменения истории: VOLT не создаёт черновики и не связывает эти записи автоматически.</p>
-  <div>{items.map(item=><article key={item.importId}>
-   <span><b>{item.date??"Дата неизвестна"}</b><small>{item.activityType??"Тип неизвестен"}</small></span>
-   <span><b>{item.scheduledTitle??"Без однозначного слота"}</b><small>{item.programVersion?`Plan ${item.programVersion}.0 · cycle ${item.cycleId}`:item.reason}</small></span>
-   <em>{item.existingWorkoutConflict?"Конфликт: такой плановый слот уже есть в истории. ":""}{item.reason}</em>
-  </article>)}</div>
+ return <section className="historical-import-previews" aria-label="Разбор старых импортов">
+  <header><div><p className="eyebrow">РУЧНОЙ РАЗБОР</p><h3>Старые импорты без автозаписи</h3></div><b>{items.length}</b></header>
+  <p>VOLT ничего не записывает сам: показан разбор наперёд, а решение по каждой записи принимаешь ты.</p>
+  <div>{items.map(item=><HistoricalImportRow key={item.importId} item={item} refresh={refresh}/>)}</div>
  </section>;
 }
 
@@ -263,7 +294,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
         <div className="profile-settings-group profile-settings-integrations">
           <div className="profile-settings-group-title"><Upload size={18}/><span><b>Интеграции и данные</b><small>Только доступные подключения</small></span></div>
           <SettingsRow icon={<Upload size={20}/>} title="Garmin FIT import" description="Импортировать файл тренировки и связать с черновиком" active={openPanel==="garmin"} onClick={()=>toggle("garmin")} status="FIT"/>
-          {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/><HistoricalImportPreviews items={data.historicalImportPreviews??[]}/></div>}
+          {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/><HistoricalImportPreviews items={data.historicalImportPreviews??[]} refresh={refresh}/></div>}
           <SettingsRow icon={<Activity size={20}/>} title="Strava" description="OAuth-подключение и ручная синхронизация активностей" active={openPanel==="strava"} onClick={()=>toggle("strava")} status="OAuth"/>
           {openPanel==="strava"&&<div className="profile-settings-detail profile-strava-detail"><StravaIntegration refresh={refresh}/></div>}
         </div>

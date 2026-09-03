@@ -2144,6 +2144,10 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .historical-import-previews>p{margin:0;color:#8a9499;font-size:9px;line-height:1.55}
 .historical-import-previews>div{display:grid;gap:7px}.historical-import-previews article{display:grid;grid-template-columns:minmax(90px,.6fr) minmax(150px,1fr);gap:7px 14px;padding:10px;border:1px solid var(--v2-border);border-radius:9px;background:rgba(255,255,255,.02)}
 .historical-import-previews article span{display:grid;gap:3px}.historical-import-previews article b{font-size:9px}.historical-import-previews article small{color:#737d83;font-size:7.5px}.historical-import-previews article em{grid-column:1/-1;color:#d0a76a;font-size:7.5px;font-style:normal}
+.historical-import-actions{display:flex;grid-column:1/-1;flex-wrap:wrap;gap:8px;margin-top:2px}
+.historical-import-actions button{min-height:38px;padding:0 12px;border:0;border-radius:9px;background:var(--lime);color:#101407;font-size:8px;font-weight:800;cursor:pointer}
+.historical-import-actions button.ghost{border:1px solid var(--v2-border);background:rgba(255,255,255,.03);color:#96a0a5;font-weight:650}
+.historical-import-actions button:disabled{opacity:.55;cursor:wait}
 .profile-hub-form{display:grid;gap:18px;padding:18px}
 .profile-hub-form-section{display:grid;gap:11px}
 .profile-hub-form-section h3{margin:2px 0 0;font-size:14px;font-weight:600}

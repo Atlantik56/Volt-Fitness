@@ -17,7 +17,7 @@ import { getActiveTrainingPlanCycle, getTrainingPlanCycleForDate, getTrainingPla
 import { SWIM_WORKOUT_TYPE_PREFIX } from "@/lib/swim/workout-engine";
 import { purgeExpiredStravaData } from "@/lib/strava-service";
 import { buildAnalyticsBundle } from "@/lib/analytics-service";
-import { previewHistoricalImports } from "@/lib/import-auto-confirm";
+import { confirmHistoricalImport, dismissHistoricalImport, previewHistoricalImports } from "@/lib/import-auto-confirm";
 export const runtime="nodejs";
 const dateOk=(x:any)=>typeof x==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(x);
 const timeOk=(x:any)=>typeof x==="string"&&/^([01]\d|2[0-3]):[0-5]\d$/.test(x);
@@ -203,6 +203,17 @@ export async function POST(req:Request){
   const current=Number(getSetting("whats_new_seen_version"))||0;if(version>current)setSetting("whats_new_seen_version",String(version))
  }else if(b.action==="markMilestoneSeen"){
   const id=text(b.id,80);if(!id)return Response.json({error:"Некорректная веха"},{status:400});setSetting("last_seen_milestone_id",id)
+ }else if(b.action==="confirmHistoricalImport"){
+  // Старые импорты автоподтверждение намеренно не трогает: запись в историю
+  // делается только по явному решению владельца, по одному импорту за раз.
+  const id=Number(b.importId);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректный импорт"},{status:400});
+  const result=confirmHistoricalImport(id);
+  if(!result.confirmed)return Response.json({error:result.reason},{status:409});
+  return Response.json({ok:true,draftId:result.draftId});
+ }else if(b.action==="dismissHistoricalImport"){
+  const id=Number(b.importId);if(!Number.isSafeInteger(id)||id<1)return Response.json({error:"Некорректный импорт"},{status:400});
+  const result=dismissHistoricalImport(id);
+  if(!result.ok)return Response.json({error:result.error},{status:result.status})
  }else return Response.json({error:"Неизвестное действие"},{status:400});
  return Response.json({ok:true})
 }
