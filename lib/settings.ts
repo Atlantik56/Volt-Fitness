@@ -1,4 +1,4 @@
-import { db } from "./db";
+import { db } from "@/lib/db";
 
 export function getSetting(key: string): string | null {
   const row = db.prepare("SELECT value FROM settings WHERE key=?").get(key) as { value: string } | undefined;

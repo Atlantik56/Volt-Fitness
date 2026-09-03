@@ -2,6 +2,7 @@
 // already-resolved shared schedule. Imports never choose a plan version or a
 // calendar on their own.
 import { db } from "@/lib/db";
+import { getSetting, setSetting } from "@/lib/settings";
 import { rankActivityMatches, type ActivityMatch } from "@/lib/activity-matcher";
 import { buildHomeWeek } from "@/app/personal-data";
 import { changesByDateMap, resolvePlanForDate, sessionsForDay, weekRangeContaining } from "@/app/week-schedule-model";
@@ -251,4 +252,42 @@ export function dismissHistoricalImport(importId:number):{ok:true}|{ok:false;err
  if(row.draftId!==null)return {ok:false,error:"Импорт уже связан с тренировкой",status:409};
  db.prepare("UPDATE workout_imports SET review_status='dismissed',updated_at=CURRENT_TIMESTAMP WHERE id=? AND draft_id IS NULL").run(importId);
  return {ok:true};
+}
+
+export type HistoricalBackfillReport={
+ confirmed:{importId:number;date:string;title:string}[];
+ skipped:{importId:number;date:string|null;reason:string}[];
+};
+
+/** Marks that the one-time catch-up has already been decided for this database. */
+export const HISTORICAL_BACKFILL_SETTING="historical_import_backfill";
+
+/**
+ * Разбор накопившихся импортов. Правила ровно те же, что у автоподтверждения,
+ * снят только возрастной фильтр: он защищает свежую синхронизацию от гонок с
+ * планом, а не запрещает разобрать то, что уже лежит. Всё, что не разобралось
+ * однозначно, не угадывается, а остаётся в очереди ручного решения.
+ */
+export function backfillHistoricalImports(now=new Date()):HistoricalBackfillReport{
+ const report:HistoricalBackfillReport={confirmed:[],skipped:[]};
+ for(const item of previewHistoricalImports(now,200)){
+  const result=confirmHistoricalImport(item.importId,now);
+  if(result.confirmed)report.confirmed.push({importId:item.importId,date:item.date??"",title:item.scheduledTitle??""});
+  else report.skipped.push({importId:item.importId,date:item.date,reason:result.reason});
+ }
+ return report;
+}
+
+/**
+ * Догоняющий разбор выполняется один раз на базу: дальше свежие импорты
+ * закрывает обычное автоподтверждение. Отметка ставится и при нулевом
+ * результате — иначе каждый запуск заново перебирал бы одни и те же отказы.
+ */
+export function runHistoricalBackfillOnce(now=new Date()):HistoricalBackfillReport|null{
+ if(getSetting(HISTORICAL_BACKFILL_SETTING))return null;
+ const report=backfillHistoricalImports(now);
+ setSetting(HISTORICAL_BACKFILL_SETTING,JSON.stringify({
+  at:new Date().toISOString(),confirmed:report.confirmed.length,skipped:report.skipped.length,
+ }));
+ return report;
 }
