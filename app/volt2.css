@@ -523,7 +523,7 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .ask-coach-btn:hover{border-color:var(--v2-border-hover)}
 
 /* ---------- Нижние секции ---------- */
-.activity-entry,.digest-card,.progression-panel{padding:var(--v2-pad);margin:0 0 var(--v2-section-gap)}
+.activity-entry,.digest-card,.progression-panel,.discipline-progression{padding:var(--v2-pad);margin:0 0 var(--v2-section-gap)}
 .progression-panel{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:22px;min-height:118px}
 .progression-summary-copy{min-width:0}
 .progression-summary-copy .eyebrow{margin:0 0 8px}
