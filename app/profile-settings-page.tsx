@@ -8,6 +8,7 @@ import {
 import { currentProgramWeek } from "./personal-data";
 import { GarminImport } from "./advanced-features";
 import { StravaIntegration } from "./strava-integration";
+import { PwaInstall } from "./pwa-register";
 import { useToast } from "./toast";
 
 type ProfileSettingsPageProps={
@@ -300,6 +301,8 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
         </div>
       </div>
     </section>
+
+    <section className="card"><PwaInstall/></section>
 
     <section className="profile-system-actions">
       <div><p className="eyebrow">СИСТЕМНЫЕ ДЕЙСТВИЯ</p><h2>Текущий сеанс</h2><p>Выход не удаляет профиль, тренировки или персональные данные.</p></div>

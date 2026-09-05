@@ -1,0 +1,8 @@
+body .pwa-install { margin-top: 20px; padding: 18px; border: 1px solid rgba(255,255,255,.14); border-radius: 16px; background: rgba(8,20,38,.5); color: #f1f6ff; text-align: left; }
+body .pwa-install p, body .pwa-promotion p { font-size: 13px; line-height: 1.5; color: #b9c9dc; margin: 8px 0; }
+body .pwa-install button, body .pwa-promotion button { min-height: 44px; padding: 10px 16px; border-radius: 12px; background: #52a8ff; color: #081426; font-weight: 700; cursor: pointer; border: 1px solid transparent; }
+body .pwa-install summary { cursor: pointer; padding: 12px 0; font-size: 14px; }
+body .pwa-promotion { position: fixed; z-index: 90; bottom: calc(88px + env(safe-area-inset-bottom)); right: 16px; width: min(430px, calc(100vw - 32px)); display: flex; flex-wrap: wrap; gap: 12px; padding: 18px 52px 18px 18px; border: 1px solid rgba(255,255,255,.2); border-radius: 20px; background: rgba(8,20,38,.96); backdrop-filter: blur(20px); box-shadow: 0 12px 36px #0005; color: #f1f6ff; }
+body:has(.auth-screen) .pwa-promotion { display: none; }
+body .pwa-promotion .pwa-dismiss { position: absolute; top: 4px; right: 4px; min-width: 44px; background: transparent; color: #d3e4f7; font-size: 24px; padding: 4px; }
+body .pwa-install button:focus-visible, body .pwa-install summary:focus-visible, body .pwa-promotion button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }

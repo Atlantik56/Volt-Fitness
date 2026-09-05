@@ -13,6 +13,7 @@ import "./volt2.css";
 import "./volt-navigation.css";
 import "./legacy-module-palette.css";
 import "./auth-glass.css";
+import "./pwa.css";
 import PwaRegister from "./pwa-register";
 import { ToastProvider } from "./toast";
 
@@ -43,8 +44,7 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <body>
-        <ToastProvider>{children}</ToastProvider>
-        <PwaRegister />
+        <PwaRegister><ToastProvider>{children}</ToastProvider></PwaRegister>
       </body>
     </html>
   );
