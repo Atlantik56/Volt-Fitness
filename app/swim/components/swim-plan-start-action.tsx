@@ -60,7 +60,7 @@ export function SwimPlanStartAction({ onStarted, compact = false }: { onStarted:
         <div className="swim-plan-start-icon"><CalendarDays size={compact ? 20 : 26} /></div>
         <div>
           <h2>Подключите Foundation к Plan v2</h2>
-          <p>Выберите дату активации. Week 4 и календарь придут из общего плана VOLT; история останется без изменений.</p>
+          <p>Выберите дату активации. Week 4 и календарь придут из общего плана RITMOVIS; история останется без изменений.</p>
         </div>
         <button type="button" className="swim-plan-primary-action" onClick={() => { setStartedAt(today); setError(null); setOpen(true); }}>
           <Play size={15} fill="currentColor" /> Начать план

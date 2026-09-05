@@ -19,11 +19,11 @@ const TRAINING_LABELS_RU: Readonly<Record<string, string>> = Object.freeze({
   "Lateral Raise": "Отведение рук в стороны",
   "Triceps Extension": "Разгибание рук на трицепс",
   "Easy Zone 2": "Лёгкая работа в зоне 2",
-  "VOLT Swim Foundation": "Базовый план VOLT Swim",
+  "VOLT Swim Foundation": "Базовый план RITMOVIS Swim",
 });
 
 // Канонические названия остаются в плане, snapshot и истории. Перевод применяется
 // только в UI, чтобы не разрывать сопоставление черновиков и прогрессии по имени.
 export function trainingLabelRu(value: string): string {
-  return TRAINING_LABELS_RU[value] ?? value;
+  return (TRAINING_LABELS_RU[value] ?? value).replace(/\bVOLT\b/g, "RITMOVIS");
 }

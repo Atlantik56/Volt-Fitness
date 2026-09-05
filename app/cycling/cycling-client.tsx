@@ -89,13 +89,13 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
   const load = async () => {
     try {
       const response = await fetch("/api/fitness", { cache: "no-store" });
-      if (!response.ok) throw new Error("Не удалось загрузить данные VOLT");
+      if (!response.ok) throw new Error("Не удалось загрузить данные RITMOVIS");
       const json = await response.json();
       setData(json);
       setDraftOverride(null);
       setError("");
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Не удалось загрузить данные VOLT");
+      setError(reason instanceof Error ? reason.message : "Не удалось загрузить данные RITMOVIS");
     } finally {
       setLoaded(true);
     }
@@ -192,7 +192,7 @@ export function CyclingClient({ initialDate, backgroundSrc }: { initialDate: str
     if (result?.draft) {
       setDraftOverride(null);
       setView("home");
-      notify("Заезд сохранён в общей истории VOLT");
+      notify("Заезд сохранён в общей истории RITMOVIS");
       await load();
     }
   };
@@ -226,8 +226,8 @@ function CyclingHome({ resolution, summary, onOpenDetails }: {
   const feedback = summary.latestLoadFeedback ? CYCLING_LOAD_FEEDBACK_LABELS[summary.latestLoadFeedback] : "Пока нет feedback";
   return <div className="cycling-home">
     <section className="cycling-hero-copy">
-      <p className="cycling-kicker">СПЕЦИАЛИЗИРОВАННЫЙ COCKPIT VOLT</p>
-      <h1>VOLT <em>CYCLING</em></h1>
+      <p className="cycling-kicker">СПЕЦИАЛИЗИРОВАННЫЙ COCKPIT RITMOVIS</p>
+      <h1>RITMOVIS <em>CYCLING</em></h1>
       <h2>Спокойная аэробная работа</h2>
       <p>Движение. Выносливость. Прогресс.</p>
     </section>
@@ -266,7 +266,7 @@ function CyclingHome({ resolution, summary, onOpenDetails }: {
     </section>
 
     <div className="cycling-lower-grid">
-      <section className="cycling-program cycling-glass"><p className="cycling-section-label">ОБЩАЯ ПРОГРАММА VOLT</p><h3>Неделя {resolution.programWeek}</h3><p>Bike остаётся optional-сессией общего Plan. Прогресс идёт по длительности, без гонки за сопротивлением.</p><div><i style={{ width: `${Math.min(100, Math.max(12, resolution.programWeek * 7))}%` }} /></div></section>
+      <section className="cycling-program cycling-glass"><p className="cycling-section-label">ОБЩАЯ ПРОГРАММА RITMOVIS</p><h3>Неделя {resolution.programWeek}</h3><p>Bike остаётся optional-сессией общего Plan. Прогресс идёт по длительности, без гонки за сопротивлением.</p><div><i style={{ width: `${Math.min(100, Math.max(12, resolution.programWeek * 7))}%` }} /></div></section>
       <section className={`cycling-feedback cycling-glass ${summary.latestLoadFeedback === "pain" ? "pain" : ""}`}><p className="cycling-section-label">КАК ПЕРЕНОСИТСЯ НАГРУЗКА?</p><h3>{feedback}</h3><p>Это субъективный тренировочный feedback, не медицинский вывод.</p></section>
     </div>
 
@@ -283,7 +283,7 @@ function CyclingDetails({ resolution, pending, onBack, onStart }: { resolution: 
     <div className="cycling-details-meta"><span><Clock3 size={16} />{resolution.session.time}</span>{resolution.optional && <span><Check size={16} />Optional</span>}</div>
     <div className="cycling-phase-list">{resolution.session.exercises.map((exercise: any[], index: number) => <article key={`${exercise[0]}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><div><h3>{exercise[0]}</h3><p>{exercise[1]}</p><b>{exercise[2]}</b></div></article>)}</div>
     <div className="cycling-limits"><ShieldCheck size={20} /><div><b>Ограничения этой сессии</b><p>Лёгкое сопротивление · ровное педалирование · без силовой работы.</p></div></div>
-    <button type="button" className={complete ? "cycling-complete-button" : "cycling-primary"} disabled={complete || pending} onClick={onStart}>{complete ? <Check size={18} /> : <Play size={18} fill="currentColor" />}{complete ? "Уже сохранено в VOLT" : pending ? "Запускаем…" : "Начать тренировку"}</button>
+    <button type="button" className={complete ? "cycling-complete-button" : "cycling-primary"} disabled={complete || pending} onClick={onStart}>{complete ? <Check size={18} /> : <Play size={18} fill="currentColor" />}{complete ? "Уже сохранено в RITMOVIS" : pending ? "Запускаем…" : "Начать тренировку"}</button>
   </section>;
 }
 
@@ -348,7 +348,7 @@ function CyclingResult({ resolution, pending, onConfirm, onCancel, onImported }:
     <p className="cycling-result-hint">Пустые HR, distance, speed и calories сохраняются как отсутствующие и будут показаны знаком «—».</p>
     <div className="cycling-result-actions">
       <button className="cycling-secondary danger" disabled={pending} type="button" onClick={onCancel}>Отменить тренировку</button>
-      <button className="cycling-primary" disabled={pending} type="submit"><Check size={18} />{pending ? "Сохраняем…" : "Подтвердить и сохранить в VOLT"}</button>
+      <button className="cycling-primary" disabled={pending} type="submit"><Check size={18} />{pending ? "Сохраняем…" : "Подтвердить и сохранить в RITMOVIS"}</button>
     </div>
   </form>;
 }
@@ -420,4 +420,4 @@ function clock(seconds: number) {
 
 function CyclingLoading() { return <section className="cycling-state cycling-glass" aria-busy="true"><Bike size={34} /><h1>Загружаем Cycling cockpit…</h1></section>; }
 function CyclingError({ message, onRetry }: { message: string; onRetry: () => void }) { return <section className="cycling-state cycling-glass"><h1>{message}</h1><button className="cycling-primary" onClick={onRetry}>Повторить</button></section>; }
-function CyclingUnavailable() { return <section className="cycling-state cycling-glass"><Route size={34} /><h1>Cycling не назначен на текущую неделю</h1><p>Расписание остаётся в общем Plan VOLT. Когда там появится Bike-slot, он автоматически будет доступен здесь.</p><Link href="/?section=План">Открыть общий Plan <ChevronRight size={16} /></Link></section>; }
+function CyclingUnavailable() { return <section className="cycling-state cycling-glass"><Route size={34} /><h1>Cycling не назначен на текущую неделю</h1><p>Расписание остаётся в общем Plan RITMOVIS. Когда там появится Bike-slot, он автоматически будет доступен здесь.</p><Link href="/?section=План">Открыть общий Plan <ChevronRight size={16} /></Link></section>; }

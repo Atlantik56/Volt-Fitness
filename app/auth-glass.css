@@ -1,0 +1,61 @@
+
+/* The approved poolside image is exclusive to authentication. */
+html body:has(.auth-screen){background:#060c16 url('/backgrounds/ritmovis-login.webp') center/cover fixed}
+body .auth-screen{min-height:100svh;background:linear-gradient(90deg,rgba(3,8,17,.18),rgba(3,8,17,.06) 42%,rgba(3,8,17,.48));padding:clamp(24px,5vw,80px);place-items:center end}
+body .auth-card{width:min(440px,100%);padding:clamp(24px,3vw,38px);border:1px solid rgba(255,255,255,.16);border-radius:var(--v2-radius-xl,30px);background:var(--v2-sheen),linear-gradient(155deg,rgba(20,34,52,.65),rgba(7,15,28,.76));box-shadow:var(--v2-inset),0 28px 70px -28px rgba(0,0,0,.8);backdrop-filter:blur(22px) saturate(1.15);-webkit-backdrop-filter:blur(22px) saturate(1.15)}
+body .auth-card .auth-logo{width:64px;height:64px;margin-bottom:20px;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+body .auth-card .eyebrow{color:#eef7ff;font-size:17px;letter-spacing:.14em;margin:0 0 8px}
+body .auth-card .auth-motto{color:#a9d8ff;margin:0 0 24px;font-size:14px}
+body .auth-card>p:not(.eyebrow):not(.auth-motto){color:#c0ccdc;font-size:14px}
+body .auth-card label{color:#d2deeb;line-height:1.5}
+body .auth-card input:not([type=checkbox]){background:rgba(4,11,22,.48);border:1px solid rgba(213,232,255,.2);border-radius:12px;min-height:48px;color:#f4f8ff;box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+body .auth-card input:focus-visible{outline:2px solid #79bfff;outline-offset:3px;border-color:#79bfff}
+body .auth-card button{min-height:48px;color:#061425;background:linear-gradient(110deg,#6bcbff,#52a8ff);border:1px solid rgba(180,225,255,.45);border-radius:12px;box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 6px 22px rgba(38,130,230,.15)}
+body .auth-card button:hover{filter:brightness(1.08)}
+body .auth-card button:focus-visible{outline:2px solid #bce7ff;outline-offset:4px}
+body .auth-card .auth-remember{font-size:12px;line-height:1.5;gap:10px}
+body .auth-card .auth-remember input{min-width:18px;height:18px;accent-color:#52a8ff}
+body .auth-card small{color:#b6c3d4;line-height:1.5}
+@media(max-width:760px){
+ html body:has(.auth-screen){background-position:42% center}
+ body .auth-screen{place-items:center;padding:24px 16px;background:linear-gradient(180deg,rgba(3,8,17,.1),rgba(3,8,17,.3))}
+ body .auth-card{padding:26px 24px;background:var(--v2-sheen),linear-gradient(155deg,rgba(20,34,52,.67),rgba(7,15,28,.8))}
+ body .auth-card .auth-logo{width:56px;height:56px;margin-bottom:16px}
+}
+@supports not (backdrop-filter:blur(1px)){body .auth-card{background:rgba(10,20,35,.96)}}
+@media(prefers-reduced-transparency:reduce){body .auth-card{background:#0c1829;backdrop-filter:none;-webkit-backdrop-filter:none}}
+
+/* Responsive authentication: retain focus access with a keyboard or zoom. */
+body .auth-screen{
+ min-height:100svh;min-height:100dvh;
+ padding-top:max(24px,env(safe-area-inset-top));
+ padding-bottom:max(24px,env(safe-area-inset-bottom));
+ padding-left:max(clamp(16px,5vw,80px),env(safe-area-inset-left));
+ padding-right:max(clamp(16px,5vw,80px),env(safe-area-inset-right));
+}
+body .auth-card{min-width:0;max-width:100%;margin-block:auto}
+body .auth-card input:not([type=checkbox]){font-size:16px;min-width:0;scroll-margin-block:24px}
+body .auth-card .auth-remember{flex-direction:row;min-height:44px;align-items:center}
+body .auth-card .auth-remember input{flex:0 0 18px;margin:0}
+body .auth-card button{font-size:16px;white-space:normal;line-height:1.4}
+@media(min-width:761px) and (max-width:1024px){
+ body .auth-screen{justify-items:center}
+ html body:has(.auth-screen){background-position:38% center}
+}
+@media(max-width:760px){
+ body .auth-screen{padding-inline:max(16px,env(safe-area-inset-left)) max(16px,env(safe-area-inset-right))}
+ body .auth-card{padding:clamp(20px,5vw,28px);border-radius:24px}
+ html body:has(.auth-screen){background-position:40% center}
+}
+@media(max-width:360px){
+ body .auth-screen{padding-inline:max(12px,env(safe-area-inset-left)) max(12px,env(safe-area-inset-right))}
+ body .auth-card{padding:20px 18px}
+ body .auth-card h1{font-size:26px}
+ body .auth-card .auth-motto{margin-bottom:18px}
+}
+@media(max-height:620px){
+ body .auth-screen{align-items:start;padding-top:max(16px,env(safe-area-inset-top));padding-bottom:max(16px,env(safe-area-inset-bottom))}
+ body .auth-card{margin-block:0;padding-block:22px}
+ body .auth-card .auth-logo{width:44px;height:44px;margin-bottom:12px}
+ body .auth-card .auth-motto{margin-bottom:16px}
+}

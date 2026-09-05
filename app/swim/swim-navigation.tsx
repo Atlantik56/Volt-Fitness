@@ -46,7 +46,7 @@ export function SwimNavigation() {
   }, [pathname]);
 
   return (
-    <nav ref={navigationRef} className="swim-local-nav" aria-label="Навигация VOLT Swim">
+    <nav ref={navigationRef} className="swim-local-nav" aria-label="Навигация RITMOVIS Swim">
       {LIVE_ITEMS.map((item) => {
         const active = item.match(pathname);
         return (

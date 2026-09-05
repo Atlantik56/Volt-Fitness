@@ -14,7 +14,7 @@ const CARD_INSIGHTS_VISIBLE=2;
 
 function CoachAbout(){
  return <details className="coach-about">
-  <summary>О VOLT Coach</summary>
+  <summary>О RITMOVIS Coach</summary>
   <div>
    <p>Coach читает только сохранённые тобой данные: план на день, самочувствие (боль и субъективную энергию), сон, записи тренировок, питание и замеры. Незаполненные поля он считает отсутствующими, а не нулевыми.</p>
    <p>Решение на сегодня рассчитывается локально и детерминированно: одни и те же данные всегда дают один результат. Для этого расчёта внешний AI не используется.</p>
@@ -27,11 +27,11 @@ function CoachAbout(){
 export function CoachCard({result,plan,date,ready=true,onAskCoach}:{result:CoachResult;plan?:{title:string;type:string}|null;date:string;ready?:boolean;onAskCoach?:()=>void}){
  const {advice,decision}=result;
  const {insights,dismiss}=useInsightSurface("card",date);
- if(!ready)return <section id="volt-coach" className="coach-card card"><div className="coach-head"><p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><small>Локальное решение · AI только по запросу</small></div><ol className="coach-list"><li className="coach-item info"><span className="coach-icon" aria-hidden="true">◆</span><div><b>Собираю данные дня…</b><small>Решение появится, когда загрузятся тренировки, питание и самочувствие.</small></div></li></ol></section>;
+ if(!ready)return <section id="volt-coach" className="coach-card card"><div className="coach-head"><p className="eyebrow">RITMOVIS COACH · РЕШЕНИЕ НА СЕГОДНЯ</p><small>Локальное решение · AI только по запросу</small></div><ol className="coach-list"><li className="coach-item info"><span className="coach-icon" aria-hidden="true">◆</span><div><b>Собираю данные дня…</b><small>Решение появится, когда загрузятся тренировки, питание и самочувствие.</small></div></li></ol></section>;
  const meta=decision?COACH_ACTION_LABELS[decision.action]:null;
- return <section id="volt-coach" className="coach-card card" aria-label="VOLT Coach — решение на сегодня">
+ return <section id="volt-coach" className="coach-card card" aria-label="RITMOVIS Coach — решение на сегодня">
   <div className="coach-head">
-   <p className="eyebrow">VOLT COACH · РЕШЕНИЕ НА СЕГОДНЯ <span className="coach-beta">BETA</span></p>
+   <p className="eyebrow">RITMOVIS COACH · РЕШЕНИЕ НА СЕГОДНЯ <span className="coach-beta">BETA</span></p>
    <small>Локальное решение · AI только по запросу</small>
   </div>
   {decision&&meta?<>
@@ -52,7 +52,7 @@ export function CoachCard({result,plan,date,ready=true,onAskCoach}:{result:Coach
     <div><b>{item.title}</b><small>{item.reason}</small></div>
    </li>)}
   </ol>}
-  {insights.length>0&&<div className="coach-insights"><p className="coach-insights-head">Что заметил VOLT</p><ol className="coach-list">
+  {insights.length>0&&<div className="coach-insights"><p className="coach-insights-head">Что заметил RITMOVIS</p><ol className="coach-list">
    {insights.slice(0,CARD_INSIGHTS_VISIBLE).map(item=><li key={item.id} className={`coach-item dismissible ${item.tone}`}>
     <span className="coach-icon" aria-hidden="true">{TONE_ICON[item.tone]||"◆"}</span>
     <div><b>{item.title}</b>{item.isUpdate&&<span className="insight-updated-badge">Обновлено</span>}<small>{item.summary}</small></div>

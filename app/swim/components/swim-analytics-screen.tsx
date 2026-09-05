@@ -44,7 +44,7 @@ export function SwimAnalyticsScreen() {
     <div className="swim-plan swim-analytics">
       <header className="swim-plan-header">
         <div>
-          <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>Аналитика</b></p>
+          <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>Аналитика</b></p>
           <h1>Аналитика</h1>
           <p>Динамика объёма и эффективности по подтверждённым заплывам.</p>
         </div>
@@ -106,7 +106,7 @@ export function SwimAnalyticsScreen() {
           <section className="swim-section swim-analytics-chapter">
             <SectionHeader eyebrow="Глава 2" title="Что уже можно понять" />
             <GlassPanel className="swim-analytics-reading">
-              <article className="primary"><div><span>Темп</span><h3>{data.avgPaceLabel ? `${data.avgPaceLabel} /100 м` : "Пока неизвестен"}</h3></div><p>{data.avgPaceLabel ? "Средний темп по заплывам, где записаны и время, и дистанция." : "Нужны одновременно время и дистанция — без них VOLT не делает предположений."}</p></article>
+              <article className="primary"><div><span>Темп</span><h3>{data.avgPaceLabel ? `${data.avgPaceLabel} /100 м` : "Пока неизвестен"}</h3></div><p>{data.avgPaceLabel ? "Средний темп по заплывам, где записаны и время, и дистанция." : "Нужны одновременно время и дистанция — без них RITMOVIS не делает предположений."}</p></article>
               <article><div><span>Пульс</span><h3>{data.avgHeartRate ? `${data.avgHeartRate} уд/мин` : "Нет данных"}</h3></div><p>{data.avgHeartRate ? "Среднее только по тренировкам с записанным пульсом." : "Пульс не был записан, поэтому он не участвует в истории эффективности."}</p></article>
               <article><div><span>Техника</span><h3>Ожидает данных</h3></div><p>SWOLF и Stroke Count появятся здесь, когда эти значения будут сохранены в подтверждённых тренировках.</p></article>
             </GlassPanel>

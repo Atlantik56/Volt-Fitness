@@ -252,7 +252,7 @@ function EveningAnalytics({ stats, insights, onDismiss }: { stats: ReturnType<ty
         </div>
       </section>
       <section className="mood-card card">
-        <div className="section-head"><div><p className="eyebrow">ЗАКОНОМЕРНОСТИ</p><h3>Что заметил VOLT</h3></div></div>
+        <div className="section-head"><div><p className="eyebrow">ЗАКОНОМЕРНОСТИ</p><h3>Что заметил RITMOVIS</h3></div></div>
         {insights.length ? (
           <ul className="evening-patterns">{insights.map(i => <li key={i.id} className="evening-pattern-row"><span>{i.isUpdate&&<span className="insight-updated-badge">Обновлено</span>}{i.summary}</span><button type="button" className="coach-insight-dismiss" aria-label="Скрыть этот вывод" onClick={()=>onDismiss(i)}>×</button></li>)}</ul>
         ) : (

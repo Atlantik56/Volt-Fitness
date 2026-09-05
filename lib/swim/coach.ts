@@ -63,5 +63,5 @@ export function parseSwimCoachReply(raw:string,context:SwimCoachContext):SwimCoa
 }
 
 export function swimCoachPrompt(context:SwimCoachContext):string{
-  return `Составь короткий брифинг VOLT Swim Coach на русском. Используй только факты ниже. Не оценивай технику без SWOLF/гребков, не ставь диагнозы и не называй восстановление или перетренированность фактом. Наблюдений максимум 3; каждое обязано ссылаться на evidenceIds из facts. Факты и предложения различай явно. Верни только JSON: {"currentSummary":"...","guidance":{"recommendation":"...","primaryFocus":"...","adjustment":null},"observations":[{"title":"...","text":"...","evidenceIds":["..."]}]}.\n${JSON.stringify(context)}`;
+  return `Составь короткий брифинг RITMOVIS Swim Coach на русском. Используй только факты ниже. Не оценивай технику без SWOLF/гребков, не ставь диагнозы и не называй восстановление или перетренированность фактом. Наблюдений максимум 3; каждое обязано ссылаться на evidenceIds из facts. Факты и предложения различай явно. Верни только JSON: {"currentSummary":"...","guidance":{"recommendation":"...","primaryFocus":"...","adjustment":null},"observations":[{"title":"...","text":"...","evidenceIds":["..."]}]}.\n${JSON.stringify(context)}`;
 }

@@ -40,7 +40,7 @@ export function SwimHero({ nextWorkout, loading }: { nextWorkout: SwimNextWorkou
       <GlassPanel as="section" variant="raised" className="swim-hero">
         <div className="swim-hero-inner">
           <div>
-            <p className="swim-eyebrow">VOLT SWIM</p>
+            <p className="swim-eyebrow">RITMOVIS SWIM</p>
             <h2>Следующая тренировка пока не назначена</h2>
             <p style={{ color: "var(--swim-text-muted)", maxWidth: "50ch" }}>
               План плавания ещё не начат. Выберите программу в разделе «Тренировки», чтобы увидеть следующий заплыв здесь.

@@ -84,3 +84,13 @@
   .volt-global-sidebar--swim{background:#07131a}
   .volt-global-sidebar--cycling{background:#17120f}
 }
+
+/* RITMOVIS wordmark: fit the existing sidebar without shrinking the mark. */
+.volt-global-sidebar .brand{gap:8px;letter-spacing:0;font-size:19px}
+.volt-global-sidebar .brand-mark{flex-shrink:0}
+.volt-global-sidebar .brand-sub{font-size:12px;line-height:1.4;letter-spacing:0;color:var(--muted)}
+
+/* Shared RITMOVIS emblem and blue-led multicolor wordmark. */
+.ritmovis-mark,.volt-global-sidebar .brand-mark.ritmovis-mark{background: url('/icon-192.png') center/cover no-repeat;clip-path:none;border-radius:24%;box-shadow:0 0 14px rgba(82,168,255,.18)}
+.volt-global-sidebar--volt .brand b{color:var(--brand-primary);background:linear-gradient(110deg,var(--brand-cyan),var(--brand-primary) 45%,var(--brand-violet) 75%,var(--brand-magenta));background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+@media(forced-colors:active){.volt-global-sidebar--volt .brand b{background:none;-webkit-text-fill-color:CanvasText;color:CanvasText}}

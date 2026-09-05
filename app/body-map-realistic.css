@@ -1,5 +1,5 @@
 .body-map .body-silhouette{width:150px;height:280px;background:url('/body-map/male-front.png') center/contain no-repeat;filter:drop-shadow(0 14px 24px rgba(0,0,0,.55));isolation:isolate}
-.body-map .body-silhouette::after{content:"";position:absolute;inset:0;border-radius:45%;background:radial-gradient(ellipse at center,rgba(191,255,31,.08),transparent 68%);z-index:-1}
+.body-map .body-silhouette::after{content:"";position:absolute;inset:0;border-radius:45%;background:radial-gradient(ellipse at center,rgba(82,168,255,.08),transparent 68%);z-index:-1}
 .body-map .body-silhouette i{display:none}
 .body-map .pain-marker{position:absolute;z-index:2;width:17px;height:17px;border:2px solid #fff;border-radius:50%;background:#ff4f45;box-shadow:0 0 0 5px rgba(255,79,69,.22),0 0 22px 8px rgba(255,79,69,.65);transform:translate(-50%,-50%);animation:pain-pulse 1.55s ease-in-out infinite}
 .body-map .pain-marker::after{content:"";position:absolute;inset:4px;border-radius:50%;background:#fff}

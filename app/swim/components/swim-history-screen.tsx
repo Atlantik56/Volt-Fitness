@@ -56,7 +56,7 @@ export function SwimHistoryScreen() {
     <div className="swim-plan swim-history">
       <header className="swim-plan-header">
         <div>
-          <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>История</b></p>
+          <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>История</b></p>
           <h1>История</h1>
           <p>Журнал завершённых и подтверждённых заплывов.</p>
         </div>

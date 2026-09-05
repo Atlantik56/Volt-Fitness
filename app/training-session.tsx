@@ -78,7 +78,7 @@ function useWorkoutSession(plan:WorkoutPlan,strengthLogs:StrengthLog[],loadOverr
 
 // При щадящем решении Coach (reduce/replace/rest) подсказка внутри сессии не предлагает
 // увеличивать вес или повторы — единственное основное действие остаётся за Coach.
-const PROGRESSION_HOLD:ProgressDecision={kind:"keep",title:"Сегодня без прогрессии",text:"VOLT Coach рекомендует щадящий день: сохрани прежний вес и повторы."};
+const PROGRESSION_HOLD:ProgressDecision={kind:"keep",title:"Сегодня без прогрессии",text:"RITMOVIS Coach рекомендует щадящий день: сохрани прежний вес и повторы."};
 const capProgression=(rec:ProgressDecision,allowed:boolean):ProgressDecision=>allowed||rec.kind==="deload"||rec.kind==="keep"||rec.kind==="start"?rec:PROGRESSION_HOLD;
 
 export function WorkoutSession({plan,strengthLogs,coachAction=null,loadOverrides={},streak=0,close,done}:{plan:WorkoutPlan;strengthLogs:StrengthLog[];coachAction?:CoachAction|null;loadOverrides?:Record<string,LoadOverride>;streak?:number;close:()=>void;done:()=>void}){

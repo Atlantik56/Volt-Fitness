@@ -11,7 +11,7 @@ const PRIORITY_LABEL: Record<SwimInsight["priority"], string> = { low: "Низк
 export function AiCoachPreview({ hasHistory, insights }: { hasHistory: boolean; insights: SwimInsight[] }) {
   return (
     <section className="swim-section">
-      <SectionHeader eyebrow="VOLT COACH" title="AI Coach" />
+      <SectionHeader eyebrow="RITMOVIS COACH" title="AI Coach" />
       {insights.length > 0 ? (
         <div style={{ display: "grid", gap: 12 }}>
           {insights.map((insight) => (
@@ -33,7 +33,7 @@ export function AiCoachPreview({ hasHistory, insights }: { hasHistory: boolean; 
               {hasHistory ? "Персональный разбор заплывов появится здесь" : "Coach начнёт анализировать плавание после первых тренировок"}
             </p>
             <p style={{ margin: 0, color: "var(--swim-text-muted)" }}>
-              Когда в истории будет достаточно подтверждённых заплывов, VOLT Coach объяснит темп, SWOLF и восстановление на основе твоих данных — без общих советов.
+              Когда в истории будет достаточно подтверждённых заплывов, RITMOVIS Coach объяснит темп, SWOLF и восстановление на основе твоих данных — без общих советов.
             </p>
           </div>
         </GlassPanel>

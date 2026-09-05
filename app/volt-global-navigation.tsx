@@ -1,6 +1,7 @@
 "use client";
 
 import type { MouseEvent, ReactNode } from "react";
+import { APP_NAME, APP_MOTTO } from "@/lib/brand";
 import { useState } from "react";
 import Link from "next/link";
 import { Bike, CalendarDays, Home, Menu, Waves } from "lucide-react";
@@ -71,10 +72,10 @@ export function VoltGlobalNavigation({
       className={`sidebar volt-global-sidebar volt-global-sidebar--${environment}${isMobileOpen ? " mobile-open" : ""}`}
       data-environment={environment}
     >
-      <Link className="brand" href="/" aria-label="VOLT — на главную" onClick={openHome}>
-        <span className="brand-mark">V</span><b>VOLT</b>
+      <Link className="brand" href="/" aria-label="RITMOVIS — на главную" onClick={openHome}>
+        <span className="brand-mark ritmovis-mark" aria-hidden="true" /><b>{APP_NAME}</b>
       </Link>
-      <p className="brand-sub">ФИТНЕС-ТРЕКЕР</p>
+      <p className="brand-sub">{APP_MOTTO}</p>
       <button
         type="button"
         className="mobile-sidebar-close"
@@ -82,7 +83,7 @@ export function VoltGlobalNavigation({
         onClick={() => setMobileOpen(false)}
       >×</button>
 
-      <nav className="side-nav" aria-label="Глобальная навигация VOLT">
+      <nav className="side-nav" aria-label="Глобальная навигация RITMOVIS">
         {VOLT_NAV_ITEMS.filter(item => item.primary).map(({ id, label, icon: Icon }) => {
           const active = environment === "volt" && activeSection === id;
           return <Link
@@ -109,17 +110,17 @@ export function VoltGlobalNavigation({
 
         <span className="side-nav-divider">Мои модули</span>
         <Link href="/swim" className={environment === "swim" ? "active module-active" : undefined} aria-current={environment === "swim" ? "page" : undefined} onClick={() => setMobileOpen(false)}>
-          <span aria-hidden="true"><Waves size={18} strokeWidth={2} /></span>VOLT Swim
+          <span aria-hidden="true"><Waves size={18} strokeWidth={2} /></span>RITMOVIS Swim
         </Link>
         <Link href="/cycling" className={environment === "cycling" ? "active module-active" : undefined} aria-current={environment === "cycling" ? "page" : undefined} onClick={() => setMobileOpen(false)}>
-          <span aria-hidden="true"><Bike size={18} strokeWidth={2} /></span>VOLT Cycling
+          <span aria-hidden="true"><Bike size={18} strokeWidth={2} /></span>RITMOVIS Cycling
         </Link>
       </nav>
 
       {footer && <div className="side-bottom">{footer}</div>}
     </aside>
 
-    <nav className={`mobile-nav volt-mobile-nav volt-mobile-nav--${environment}`} aria-label="Мобильная навигация VOLT">
+    <nav className={`mobile-nav volt-mobile-nav volt-mobile-nav--${environment}`} aria-label="Мобильная навигация RITMOVIS">
       <Link href="/" className={environment === "volt" && activeSection === "Сегодня" ? "active" : undefined} aria-current={environment === "volt" && activeSection === "Сегодня" ? "page" : undefined} onClick={(event) => openSection(event, "Сегодня")}>
         <span aria-hidden="true"><Home size={20} strokeWidth={2} /></span>Сегодня
       </Link>
@@ -136,7 +137,7 @@ export function VoltGlobalNavigation({
         type="button"
         data-tour-id="mobile-nav-more"
         className={moreIsActive ? "active" : undefined}
-        aria-label="Открыть все разделы VOLT"
+        aria-label="Открыть все разделы RITMOVIS"
         aria-expanded={isMobileOpen}
         onClick={() => setMobileOpen(true)}
       ><span aria-hidden="true"><Menu size={20} strokeWidth={2} /></span>Ещё</button>

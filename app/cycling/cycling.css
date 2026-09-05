@@ -302,3 +302,6 @@
   .cycling-fit-button { width: 100%; }
   .cycling-state { margin-top: 8vh; padding: 28px 20px; }
 }
+
+/* Fit the new name while preserving the module design. */
+.cycling-hero-copy h1{overflow-wrap:anywhere}

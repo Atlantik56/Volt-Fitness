@@ -34,7 +34,7 @@ export default function SwimWorkoutsPage() {
       <div className="swim-plan">
         <header className="swim-plan-header">
           <div>
-            <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
+            <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>План тренировок</b></p>
             <h1>План тренировок</h1>
           </div>
         </header>
@@ -51,7 +51,7 @@ export default function SwimWorkoutsPage() {
       <div className="swim-plan">
         <header className="swim-plan-header">
           <div>
-            <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
+            <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>План тренировок</b></p>
             <h1>План тренировок</h1>
           </div>
         </header>
@@ -68,7 +68,7 @@ export default function SwimWorkoutsPage() {
       <div className="swim-plan">
         <header className="swim-plan-header">
           <div>
-            <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
+            <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>План тренировок</b></p>
             <h1>План тренировок</h1>
           </div>
         </header>

@@ -24,18 +24,18 @@ export default function WidgetPage(){
  const save=async(e:FormEvent)=>{e.preventDefault();setSaved(false);const r=await fetch("/api/fitness",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"wellness",date:today,energy:form.energy,pain:form.pain,painArea:form.zone,note:currentWellness.note||""})});if(r.ok){setSaved(true);load()}};
  const update=(key:keyof typeof form,value:string)=>setForm(x=>({...x,[key]:key==="zone"?value:Number(value)}));
  return <AuthGate><main className={`${styles.page} volt-widget-page`}>
-  <header className={styles.header}><Link href="/" className={styles.brand}><span>V</span>VOLT</Link><time>{new Intl.DateTimeFormat("ru-RU",{weekday:"short",day:"numeric",month:"short"}).format(new Date())}</time></header>
+  <header className={styles.header}><Link href="/" className={styles.brand}><span className="ritmovis-mark" aria-hidden="true" />RITMOVIS</Link><time>{new Intl.DateTimeFormat("ru-RU",{weekday:"short",day:"numeric",month:"short"}).format(new Date())}</time></header>
   {!data?<section className={styles.loading}>Загрузка данных…</section>:<>
    <section className={styles.hero} style={{backgroundImage:plan.image?`linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.35)),url(${plan.image})`:`linear-gradient(90deg,rgba(5,7,8,.94),rgba(5,7,8,.35))`}}><p>ПЛАН НА СЕГОДНЯ</p><h1>{trainingLabelRu(plan.title)}</h1><div><span>{plan.time}</span><span>{plan.exercises.length} упражнений</span><span>{plan.rounds?`${plan.rounds} круга`:"отдых"}</span></div><Link href="/">{plan.type==="Отдых"?"Открыть день":"Начать тренировку"} →</Link></section>
    <section className={styles.glance} aria-label="Главные показатели"><article><span>⚡</span><b>{streak(data.workouts||[])}</b><small>серия</small></article><article><span>🌿</span><b>{streak(data.activity||[],"date","beers")}</b><small>без пива</small></article><article><span>↟</span><b>{Number(activity.steps||0).toLocaleString("ru-RU")}</b><small>шагов</small></article><article><span>◷</span><b>{activity.activeMinutes||0}</b><small>минут</small></article></section>
-   <section className={styles.readiness}><div className={styles.score} style={{background:`conic-gradient(var(--lime) ${score}%,#292e30 0)`}}><span><b>{score}</b><small>готовность</small></span></div><div><p>ПРОВЕРКА VOLT</p><h2>{decision.title}</h2><small>{decision.text}</small></div></section>
+   <section className={styles.readiness}><div className={styles.score} style={{background:`conic-gradient(var(--lime) ${score}%,#292e30 0)`}}><span><b>{score}</b><small>готовность</small></span></div><div><p>ПРОВЕРКА RITMOVIS</p><h2>{decision.title}</h2><small>{decision.text}</small></div></section>
    <form className={styles.survey} onSubmit={save}><div className={styles.surveyHead}><div><p>ОПРОС ПО ОЩУЩЕНИЯМ</p><h2>Как тело сегодня?</h2></div>{saved&&<b>Сохранено ✓</b>}</div>
     <Range label="Энергия" value={form.energy} min={1} max={5} left="нет сил" right="много сил" change={v=>update("energy",v)}/>
     <Range label="Боль в суставах" value={form.pain} min={0} max={10} left="нет" right="сильная" change={v=>update("pain",v)}/>
     <label className={styles.zone}>Где дискомфорт?<select value={form.zone} onChange={e=>update("zone",e.target.value)}><option value="">Нет</option>{["Шея","Плечи","Локти","Запястья","Спина","Тазобедренные","Колени","Голеностоп"].map(x=><option key={x}>{x}</option>)}</select></label>
     <button className={styles.save}>Сохранить самочувствие</button>
    </form>
-   <p className={styles.install}>Для отдельного ярлыка открой эту страницу в Chrome → меню ⋮ → «Добавить на главный экран». В установленной PWA также доступен ярлык «VOLT Сегодня».</p>
+   <p className={styles.install}>Для отдельного ярлыка открой эту страницу в Chrome → меню ⋮ → «Добавить на главный экран». В установленной PWA также доступен ярлык «RITMOVIS Сегодня».</p>
   </>}
  </main></AuthGate>
 }

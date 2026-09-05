@@ -109,7 +109,7 @@ export function MoodSection({ data, refresh }: { data: any; refresh: () => void 
       </section>
 
       <section className="mood-card card">
-        <div className="section-head"><div><p className="eyebrow">ЧТО ЗАМЕТИЛ VOLT</p><h3>Закономерности настроения</h3></div></div>
+        <div className="section-head"><div><p className="eyebrow">ЧТО ЗАМЕТИЛ RITMOVIS</p><h3>Закономерности настроения</h3></div></div>
         {moodInsights.length ? (
           <ul className="evening-patterns">{moodInsights.map(i => <li key={i.id} className="evening-pattern-row"><span>{i.isUpdate&&<span className="insight-updated-badge">Обновлено</span>}{i.summary}</span><button type="button" className="coach-insight-dismiss" aria-label="Скрыть этот вывод" onClick={()=>dismissMoodInsight(i)}>×</button></li>)}</ul>
         ) : (

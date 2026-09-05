@@ -1,0 +1,257 @@
+/* Preserve Swim and Cycling inherited appearance during the main-app rebrand. */
+:root:has(.swim-shell, .cycling-shell) {--lime:#c7ff32
+}
+:where(body:has(.swim-shell, .cycling-shell)) .streak {border:1px solid #263017;background:linear-gradient(135deg,#161c11,#101311)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .lime {color:#121608
+}
+:where(body:has(.swim-shell, .cycling-shell)) .metric-icon.lime {background:#202718
+}
+:where(body:has(.swim-shell, .cycling-shell)) .day.done span {background:#242d17
+}
+:where(body:has(.swim-shell, .cycling-shell)) .bar-slot i.today {box-shadow:0 0 18px #c7ff324d
+}
+:where(body:has(.swim-shell, .cycling-shell)) .bar-slot i.restbar {background:#29301f
+}
+:where(body:has(.swim-shell, .cycling-shell)) .weight-row>span {background:#222a18
+}
+:where(body:has(.swim-shell, .cycling-shell)) .safety {border:1px solid #35441e
+}
+:where(body:has(.swim-shell, .cycling-shell)) .day-plan summary i {background:#202817
+}
+:where(body:has(.swim-shell, .cycling-shell)) .round-tabs button.active {background:#1d2515
+}
+:where(body:has(.swim-shell, .cycling-shell)) .day-plan details[open] {border-color:#3b4829
+}
+:where(body:has(.swim-shell, .cycling-shell)) .workout-stages button.active {background:#1d2515
+}
+:where(body:has(.swim-shell, .cycling-shell)) .rest-screen button,:where(body:has(.swim-shell, .cycling-shell)) .save-workout {color:#0b0e09
+}
+:where(body:has(.swim-shell, .cycling-shell)) .exercise-video button {color:#d8ff6a;border:1px solid rgba(190,255,37,.32);background:rgba(190,255,37,.07)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .exercise-video button:hover {background:rgba(190,255,37,.15);border-color:rgba(190,255,37,.65)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .workout-exercise.substituted {border-color:#647d2d
+}
+:where(body:has(.swim-shell, .cycling-shell)) .replacement-panel {border:1px solid #56692e
+}
+:where(body:has(.swim-shell, .cycling-shell)) .session-primary {color:#0b0e09
+}
+:where(body:has(.swim-shell, .cycling-shell)) .history-message {border:1px solid #354528;background:#182014
+}
+:where(body:has(.swim-shell, .cycling-shell)) body {background-image:linear-gradient(rgba(6,8,9,.86),rgba(6,8,9,.94)),url('/backgrounds/volt-trisport.webp')
+}
+@media (max-width:760px) {
+:where(body:has(.swim-shell, .cycling-shell)) body {background-image:linear-gradient(rgba(6,8,9,.91),rgba(6,8,9,.96)),url('/backgrounds/volt-trisport.webp')
+}
+}
+:where(body:has(.swim-shell, .cycling-shell)) body {background-image:linear-gradient(rgba(6,8,9,.56),rgba(6,8,9,.76)),url('/backgrounds/volt-trisport.webp')
+}
+@media (max-width:760px) {
+:where(body:has(.swim-shell, .cycling-shell)) body {background-image:linear-gradient(rgba(6,8,9,.68),rgba(6,8,9,.84)),url('/backgrounds/volt-trisport.webp')
+}
+}
+:where(body:has(.swim-shell, .cycling-shell)) .auth-screen {background:linear-gradient(90deg,rgba(5,7,8,.96),rgba(5,7,8,.72)),url('/backgrounds/volt-trisport.webp') center/cover fixed
+}
+:where(body:has(.swim-shell, .cycling-shell)) .auth-card button {color:#0a0d08
+}
+:where(body:has(.swim-shell, .cycling-shell)) .motivation-banner {border-color:#35451f;background:linear-gradient(115deg,rgba(29,39,20,.92),rgba(15,19,18,.82))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .motivation-banner>span {color:#10140c
+}
+:where(body:has(.swim-shell, .cycling-shell)) .macro-bar i {background:linear-gradient(90deg,#8bbf16,var(--lime))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .food-diary form button {color:#0a0d08
+}
+:where(body:has(.swim-shell, .cycling-shell)) .habit-check.done {background:#202718;border-color:#35451f
+}
+:where(body:has(.swim-shell, .cycling-shell)) .food-log-list header em {background:#263119
+}
+:where(body:has(.swim-shell, .cycling-shell)) .ai-key-setup {border:1px solid #35451f;background:linear-gradient(115deg,rgba(29,39,20,.5),rgba(15,19,18,.5))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .ai-key-setup button {color:#0a0d08
+}
+:where(body:has(.swim-shell, .cycling-shell)) .food-diary form .food-ai-note {border:1px solid #2e3d1d;background:#131a0d
+}
+:where(body:has(.swim-shell, .cycling-shell)) .food-log-list .food-note {background:#151a10
+}
+:where(body:has(.swim-shell, .cycling-shell)) .food-history-chart .bar-slot i {background:#4a5a2a
+}
+:where(body:has(.swim-shell, .cycling-shell)) .hero-done-status {border:1px solid #2c3a17;background:rgba(24,32,13,.72)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .hero-done-icon {color:#0e1207
+}
+:where(body:has(.swim-shell, .cycling-shell)) .toast-item.good {border-color:#2c3a17
+}
+:where(body:has(.swim-shell, .cycling-shell)) .toast-item.good .toast-icon {background:#202718
+}
+:where(body:has(.swim-shell, .cycling-shell)) .milestone-celebration {border:1px solid #2c3a1c
+}
+:where(body:has(.swim-shell, .cycling-shell)) .mood-edit-picker label:has(input:checked) {background:#202718
+}
+:where(body:has(.swim-shell, .cycling-shell)) .plan-changed-badge {background:#222a18
+}
+:where(body:has(.swim-shell, .cycling-shell)) .week-plan-editor-actions button.active {background:#1d2515
+}
+:where(body:has(.swim-shell, .cycling-shell)) .week-plan-editor-preview {background:#161d10;border:1px solid #2a3a1a
+}
+:where(body:has(.swim-shell, .cycling-shell)) .checkin-quick-options button.active {background:#1d2515
+}
+:where(body:has(.swim-shell, .cycling-shell)) .active-plan-item-head>span {background:#202718
+}
+:where(body:has(.swim-shell, .cycling-shell)) .active-confirm {border:1px solid #2c3a1c
+}
+:where(body:has(.swim-shell, .cycling-shell)) .active-completed>span {background:#202718
+}
+:where(body:has(.swim-shell, .cycling-shell)) body:has(.auth-screen),:where(body:has(.swim-shell, .cycling-shell)) body:has(.volt-widget-page) {
+  background-image:url('/backgrounds/volt-2-gym-neon.webp')
+}
+:where(body:has(.swim-shell, .cycling-shell)) .app-shell:not(.swim-shell)::before {
+  background-image:url('/backgrounds/volt-2-gym-neon.webp')
+}
+:where(body:has(.swim-shell, .cycling-shell)) .hero .start-btn {color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .hero .start-btn span {background:rgba(9,12,6,.2);color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .streak-bar-col i.done {background:linear-gradient(180deg,#e2ff9a,var(--lime))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .progression-open span {background:rgba(199,255,50,.1)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .progression-primary {color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .filters button.active,:where(body:has(.swim-shell, .cycling-shell)) .metric-tabs button.active,:where(body:has(.swim-shell, .cycling-shell)) .period-tabs button.active {color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .plan-activation-icon {background:rgba(199,255,50,.08)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .plan-activation-start {color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .plan-hero-shade {background:radial-gradient(72% 120% at 94% 0%,rgba(199,255,50,.075),transparent 58%),linear-gradient(100deg,rgba(7,10,12,.12),transparent 70%)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .plan-session-switcher button.active {background:rgba(199,255,50,.055)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .plan-focus-content>.start-btn,:where(body:has(.swim-shell, .cycling-shell)) .plan-focus-content>.repeat-btn {color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .plan-focus-content>.start-btn span,:where(body:has(.swim-shell, .cycling-shell)) .plan-focus-content>.repeat-btn span {background:rgba(9,12,6,.17)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .safety {border-left:2px solid rgba(199,255,50,.45)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .week-plan-editor-actions button.active {background:rgba(199,255,50,.07)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .week-plan-editor-preview {background:rgba(199,255,50,.055)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .week-plan-editor footer button:not(.ghost-btn) {color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-add-panel:before {background:radial-gradient(68% 80% at 4% 0%,rgba(199,255,50,.055),transparent 62%)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-panel-head>span {border:1px solid rgba(199,255,50,.14);background:rgba(199,255,50,.045)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-method.photo {background:linear-gradient(145deg,rgba(199,255,50,.09),rgba(255,255,255,.025))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-method.photo:hover,:where(body:has(.swim-shell, .cycling-shell)) .nutrition-method.photo.selected {background:linear-gradient(145deg,rgba(199,255,50,.14),rgba(255,255,255,.04))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-method.photo>span {background:rgba(199,255,50,.09)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-method.photo:disabled:hover {background:linear-gradient(145deg,rgba(199,255,50,.09),rgba(255,255,255,.025))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-entry-actions button[type=submit] {color:#0a0d08
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-calorie-ring {box-shadow:0 0 34px -22px rgba(199,255,50,.7)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-macro .macro-bar i {background:#9acb2e
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-meal-copy header em {border:1px solid rgba(199,255,50,.13);background:rgba(199,255,50,.055);color:#b6cb82
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-history .bar-slot i {background:#45502e
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-program-meals small {color:#87933d
+}
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-program-rules small {color:#87933d
+}
+@media (max-width:760px) {
+:where(body:has(.swim-shell, .cycling-shell)) .nutrition-history-list i b {background:#59643d
+}
+}
+:where(body:has(.swim-shell, .cycling-shell)) .active-workout-card footer button:not(.ghost-btn),:where(body:has(.swim-shell, .cycling-shell)) .confirmation-screen footer button:not(.ghost-btn) {color:#0b0e07
+}
+:where(body:has(.swim-shell, .cycling-shell)) .roadmap-phase.current .roadmap-node span {color:#0a0d08
+}
+:where(body:has(.swim-shell, .cycling-shell)) .roadmap-phase.current .roadmap-phase-card {background:linear-gradient(110deg,rgba(29,38,17,.62),rgba(13,17,17,.38) 68%),var(--v2-sheen)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .roadmap-phase-card header>b {background:rgba(199,255,50,.13);color:#e5ff9d
+}
+:where(body:has(.swim-shell, .cycling-shell)) .roadmap-footer>span {background:rgba(199,255,50,.08)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .journey-hero:after {background:radial-gradient(72% 115% at 52% 42%,rgba(199,255,50,.055),transparent 62%),linear-gradient(90deg,rgba(5,8,9,.42),transparent 52%,rgba(5,8,9,.24))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .journey-hero-copy>span {background:rgba(199,255,50,.06)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .journey-hero-mark span {background:linear-gradient(145deg,rgba(199,255,50,.08),rgba(255,255,255,.015))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .journey-weight-trend {background:linear-gradient(180deg,transparent,rgba(199,255,50,.025))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .journey-weight-trend i {background:linear-gradient(180deg,var(--lime),rgba(199,255,50,.25))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .journey-volume-bars i {background:linear-gradient(180deg,var(--lime),rgba(199,255,50,.28))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .journey-milestones-panel article>span {background:rgba(199,255,50,.045)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .analytics-mini-chart i {background:linear-gradient(180deg,var(--lime),rgba(199,255,50,.2))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .analytics-state button {background:rgba(199,255,50,.06)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .analytics-insight-list article.tone-good .analytics-insight-icon {background:rgba(199,255,50,.045)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .analytics-volume-chart i {background:linear-gradient(180deg,var(--lime),rgba(199,255,50,.22))
+}
+:where(body:has(.swim-shell, .cycling-shell)) .analytics-coach-identity>span {background:rgba(199,255,50,.045)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .coach-chat-embedded .coach-chat-bubble.user {background:rgba(114,143,23,.24)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .profile-identity-panel:after {color:rgba(199,255,50,.035)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .profile-current-goal>header>span {background:rgba(199,255,50,.055)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .profile-settings-row em {background:rgba(199,255,50,.06)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .historical-import-actions button {color:#101407
+}
+:where(body:has(.swim-shell, .cycling-shell)) .profile-hub-form input:focus,:where(body:has(.swim-shell, .cycling-shell)) .profile-ai-settings input:focus {border-color:rgba(199,255,50,.42);box-shadow:0 0 0 2px rgba(199,255,50,.07)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .profile-hub-form-actions button,:where(body:has(.swim-shell, .cycling-shell)) .profile-ai-settings form>button {color:#101407
+}
+:where(body:has(.swim-shell, .cycling-shell)) .strava-connected-badge {border:1px solid rgba(199,255,50,.22);background:rgba(199,255,50,.06)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .strava-message {border-color:rgba(199,255,50,.2);background:rgba(199,255,50,.05);color:#cfe890!important
+}
+:where(body:has(.swim-shell, .cycling-shell)) .strava-actions button,:where(body:has(.swim-shell, .cycling-shell)) .strava-connect {color:#10140c
+}
+:where(body:has(.swim-shell, .cycling-shell)) .profile-settings-page button:focus-visible,:where(body:has(.swim-shell, .cycling-shell)) .side-nav button:focus-visible,:where(body:has(.swim-shell, .cycling-shell)) .side-nav a:focus-visible,:where(body:has(.swim-shell, .cycling-shell)) .profile:focus-visible {outline:2px solid rgba(199,255,50,.68)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .body-controls .primary,:where(body:has(.swim-shell, .cycling-shell)) .garmin-preview button {color:#10140c
+}
+:where(body:has(.swim-shell, .cycling-shell)) .fit-actions button {color:#10140c
+}
+:where(body:has(.swim-shell, .cycling-shell)) .record-badge {background:#202718
+}
+:where(body:has(.swim-shell, .cycling-shell)) .body-map .body-silhouette::after {background:radial-gradient(ellipse at center,rgba(191,255,31,.08),transparent 68%)
+}
+:where(body:has(.swim-shell, .cycling-shell)) .heatmap-cell.level-1 {background:#1d3312
+}
+:where(body:has(.swim-shell, .cycling-shell)) .heatmap-cell.level-2 {background:#2c4f18
+}
+:where(body:has(.swim-shell, .cycling-shell)) .heatmap-cell.level-3 {background:#4d7e20
+}
+:where(body:has(.swim-shell, .cycling-shell)) .exercise-rest-button {border:1px solid #52632c;background:#1a2114
+}
+:where(body:has(.swim-shell, .cycling-shell)) .coach-item.good .coach-icon {background:#202718
+}
+:where(body:has(.swim-shell, .cycling-shell)) .coach-status.good {border-color:#2c3a17
+}
+:where(body:has(.swim-shell, .cycling-shell)) .coach-indicator.good {border-color:#2c3a17
+}
+:where(body:has(.swim-shell, .cycling-shell)) .readiness-coach-link {border-bottom:1px dashed #3d4a1c
+}
+:where(body:has(.swim-shell, .cycling-shell)) .coach-provider-choice button.active {background:#1d2515
+}
+:where(body:has(.swim-shell, .cycling-shell)) .coach-chat-bubble.user {background:#1d2515;border-color:#2c3a17
+}

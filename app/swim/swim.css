@@ -1399,3 +1399,6 @@
   .swim-home .swim-primary-action,.swim-home .swim-secondary-action{width:100%}
   .swim-home-data-heading{align-items:flex-start;flex-direction:column;gap:4px}
 }
+
+/* Fit the new name while preserving the module design. */
+.swim-hero h1{overflow-wrap:anywhere}
