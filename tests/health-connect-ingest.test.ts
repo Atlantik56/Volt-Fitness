@@ -124,3 +124,56 @@ test("older sync cannot overwrite newer source data",()=>{
  const row=db.prepare("SELECT metrics FROM health_connect_records WHERE external_record_id='stale-record'").get() as {metrics:string};
  assert.equal(JSON.parse(row.metrics).caloriesKcal,500);
 });
+
+const dailyInterval=(id:string,type="total_calories",start=Date.now()-8*3600_000,end=Date.now()+16*3600_000)=>({
+ source:"health_connect",sourceOrigin:"com.garmin.connect",sourceOriginName:"Garmin Connect",externalRecordId:id,
+ recordType:type,startTime:new Date(start).toISOString(),endTime:new Date(end).toISOString(),sourceModifiedAt:new Date().toISOString(),
+ metrics:type==="steps"?{count:1000}:{kilocalories:1000},
+});
+const currentBatch=(records:any[])=>({...batch(records),syncedAt:new Date().toISOString()});
+
+test("an already started daily calorie/step interval can end later today without changing its timestamps",()=>{
+ const device=pairedDevice();
+ for(const type of ["total_calories","active_calories","steps"]){
+  const record=dailyInterval(`ongoing-${type}`,type);
+  assert.equal(health.ingestHealthSync(device,currentBatch([record])).ok,true);
+  const stored=db.prepare("SELECT start_time startTime,end_time endTime FROM health_connect_records WHERE external_record_id=?").get(record.externalRecordId);
+  assert.deepEqual(stored,{startTime:record.startTime,endTime:record.endTime});
+ }
+ const now=Date.now();
+ assert.equal(health.parseHealthSyncBatch(currentBatch([dailyInterval("dst-day","total_calories",now-8*3600_000,now+17*3600_000)])).ok,true);
+});
+
+test("future workouts/point readings/whole daily intervals and oversized ongoing buckets remain rejected",()=>{
+ const now=Date.now();
+ const futureWorkout={...exercise("future-workout"),startTime:new Date(now-3600_000).toISOString(),endTime:new Date(now+3600_000).toISOString()};
+ assert.equal(health.parseHealthSyncBatch(currentBatch([futureWorkout])).ok,false);
+ assert.equal(health.parseHealthSyncBatch(currentBatch([dailyInterval("future-day","total_calories",now+3600_000,now+2*3600_000)])).ok,false);
+ assert.equal(health.parseHealthSyncBatch(currentBatch([dailyInterval("two-days","total_calories",now-24*3600_000,now+24*3600_000)])).ok,false);
+ const point={...dailyInterval("future-point"),recordType:"weight",startTime:new Date(now+3600_000).toISOString(),endTime:new Date(now+3600_000).toISOString(),metrics:{kilograms:80}};
+ assert.equal(health.parseHealthSyncBatch(currentBatch([point])).ok,false);
+});
+
+test("temporal validation identifies the exact field without exposing timestamps or metric values",()=>{
+ const record=dailyInterval("bad-modification");record.sourceModifiedAt="1970-01-01T00:00:00Z";
+ const result=health.parseHealthSyncBatch(currentBatch([record]));
+ assert.equal(result.ok,false);
+ if(result.ok)return;
+ assert.deepEqual(result.issues,[{path:"records.0.sourceModifiedAt",code:"invalid_source_modified_time"}]);
+ assert.ok(!JSON.stringify(result).includes(record.sourceModifiedAt));
+});
+
+test("a daily calorie bucket late in a 548-batch upload no longer interrupts sync and retry stays idempotent",()=>{
+ const device=pairedDevice();
+ const now=Date.now(),start=now-8*3600_000,end=now+16*3600_000;
+ const historical=(id:string)=>({...dailyInterval(id,"total_calories",now-3*86400_000,now-2*86400_000)});
+ let total=0;
+ for(let packet=1;packet<=548;packet++){
+  const records=Array.from({length:50},(_,index)=>packet===513&&index===0?dailyInterval("late-ongoing-bucket","total_calories",start,end):historical(`late-packet-${packet}-${index}`));
+  const result=health.ingestHealthSync(device,currentBatch(records));assert.equal(result.ok,true,`packet ${packet}`);
+  if(result.ok)total+=result.total;
+ }
+ assert.equal(total,27400);
+ assert.deepEqual(health.ingestHealthSync(device,currentBatch([dailyInterval("late-ongoing-bucket","total_calories",start,end)])),{ok:true,created:0,updated:1,total:1});
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM health_connect_records WHERE external_record_id='late-ongoing-bucket'").get() as {n:number}).n,1);
+});
