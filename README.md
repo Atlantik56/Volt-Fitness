@@ -1,6 +1,6 @@
-# Volt
+# VOLT
 
-Production: https://ritmovis.duckdns.org/
+Production: https://volt-trainer.duckdns.org/
 
 Установка PWA доступна на экране входа и в профиле. Кнопка появляется, когда браузер предоставляет системный диалог установки.
 

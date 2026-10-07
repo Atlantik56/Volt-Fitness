@@ -75,7 +75,7 @@ export function buildExerciseProgression(ctx: ProgressionWorkoutContext): Progre
   if (moderatePain || blockedByCoach || incomplete) {
     const usedSignals: string[] = [];
     if (moderatePain) usedSignals.push(`боль после тренировки ${ctx.painAfter}/10`);
-    if (blockedByCoach) usedSignals.push("щадящее решение RITMOVIS Coach");
+    if (blockedByCoach) usedSignals.push("щадящее решение VOLT Coach");
     if (incomplete) usedSignals.push("тренировка не завершена полностью");
     return held(
       exercise,

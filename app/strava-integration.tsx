@@ -48,9 +48,9 @@ export function StravaIntegration({refresh}:{refresh:()=>void}){
  const badge=status?.state==="needs_reauth"?"Требуется вход":status?.state==="sync_error"?"Ошибка синхронизации":status?.connected?"Подключено":"Отключено";
  return <section className="strava-integration" aria-busy={busy}>
   <header><div><p className="eyebrow">STRAVA · READ ONLY</p><h3>{status?.connected?"Strava подключена":status?.state==="needs_reauth"?"Переподключите Strava":"Получение тренировок из Strava"}</h3></div>{status&&<span className={`strava-connected-badge state-${status.state}`}>{badge}</span>}</header>
-  <p>RITMOVIS получает только активности: внешний id, название и описание, тип, время, длительность, дистанцию, пульс, калории и данные устройства. GPS-маршруты, фото, сегменты и социальные данные не сохраняются.</p>
+  <p>VOLT получает только активности: внешний id, название и описание, тип, время, длительность, дистанцию, пульс, калории и данные устройства. GPS-маршруты, фото, сегменты и социальные данные не сохраняются.</p>
   <p>Данные хранятся как временный кэш не более 7 дней и не передаются в Analytics или AI Coach. Webhook и ручная синхронизация используют один ingestion flow. Отключение удаляет Strava-данные; заметки и ручные упражнения сохраняются.</p>
-  {!status?.configured&&<p className="strava-warning" role="status">Добавьте серверные переменные Strava, затем перезапустите RITMOVIS.</p>}
+  {!status?.configured&&<p className="strava-warning" role="status">Добавьте серверные переменные Strava, затем перезапустите VOLT.</p>}
   {status?.configured&&!status.webhookConfigured&&<p className="strava-warning" role="status">Webhook ещё не активирован: добавьте verify/process token и subscription id.</p>}
   {status?.state==="needs_reauth"&&<p className="strava-warning" role="status">Токен или scope больше не действуют. Автоматические повторы остановлены до повторного подключения.</p>}
   {status?.connected&&<div className="strava-status-grid">

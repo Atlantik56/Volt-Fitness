@@ -5,7 +5,7 @@
    Источники: docs/design-system/{01-design-principles,02-colors,03-typography,
    04-spacing,05-glass-system,06-motion}.md, components/{hero,cards,navigation}.md,
    screens/home.md, эталон assets/approved-screens/home-approved.png,
-   фон docs/design/VOLT_BACKGROUND.md → /backgrounds/ritmovis-gym-neon.webp.
+   фон docs/design/VOLT_BACKGROUND.md → /backgrounds/volt-gym-neon.webp.
 
    Дисциплина цвета (02-colors.md + бриф): лайм — ТОЛЬКО основной CTA,
    активный пункт навигации и мелкие индикаторы. Границы поверхностей —
@@ -70,7 +70,7 @@ body{background-image:none;background-color:var(--bg)}
    единственный архитектурный фон на уровне body. */
 body:has(.auth-screen),body:has(.volt-widget-page){
   background-color:#050807;
-  background-image:url('/backgrounds/ritmovis-gym-neon.webp');
+  background-image:url('/backgrounds/volt-gym-neon.webp');
   background-repeat:no-repeat;
   background-position:center center;
   background-size:cover;
@@ -89,7 +89,7 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .app-shell:not(.swim-shell){position:relative;isolation:isolate}
 .app-shell:not(.swim-shell)::before{
   content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;
-  background-image:url('/backgrounds/ritmovis-gym-neon.webp');
+  background-image:url('/backgrounds/volt-gym-neon.webp');
   background-size:cover;background-position:center center;background-repeat:no-repeat;
 }
 /* Локальное затемнение + виньетка: держат контраст текста поверх фона на

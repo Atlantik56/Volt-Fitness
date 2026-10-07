@@ -60,6 +60,6 @@ export async function checkAndSendReminder() {
     db.prepare("UPDATE reminder_state SET last_sent_date=? WHERE id=1").run(date);
     return;
   }
-  await sendToAll({ title: "RITMOVIS", body: "Проверь план на сегодня и выбери спокойную нагрузку без боли. Регулярность важнее максимума." });
+  await sendToAll({ title: "VOLT", body: "Проверь план на сегодня и выбери спокойную нагрузку без боли. Регулярность важнее максимума." });
   db.prepare("UPDATE reminder_state SET last_sent_date=? WHERE id=1").run(date);
 }

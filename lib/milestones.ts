@@ -54,7 +54,7 @@ function buildFirstWorkoutMilestone(workouts: WorkoutRow[]): Milestone[] {
   const first = [...workouts].sort(byDateThenId)[0];
   return [{
     id: "first-workout", kind: "first-workout", occurredAt: first.date,
-    title: "Первая тренировка", summary: "Начало истории тренировок в RITMOVIS.",
+    title: "Первая тренировка", summary: "Начало истории тренировок в VOLT.",
     sourceIds: [`workout:${first.id}`], sourceRevision: MILESTONES_REVISION, automatic: true, category: "тренировки",
   }];
 }

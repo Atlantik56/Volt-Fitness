@@ -137,7 +137,7 @@ function ProfilePushSettings(){
   };
 
   return <div className="profile-hub-toggle-row">
-    <div><b>Системные напоминания</b><p>Уведомления приходят через существующий push-канал RITMOVIS.</p></div>
+    <div><b>Системные напоминания</b><p>Уведомления приходят через существующий push-канал VOLT.</p></div>
     <button type="button" role="switch" aria-checked={enabled} className={enabled?"enabled":""} onClick={toggle} disabled={busy}><span/>{busy?"…":enabled?"Включены":"Выключены"}</button>
   </div>;
 }
@@ -234,7 +234,7 @@ function HistoricalImportPreviews({items,refresh}:{items:any[];refresh:()=>void}
  if(!items.length)return null;
  return <section className="historical-import-previews" aria-label="Разбор старых импортов">
   <header><div><p className="eyebrow">РУЧНОЙ РАЗБОР</p><h3>Старые импорты без автозаписи</h3></div><b>{items.length}</b></header>
-  <p>RITMOVIS ничего не записывает сам: показан разбор наперёд, а решение по каждой записи принимаешь ты.</p>
+  <p>VOLT ничего не записывает сам: показан разбор наперёд, а решение по каждой записи принимаешь ты.</p>
   <div>{items.map(item=><HistoricalImportRow key={item.importId} item={item} refresh={refresh}/>)}</div>
  </section>;
 }
@@ -257,7 +257,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
   const toggle=(panel:Exclude<SettingsPanel,null>)=>setOpenPanel(current=>current===panel?null:panel);
 
   return <div className="profile-settings-page">
-    <header className="profile-page-heading"><div><p className="eyebrow">ПЕРСОНАЛЬНЫЙ ЦЕНТР</p><h1>Профиль и настройки</h1><p>Твои параметры, цели и работающие подключения RITMOVIS — в одном месте.</p></div></header>
+    <header className="profile-page-heading"><div><p className="eyebrow">ПЕРСОНАЛЬНЫЙ ЦЕНТР</p><h1>Профиль и настройки</h1><p>Твои параметры, цели и работающие подключения VOLT — в одном месте.</p></div></header>
 
     <section className="profile-identity-panel">
       <div className="profile-avatar" aria-label={`Аватар ${name}`}><span>{initials}</span><i><UserRound size={16}/></i></div>
@@ -281,7 +281,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
     </div>
 
     <section className="profile-settings-shell" id="profile-settings-sections">
-      <header><div><p className="eyebrow">НАСТРОЙКИ</p><h2>Персональные параметры</h2></div><p>Здесь показаны только функции, которые действительно работают в RITMOVIS.</p></header>
+      <header><div><p className="eyebrow">НАСТРОЙКИ</p><h2>Персональные параметры</h2></div><p>Здесь показаны только функции, которые действительно работают в VOLT.</p></header>
       <div className="profile-settings-columns">
         <div className="profile-settings-group">
           <SettingsRow icon={<UserRound size={20}/>} title="Профиль и цель" description="Имя, рост, стартовый и целевой вес" active={openPanel==="profile"} onClick={()=>toggle("profile")}/>

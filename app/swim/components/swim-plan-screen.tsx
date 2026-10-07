@@ -175,7 +175,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
       <div className="swim-plan">
         <header className="swim-plan-header">
           <div>
-            <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>План тренировок</b></p>
+            <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
             <h1>План тренировок</h1>
           </div>
         </header>
@@ -192,7 +192,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
       <div className="swim-plan">
         <header className="swim-plan-header">
           <div>
-            <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>План тренировок</b></p>
+            <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
             <h1>План тренировок</h1>
           </div>
         </header>
@@ -202,7 +202,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
           <p>
             Вернитесь на{" "}
             <Link href="/swim" className="swim-plan-link">
-              главную RITMOVIS Swim
+              главную VOLT Swim
             </Link>
             .
           </p>
@@ -215,7 +215,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
       <div className="swim-plan">
         <header className="swim-plan-header">
           <div>
-            <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>План тренировок</b></p>
+            <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>План тренировок</b></p>
             <h1>План тренировок</h1>
             <p>Foundation · 8 недель</p>
           </div>
@@ -233,7 +233,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
         <header className="swim-plan-header">
           <div>
             <p className="swim-breadcrumb">
-              RITMOVIS / Тренировки / Swim / <b>План тренировок</b>
+              VOLT / Тренировки / Swim / <b>План тренировок</b>
             </p>
             <h1>План тренировок</h1>
           </div>
@@ -251,7 +251,7 @@ export function SwimPlanScreen({ programId }: { programId: string }) {
       <header className="swim-plan-header">
         <div>
           <p className="swim-breadcrumb">
-            RITMOVIS / Тренировки / Swim / <b>План тренировок</b>
+            VOLT / Тренировки / Swim / <b>План тренировок</b>
           </p>
           <h1>План тренировок</h1>
           <p>

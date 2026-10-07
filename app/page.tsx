@@ -248,11 +248,11 @@ export default function Home() {
 
       <section className="content" id="top">
         {nav!=="Аналитика"&&nav!=="Профиль и настройки"&&<header className={`topbar${nav==="Дорожная карта"?" roadmap-topbar":""}${nav==="Моя история"?" journey-topbar":""}`}>
-          {nav==="Дорожная карта"?<div className="roadmap-topbar-brand" aria-label="RITMOVIS">RITMOVIS</div>:nav==="Моя история"?<div className="journey-topbar-copy"><h1>Мой путь</h1><p>Твоя история. Твои победы. <em>Твой прогресс.</em></p></div>:<div><p className="eyebrow">{dateLabel}</p><h1>{greeting}, {data.profile?.name||"Илья"}</h1></div>}
+          {nav==="Дорожная карта"?<div className="roadmap-topbar-brand" aria-label="VOLT">VOLT</div>:nav==="Моя история"?<div className="journey-topbar-copy"><h1>Мой путь</h1><p>Твоя история. Твои победы. <em>Твой прогресс.</em></p></div>:<div><p className="eyebrow">{dateLabel}</p><h1>{greeting}, {data.profile?.name||"Илья"}</h1></div>}
           <div className="header-actions">
             <span className="date-chip"><CalendarDays size={14}/>{dateLabel}</span>
             <span className="sync-chip"><RefreshCw size={13}/>Синхронизировано<i/></span>
-            {loaded&&coachAction&&<button type="button" className={`coach-indicator ${COACH_ACTION_LABELS[coachAction].tone}`} aria-label={`RITMOVIS Coach: ${COACH_ACTION_LABELS[coachAction].label}. Перейти к решению`} onClick={goCoach}><span className="coach-status-dot" aria-hidden="true"/><span className="coach-indicator-text">Coach: {COACH_ACTION_LABELS[coachAction].short}</span></button>}
+            {loaded&&coachAction&&<button type="button" className={`coach-indicator ${COACH_ACTION_LABELS[coachAction].tone}`} aria-label={`VOLT Coach: ${COACH_ACTION_LABELS[coachAction].label}. Перейти к решению`} onClick={goCoach}><span className="coach-status-dot" aria-hidden="true"/><span className="coach-indicator-text">Coach: {COACH_ACTION_LABELS[coachAction].short}</span></button>}
             <button aria-label="Уведомления" className="icon-btn"><Bell size={17}/><span></span></button>
             <button className="mini-avatar" aria-label="Открыть профиль и настройки" aria-expanded={mobileMenu} onClick={()=>window.matchMedia("(max-width: 760px)").matches?setMobileMenu(true):setNav("Профиль и настройки")}>И</button>
           </div>
@@ -451,7 +451,7 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
  const resolvedSwim=selectedSwim?.kind==="workout"?selectedSwim:null;
  const swimWorkout=isSwim?(resolvedSwim?.workout??null):null;
  const focusTitle=isSwim?(swimWorkout?.title??(selectedSwimLoading?"Загрузка тренировки…":"Тренировка не определена")):(selectedPlan.type==="Отдых"?"Отдых":trainingLabelRu(selectedPlan.title));
- const focusType=isSwim?`RITMOVIS Swim · ${resolvedSwim?.programId==="endurance"?"общий план":"базовый план"}`:isCycling?"RITMOVIS Cycling · общий план":isRest?"День восстановления":selectedPlan.type;
+ const focusType=isSwim?`VOLT Swim · ${resolvedSwim?.programId==="endurance"?"общий план":"базовый план"}`:isCycling?"VOLT Cycling · общий план":isRest?"День восстановления":selectedPlan.type;
  const actionMeta=isSwim?{
   label:selectedSwimLoading?"Загрузка…":resolvedSwim?.status==="completed"?"Тренировка выполнена":resolvedSwim?.status==="in_progress"?"Продолжить тренировку":resolvedSwim?.status==="awaiting_confirmation"?"Подтвердить результат":resolvedSwim?"Открыть тренировку":"Тренировка недоступна",
   cls:resolvedSwim?.status==="completed"?"repeat-btn":"start-btn",
@@ -522,17 +522,17 @@ function PlanScreen({today,weekPlan,selectedResolved,selectedPlan,selectedSessio
      <p className="eyebrow">ДАЛЬШЕ</p>
      <span className="plan-next-date">{dayLabel(nextResolved.date,today)}</span>
      <h3>{trainingLabelRu(nextSession.title)}</h3>
-     <p>{isSwimSession(nextSession)?"RITMOVIS Swim":isCyclingSession(nextSession)?"RITMOVIS Cycling":nextSession.type} · {nextSession.time}</p>
+     <p>{isSwimSession(nextSession)?"VOLT Swim":isCyclingSession(nextSession)?"VOLT Cycling":nextSession.type} · {nextSession.time}</p>
     </div>
     <button type="button" className="ghost-btn" onClick={()=>{onSelectDate(nextResolved.date);onSelectSession(nextSession.id??null)}}>Посмотреть день <span aria-hidden="true">→</span></button>
    </aside>
   </section>
 
   <section className="plan-day-exercises" id="plan-workout-composition">
-   <div className="section-head plan-section-heading"><div><p className="eyebrow">ДЕТАЛИ ТРЕНИРОВКИ</p><h3>{isSwim?(swimWorkout?.title??"RITMOVIS Swim"):isRest?"Восстановление":trainingLabelRu(selectedPlan.title)}</h3></div><span>{swimWorkout?`${totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м · ${swimWorkout.intervals.length} интервалов`:isRest?"Спокойный день":`${selectedPlan.exercises.length} ${isCycling?"этапа":"упражнений"}`}</span></div>
+   <div className="section-head plan-section-heading"><div><p className="eyebrow">ДЕТАЛИ ТРЕНИРОВКИ</p><h3>{isSwim?(swimWorkout?.title??"VOLT Swim"):isRest?"Восстановление":trainingLabelRu(selectedPlan.title)}</h3></div><span>{swimWorkout?`${totalDistanceMeters(swimWorkout).toLocaleString("ru-RU")} м · ${swimWorkout.intervals.length} интервалов`:isRest?"Спокойный день":`${selectedPlan.exercises.length} ${isCycling?"этапа":"упражнений"}`}</span></div>
    {isSwim?(
-    selectedSwimLoading?<div className="plan-swim-empty" aria-busy="true">Загружаем назначенную тренировку RITMOVIS Swim…</div>:
-    swimWorkout?<PlanSwimIntervals workout={swimWorkout}/>:<div className="plan-swim-empty">RITMOVIS Swim не смог назначить тренировку базового плана на этот день. Измените день плана или откройте модуль Swim.</div>
+    selectedSwimLoading?<div className="plan-swim-empty" aria-busy="true">Загружаем назначенную тренировку VOLT Swim…</div>:
+    swimWorkout?<PlanSwimIntervals workout={swimWorkout}/>:<div className="plan-swim-empty">VOLT Swim не смог назначить тренировку базового плана на этот день. Измените день плана или откройте модуль Swim.</div>
    ):isRest?<div className="plan-rest-note"><span aria-hidden="true"><Moon size={22}/></span><div><b>Сегодня без тренировки</b><p>Восстановись и сохрани ритм недели. Следующее занятие уже отмечено выше.</p></div></div>:<>
     {selectedPlan.warmup&&<section className="plan-exercise-block"><header><div><span>01</span><div><p className="eyebrow">ПОДГОТОВКА</p><h4>Разминка</h4></div></div><small>{selectedPlan.warmup.length} упражнения</small></header><PlanExercises items={selectedPlan.warmup}/></section>}
     <section className="plan-exercise-block"><header><div><span>{selectedPlan.warmup?"02":"01"}</span><div><p className="eyebrow">РАБОЧИЙ БЛОК</p><h4>Основная часть</h4></div></div><small>{selectedPlan.exercises.length} {isCycling?"этапа":"упражнений"}{selectedPlan.rounds>1?` · ${selectedPlan.rounds} круга`:""}</small></header><PlanExercises items={selectedPlan.exercises}/></section>
@@ -755,7 +755,7 @@ function NutritionDiary({data,refresh,onAskCoach}:{data:any;refresh:()=>void;onA
      <div className={`nutrition-remaining${remaining<0?" over":""}`}><span>{remaining>=0?"Осталось":"Сверх ориентира"}</span><b>{Math.abs(remaining)} ккал</b></div>
     </section>
     <section className="nutrition-water"><span><Droplets size={21}/></span><div><p className="eyebrow">ВОДА</p><h3>{waterKnown?`${waterLiters.toLocaleString("ru-RU")} л`:"Нет записи"}</h3><small>Заполняется в «Вечернем прогрессе»</small></div></section>
-    <section className="nutrition-coach-note"><span><Sparkles size={18}/></span><div><p className="eyebrow">RITMOVIS COACH · ПО ДАННЫМ ДНЯ</p><p>{coachNote}</p><button type="button" className="nutrition-coach-action" onClick={onAskCoach}>Открыть Coach</button></div></section>
+    <section className="nutrition-coach-note"><span><Sparkles size={18}/></span><div><p className="eyebrow">VOLT COACH · ПО ДАННЫМ ДНЯ</p><p>{coachNote}</p><button type="button" className="nutrition-coach-action" onClick={onAskCoach}>Открыть Coach</button></div></section>
    </aside>
   </div>
 
