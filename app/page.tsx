@@ -115,7 +115,7 @@ export default function Home() {
   const days=useMemo(()=>makeWeek(data.workouts||[]),[data.workouts]);
   const weekDates=new Set(days.map(x=>x.iso));
   const weekWorkouts=(data.workouts||[]).filter((x:any)=>weekDates.has(x.date));
-  const currentWeight=Number(data.measurements?.[0]?.weight??data.profile?.startWeight??86), startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67);
+  const currentWeight=Number(data.measurements?.find((measurement:any)=>measurement.weight!=null)?.weight??data.profile?.startWeight??86), startWeight=Number(data.profile?.startWeight??86), targetWeight=Number(data.profile?.targetWeight??67);
   const lost=Math.max(0,startWeight-currentWeight), remaining=Math.max(0,currentWeight-targetWeight), goalPct=Math.max(0,Math.min(100,(lost/(startWeight-targetWeight||1))*100));
   const goalEta=useMemo(()=>projectGoalDate(data.measurements||[],targetWeight),[data.measurements,targetWeight]);
   const hour=new Date().getHours(), greeting=hour<5?"Доброй ночи":hour<12?"Доброе утро":hour<17?"Добрый день":hour<23?"Добрый вечер":"Доброй ночи", dateLabel=formatDateLabel(new Date());
