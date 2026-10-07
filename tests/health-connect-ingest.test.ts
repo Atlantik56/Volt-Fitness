@@ -51,19 +51,16 @@ test("pairing is one-time and device auth accepts only its bearer token",()=>{
  if(claimed.ok)assert.equal(health.authenticateHealthDevice(new Request("https://volt.test",{headers:{authorization:`Bearer ${claimed.deviceToken}`}}))?.name,"Sony Xperia 1 VI");
 });
 
-test("typed batch preserves Garmin DataOrigin and optional missing distance",()=>{
+test("legacy exercise records are ignored while Garmin diagnostics remain available",()=>{
  const device=pairedDevice(),result=health.ingestHealthSync(device,batch([exercise()]));
  assert.equal(result.ok,true);
  if(!result.ok)return;
- const row=db.prepare("SELECT source_origin sourceOrigin,source_origin_name sourceOriginName,metrics FROM health_connect_records WHERE external_record_id='exercise-1'").get() as any;
- assert.equal(row.sourceOrigin,"com.garmin.connect");
- assert.equal(row.sourceOriginName,"Garmin Connect");
- assert.equal(JSON.parse(row.metrics).distanceMeters,null);
+ assert.equal((db.prepare("SELECT COUNT(*) n FROM health_connect_records WHERE external_record_id='exercise-1'").get() as any).n,0);
  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs").get() as any).n,1);
 });
 
 test("repeated identical batch is idempotent",()=>{
- const device=pairedDevice(),payload=batch([exercise("same-record")]);
+ const device=pairedDevice(),payload=batch([{...exercise("same-record"),recordType:"weight",metrics:{kilograms:80}}]);
  assert.deepEqual(health.ingestHealthSync(device,payload),{ok:true,created:1,updated:0,total:1});
  assert.deepEqual(health.ingestHealthSync(device,payload),{ok:true,created:0,updated:1,total:1});
  assert.equal((db.prepare("SELECT COUNT(*) n FROM health_connect_records WHERE external_record_id='same-record'").get() as any).n,1);
@@ -71,7 +68,7 @@ test("repeated identical batch is idempotent",()=>{
 
 test("Garmin and non-Garmin origins remain distinct",()=>{
  const device=pairedDevice();
- const records=[exercise("shared-id","com.garmin.connect"),exercise("shared-id","com.example.health")];
+ const records=[exercise("shared-id","com.garmin.connect"),exercise("shared-id","com.example.health")].map(row=>({...row,recordType:"weight",metrics:{kilograms:80}}));
  const payload=batch(records);
  payload.diagnostics.origins.push({packageName:"com.example.health",name:"Example Health",isGarmin:false});
  const result=health.ingestHealthSync(device,payload);
@@ -118,11 +115,12 @@ test("revoked devices cannot persist a batch after their prior authentication",(
 
 test("older sync cannot overwrite newer source data",()=>{
  const device=pairedDevice();
- const newer={...exercise("stale-record"),sourceModifiedAt:"2026-08-09T09:00:00.000Z",metrics:{...exercise().metrics,caloriesKcal:500}};
+ const older={...exercise("stale-record"),recordType:"weight",metrics:{kilograms:80}};
+ const newer={...older,sourceModifiedAt:"2026-08-09T09:00:00.000Z",metrics:{kilograms:79}};
  assert.equal(health.ingestHealthSync(device,batch([newer])).ok,true);
- assert.equal(health.ingestHealthSync(device,batch([exercise("stale-record")])).ok,true);
+ assert.equal(health.ingestHealthSync(device,batch([older])).ok,true);
  const row=db.prepare("SELECT metrics FROM health_connect_records WHERE external_record_id='stale-record'").get() as {metrics:string};
- assert.equal(JSON.parse(row.metrics).caloriesKcal,500);
+ assert.equal(JSON.parse(row.metrics).kilograms,79);
 });
 
 const dailyInterval=(id:string,type="total_calories",start=Date.now()-8*3600_000,end=Date.now()+16*3600_000)=>({

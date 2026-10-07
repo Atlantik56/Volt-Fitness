@@ -67,6 +67,7 @@ export type AiCoachMilestonesContext = {
 
 export type AiCoachContext={
   date:string;
+  measuredHealth?:{sleepHours:number|null;steps:number|null;activeCalories:number|null;restingHr:number|null;hrvRmssd:number|null};
   profile:{name:string;height:number|null;startWeight:number|null;targetWeight:number|null};
   programWeek:number;
   activeProgramVersion:number|null;
@@ -154,6 +155,7 @@ export function buildAiCoachContext(input:AiCoachContextData):AiCoachContext{
 
   return {
     date:input.date,
+    measuredHealth:(()=>{const day=activity.find(row=>row.date===input.date) as any;return {sleepHours:result.summary.sleepHours,steps:result.summary.steps,activeCalories:day?.calories??null,restingHr:day?.healthConnect?.restingHr??null,hrvRmssd:day?.healthConnect?.hrvRmssd??null}})(),
     profile:{
       name:typeof input.profile?.name==="string"?input.profile.name:"Пользователь",
       height:Number(input.profile?.height)||null,
@@ -222,6 +224,7 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
   else lines.push(ctx.poolActive?"Бассейн по вторникам и четвергам уже включён в legacy-план.":"Бассейн в legacy-план ещё не включён.");
   lines.push(`Ограничение по здоровью: ${safety}`);
   lines.push(`Принципы программы: ${rules.join("; ")}.`);
+  if(ctx.measuredHealth){const h=ctx.measuredHealth;lines.push(`Показатели дня: сон ${h.sleepHours??"нет данных"} ч, шаги ${h.steps??"нет данных"}, активные калории ${h.activeCalories??"нет данных"} ккал, пульс покоя ${h.restingHr??"нет данных"}, HRV RMSSD ${h.hrvRmssd??"нет данных"} мс. Тренировки поступают из журнала VOLT; Health Connect не импортирует тренировки. Не складывай активные и общие калории и не прибавляй к ним калории тренировок повторно.`)}
   if(ctx.wellness)lines.push(`Самочувствие сегодня: энергия ${ctx.wellness.energy??"не указана"}/5, боль ${ctx.wellness.pain??"не указана"}/10${ctx.wellness.painArea?`, область боли: ${ctx.wellness.painArea}`:""}.`);
   if(ctx.wellnessNote)lines.push(renderUserDataBlock(`заметка самочувствия за ${ctx.wellnessNote.date}`,ctx.wellnessNote.text));
   if(ctx.personalRecords.length){

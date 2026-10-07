@@ -1,3 +1,4 @@
+import { readHealthWellness,mergeHealthMeasurements,mergeHealthActivity,mergeHealthRecovery } from "@/lib/health-connect-wellness";
 import { db } from "@/lib/db";
 import { requireAuth,sameOrigin } from "@/lib/auth";
 import { getSetting,setSetting } from "@/lib/settings";
@@ -36,13 +37,16 @@ export async function GET(){
   // complete cycle object/array above.
   trainingPlanV3CycleId:activeTrainingPlanCycle?.programVersion===3?activeTrainingPlanCycle.id:null}:profileRow;
  const workouts=(db.prepare("SELECT id,date,type,title,completed,rounds,duration_seconds durationSeconds,rest_seconds restSeconds,details,min_heart_rate minHeartRate,avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,calories,distance_meters distanceMeters,avg_speed avgSpeed,effort,pain_after painAfter,load_feedback loadFeedback,metrics_source metricsSource,external_activity_source externalActivitySource,external_activity_id externalActivityId,created_at createdAt FROM workout_logs ORDER BY date DESC,id DESC LIMIT 400").all() as any[]).map(x=>({...x,completed:jsonArray(x.completed),details:jsonArray(x.details)}));
- const measurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
+ const manualMeasurements=db.prepare("SELECT * FROM measurements ORDER BY date DESC,id DESC LIMIT 200").all();
  const photos=(db.prepare("SELECT id,date,created_at createdAt FROM photos ORDER BY created_at ASC,id ASC").all() as any[]).map(x=>({...x,url:`/api/photos?id=${x.id}`}));
- const activity=db.prepare("SELECT id,date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters,sleep_start sleepStart,sleep_end sleepEnd,sleep_minutes sleepMinutes,sleep_quality sleepQuality,water_logged waterLogged,alcohol_type alcoholType,alcohol_servings alcoholServings,alcohol_serving_volume_ml alcoholServingVolumeMl,alcohol_relative_amount alcoholRelativeAmount,alcohol_logged alcoholLogged,day_factor dayFactor,day_factor_note dayFactorNote FROM daily_activity ORDER BY date DESC LIMIT 400").all();
- // AI-13: измеренные с часов сигналы восстановления. Отдаются отдельным полем,
- // а не подмешиваются в activity: там ручной ввод пользователя, и смешивать
- // источники в одном массиве значило бы терять происхождение данных.
- const dailyHealth=db.prepare("SELECT date,sleep_seconds sleepSeconds,sleep_score sleepScore,hrv_rmssd hrvRmssd,resting_hr restingHr FROM daily_health ORDER BY date DESC LIMIT 120").all();
+ const manualActivity=db.prepare("SELECT id,date,health_overrides healthOverrides,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters,sleep_start sleepStart,sleep_end sleepEnd,sleep_minutes sleepMinutes,sleep_quality sleepQuality,water_logged waterLogged,alcohol_type alcoholType,alcohol_servings alcoholServings,alcohol_serving_volume_ml alcoholServingVolumeMl,alcohol_relative_amount alcoholRelativeAmount,alcohol_logged alcoholLogged,day_factor dayFactor,day_factor_note dayFactorNote FROM daily_activity ORDER BY date DESC LIMIT 400").all();
+ // Intervals keeps priority for recovery. Health values only fill absent fields;
+ // activity and measurements expose source metadata without rewriting manual rows.
+ const intervalsHealth=db.prepare("SELECT date,sleep_seconds sleepSeconds,sleep_score sleepScore,hrv_rmssd hrvRmssd,resting_hr restingHr FROM daily_health ORDER BY date DESC LIMIT 120").all();
+ const healthConnectWellness=readHealthWellness(db);
+ const measurements=mergeHealthMeasurements(manualMeasurements as any[],healthConnectWellness).slice(0,200);
+ const activity=mergeHealthActivity(manualActivity as any[],healthConnectWellness).slice(0,400);
+ const dailyHealth=mergeHealthRecovery(intervalsHealth as any[],healthConnectWellness).slice(0,120);
  // Вердикт ограничителя роста нагрузки: без него карточка готовности молчит о
  // том, почему прогрессия сегодня заблокирована.
  const recoveryLimiter=recoveryLimiterForDate(weekLocalIso(new Date()));
@@ -86,7 +90,7 @@ export async function GET(){
  // Read-only explanations for historical unlinked imports. They are never fed
  // into autoConfirmImport; the owner must review them explicitly.
  const historicalImportPreviews=previewHistoricalImports(new Date(),50);
- return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,recoveryLimiter,disciplineProgression,importedSets,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,historicalImportPreviews,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
+ return Response.json({profile,workouts,workoutDrafts,measurements,activity,dailyHealth,healthConnectWellness,recoveryLimiter,disciplineProgression,importedSets,photos,foodLogs,moodLogs,strengthLogs,wellnessLogs,scheduleOverrides,weekScheduleChanges,historicalImportPreviews,programStages,milestones,lastSeenMilestoneId,whatsNewSeenVersion,progressionOverrides,analytics},{headers:{"cache-control":"no-store"}})
 }
 
 export async function POST(req:Request){
@@ -131,6 +135,9 @@ export async function POST(req:Request){
   const walk=b.walk!==undefined?(b.walk?1:0):(existing.walk||0);
   const waterLiters=b.waterLiters!==undefined?(num(b.waterLiters,0,20)||0):(existing.waterLiters||0);
   db.prepare("INSERT INTO daily_activity (date,steps,active_minutes,calories,beers,sleep_hours,work_end_time,first_drink_time,dinner,walk,water_liters) VALUES (?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(date) DO UPDATE SET steps=excluded.steps,active_minutes=excluded.active_minutes,calories=excluded.calories,beers=excluded.beers,sleep_hours=excluded.sleep_hours,work_end_time=excluded.work_end_time,first_drink_time=excluded.first_drink_time,dinner=excluded.dinner,walk=excluded.walk,water_liters=excluded.water_liters").run(b.date,steps,activeMinutes,calories,beers,sleepHours,workEndTime,firstDrinkTime,dinner,walk,waterLiters)
+  const priorOverrides=JSON.parse((db.prepare("SELECT health_overrides v FROM daily_activity WHERE date=?").get(b.date) as any)?.v||"[]");
+  const overrides=[...new Set([...priorOverrides,...["steps","calories","sleepHours"].filter(field=>b[field]!==undefined)])];
+  db.prepare("UPDATE daily_activity SET health_overrides=? WHERE date=?").run(JSON.stringify(overrides),b.date);
  }else if(b.action==="eveningCheckin"){
   // Sprint AI-3 — атомарное сохранение вечернего чек-ина (daily_activity/mood_logs/
   // wellness_logs одной транзакцией). Сервер сам пересчитывает длительность сна и

@@ -129,7 +129,7 @@ class MainActivity:ComponentActivity(){
         }
     }
 
-    private fun syncNow(){
+    private fun syncNow(requestId:String?=null){
         if(feedback.busy||updating)return
         val token=tokenStore.load()?:run{finishOperation("Сначала привяжите устройство");return}
         if(!feedback.begin("Читаем Health Connect за последние 30 дней…"))return
@@ -137,8 +137,9 @@ class MainActivity:ComponentActivity(){
         lifecycleScope.launch{
             try{
                 val collection=withContext(Dispatchers.IO){gateway.collect()}
+                check(collection.diagnostics.healthConnectAvailable&&collection.diagnostics.grantedPermissions.isNotEmpty()){"Health Connect недоступен или не выданы разрешения"}
                 feedback.updateProgress("Подготовка ${collection.records.size} записей к отправке…");renderDiagnostics()
-                val result=api.upload(token,collection.diagnostics,collection.records){progress->
+                val result=api.upload(token,collection.diagnostics,collection.records,requestId){progress->
                     withContext(Dispatchers.Main){
                         feedback.updateProgress("Отправка пакета ${progress.batch} из ${progress.batches}\nУже принято записей: ${progress.accepted}")
                         renderDiagnostics()
@@ -146,17 +147,19 @@ class MainActivity:ComponentActivity(){
                 }
                 val origins=collection.diagnostics.origins.joinToString("\n"){"${if(it.isGarmin)"Garmin: " else "Источник: "}${it.name} (${it.packageName})"}.ifBlank{"Источники пока не обнаружены"}
                 val types=collection.diagnostics.discoveredRecordTypes.joinToString{it.wireName}.ifBlank{"нет данных"}
+                api.finish(token,requestId,true)
                 val stamp=Instant.now().toString();getSharedPreferences("bridge_state",MODE_PRIVATE).edit().putString("last_sync",stamp).apply()
+                if(requestId!=null)runCatching{startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.VOLT_BASE_URL+"/?section=%D0%9F%D1%80%D0%BE%D1%84%D0%B8%D0%BB%D1%8C%20%D0%B8%20%D0%BD%D0%B0%D1%81%D1%82%D1%80%D0%BE%D0%B9%D0%BA%D0%B8&health-sync="+requestId)))}
                 finishOperation("Синхронизация завершена\nПринято: ${result.total}, новых: ${result.created}, обновлено: ${result.updated}\nТипы: $types\n$origins")
             }catch(cause:CancellationException){finishOperation("Синхронизация прервана. Часть пакетов могла быть принята. Повторная синхронизация не создаёт дубликаты.");throw cause}
-            catch(cause:Exception){finishOperation("Ошибка синхронизации: ${cause.message?:"неизвестная ошибка"}")}
+            catch(cause:Exception){runCatching{api.finish(token,requestId,false)};finishOperation("Ошибка синхронизации: ${cause.message?:"неизвестная ошибка"}")}
             finally{renderControls();refreshStatus()}
         }
     }
 
     private fun handleIntent(value:Intent){
-        if(value.action!=Intent.ACTION_VIEW)return
-        when(value.data?.host){"sync"->syncNow();"permissions"->if(gateway.available)permissionLauncher.launch(gateway.requiredPermissions)}
+        if(value.action!=Intent.ACTION_VIEW||value.data?.scheme!="volt-health")return
+        when(value.data?.host){"sync"->{val id=value.data?.getQueryParameter("request");if(id!=null&&!Regex("^[0-9a-fA-F-]{36}$").matches(id)){finishOperation("Некорректный запрос VOLT");return};syncNow(id)};"permissions"->if(gateway.available)permissionLauncher.launch(gateway.requiredPermissions)}
     }
     private fun checkForUpdate(){
         if(checkingUpdate||updating||feedback.busy)return

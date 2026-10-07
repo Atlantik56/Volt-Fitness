@@ -23,7 +23,7 @@ enum class RecordType(val wireName: String) {
 
 data class SourceOrigin(val packageName: String, val name: String, val isGarmin: Boolean = isGarminOrigin(packageName, name))
 data class PermissionSnapshot(val available: Boolean, val granted: Set<PermissionKey>, val historyAvailable: Boolean, val historyGranted: Boolean) {
-    val missing: Set<PermissionKey> get() = PermissionKey.entries.toSet() - granted
+    val missing: Set<PermissionKey> get() = (PermissionKey.entries.toSet() - PermissionKey.EXERCISE) - granted
 }
 data class HeartSample(val time: Instant, val bpm: Int)
 data class SleepStage(val type: String, val start: Instant, val end: Instant)
@@ -55,6 +55,8 @@ data class SyncDiagnostics(
     val historyAccessGranted:Boolean,
     val discoveredRecordTypes:Set<RecordType>,
     val origins:Set<SourceOrigin>,
+    val timeZone:String="UTC",
+    val bridgeVersion:String="0.1.2",
 )
 
 fun isGarminOrigin(packageName:String,name:String=""):Boolean =
@@ -86,6 +88,7 @@ fun NormalizedRecord.toJson():JsonObject=buildJsonObject {
 fun syncBatchJson(syncedAt:Instant,diagnostics:SyncDiagnostics,records:List<NormalizedRecord>):JsonObject=buildJsonObject {
     put("syncedAt",JsonPrimitive(syncedAt.toString()))
     put("diagnostics",buildJsonObject {
+        put("timeZone",JsonPrimitive(diagnostics.timeZone));put("bridgeVersion",JsonPrimitive(diagnostics.bridgeVersion))
         put("healthConnectAvailable",JsonPrimitive(diagnostics.healthConnectAvailable));put("grantedPermissions",JsonArray(diagnostics.grantedPermissions.sortedBy{it.wireName}.map{JsonPrimitive(it.wireName)}));put("historyAccessAvailable",JsonPrimitive(diagnostics.historyAccessAvailable));put("historyAccessGranted",JsonPrimitive(diagnostics.historyAccessGranted));put("discoveredRecordTypes",JsonArray(diagnostics.discoveredRecordTypes.sortedBy{it.wireName}.map{JsonPrimitive(it.wireName)}));put("origins",JsonArray(diagnostics.origins.sortedBy{it.packageName}.map{buildJsonObject { put("packageName",JsonPrimitive(it.packageName));put("name",JsonPrimitive(it.name));put("isGarmin",JsonPrimitive(it.isGarmin)) }}))
     })
     put("records",JsonArray(records.map{it.toJson()}))

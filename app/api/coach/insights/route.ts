@@ -1,3 +1,4 @@
+import { readHealthWellness,mergeHealthMeasurements } from "@/lib/health-connect-wellness";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/auth";
 import { buildCardInsights } from "@/lib/insights/registry";
@@ -21,7 +22,8 @@ export async function GET(req: Request) {
 
   const profile = db.prepare("SELECT program_start programStart,target_weight targetWeight FROM profile WHERE id=1").get() as any;
   const trainingPlanCycles=getTrainingPlanCycles();
-  const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
+  const healthDays=readHealthWellness(db,"2000-01-01",date);
+    const measurements = mergeHealthMeasurements(db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[],healthDays).slice(0,60);
   const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
   const workouts = db
     .prepare(

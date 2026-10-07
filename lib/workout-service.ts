@@ -1,3 +1,4 @@
+import { readHealthWellness,mergeHealthMeasurements,mergeHealthActivity } from "@/lib/health-connect-wellness";
 // Технический спринт — первый доменный модуль, выделенный из app/api/fitness/route.ts.
 // Тренировка, силовые логи и предложения прогрессии сохраняются одной атомарной
 // транзакцией; strength_logs всегда связаны с workout_logs через workout_id.
@@ -74,15 +75,17 @@ function groupStrengthDetails(details: WorkoutDetail[]): Map<string, StrengthGro
 // не щадящее ли оно (reduce/replace/rest блокируют увеличение нагрузки).
 function computeCoachActionForDate(date: string, plan: { title: string; type: string }): CoachAction | null {
  const profile = db.prepare("SELECT name,height,start_weight startWeight,target_weight targetWeight FROM profile WHERE id=1").get() as any;
- const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
+ const healthDays=readHealthWellness(db,"2000-01-01",date);
+ const measurements = mergeHealthMeasurements(db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[],healthDays).slice(0,60);
  const foodLogs = db.prepare("SELECT date,calories,protein,fat,carbs FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
  const workouts = db.prepare("SELECT date,type,title,effort,pain_after painAfter FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC,id DESC LIMIT 20").all(date) as any[];
  const wellnessRow = db.prepare("SELECT energy,pain,pain_area painArea FROM wellness_logs WHERE date=?").get(date) as any;
- const activityRow = db.prepare("SELECT steps,active_minutes activeMinutes,sleep_hours sleepHours FROM daily_activity WHERE date=?").get(date) as any;
+ const manualActivityRow = db.prepare("SELECT date,health_overrides healthOverrides,steps,active_minutes activeMinutes,sleep_hours sleepHours FROM daily_activity WHERE date=?").get(date) as any;
+ const activityRow=mergeHealthActivity(manualActivityRow?[manualActivityRow]:[],healthDays.filter(day=>day.date===date))[0];
  const summary = buildCoachSummary({
   date, plan, profile, measurements, foodLogs, workouts,
   wellnessLogs: wellnessRow ? [{ date, ...wellnessRow }] : [],
-  activity: activityRow ? [{ date, ...activityRow }] : [],
+  activity: activityRow ? [activityRow] : [],
  });
  return decideCoach(summary)?.action ?? null;
 }

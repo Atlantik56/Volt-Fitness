@@ -1,3 +1,4 @@
+import { readHealthWellness,mergeHealthMeasurements,mergeHealthActivity } from "@/lib/health-connect-wellness";
 // Sprint AI-2 — единый серверный загрузчик данных для AI Coach chat, MCP и
 // будущих отчётов. Единственное место, где для этих потребителей выполняются
 // SQL-запросы к SQLite: chat/MCP/отчёты больше не собирают свои наборы полей
@@ -144,7 +145,7 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
 
   const windowStart = historyDays > 0 ? calendarWindowStart(date, historyDays) : null;
 
-  const measurements = windowStart == null ? [] : db.prepare(
+  const manualMeasurements = windowStart == null ? [] : db.prepare(
     "SELECT date,weight FROM measurements WHERE date>=? AND date<=? ORDER BY date DESC LIMIT ?",
   ).all(windowStart, date, historyRowsLimit) as MeasurementRow[];
 
@@ -163,10 +164,13 @@ export function loadAiCoachContextData(db: Database.Database, options: LoadAiCoa
     "SELECT date,energy,pain,pain_area painArea,note FROM wellness_logs WHERE date>=? AND date<=? ORDER BY date DESC LIMIT ?",
   ).all(windowStart, date, historyRowsLimit) as WellnessRow[];
 
-  const activity = windowStart == null ? [] : db.prepare(
-    "SELECT date,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters FROM daily_activity WHERE date>=? AND date<=? ORDER BY date DESC LIMIT ?",
+  const manualActivity = windowStart == null ? [] : db.prepare(
+    "SELECT date,health_overrides healthOverrides,steps,active_minutes activeMinutes,calories,beers,sleep_hours sleepHours,work_end_time workEndTime,first_drink_time firstDrinkTime,dinner,walk,water_liters waterLiters FROM daily_activity WHERE date>=? AND date<=? ORDER BY date DESC LIMIT ?",
   ).all(windowStart, date, historyRowsLimit) as ActivityRow[];
 
+  const healthDays=windowStart==null?[]:readHealthWellness(db,windowStart,date);
+  const measurements=mergeHealthMeasurements(manualMeasurements,healthDays).slice(0,historyRowsLimit);
+  const activity=mergeHealthActivity(manualActivity,healthDays).slice(0,historyRowsLimit);
   const moodLogs = windowStart == null ? [] : db.prepare(
     "SELECT date,mood,note FROM mood_logs WHERE date>=? AND date<=? ORDER BY date DESC,id DESC LIMIT ?",
   ).all(windowStart, date, historyRowsLimit) as MoodRow[];
@@ -222,9 +226,10 @@ function loadMilestonesForContext(db: Database.Database, date: string, programSt
   const strengthLogs = db.prepare(
     "SELECT id,date,exercise,weight FROM strength_logs WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",
   ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; date: string; exercise: string; weight: number }[];
-  const allMeasurements = db.prepare(
+  const manualAllMeasurements = db.prepare(
     "SELECT id,date,weight FROM measurements WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",
   ).all(date, MILESTONES_ROWS_LIMIT) as { id: number; date: string; weight: number | null }[];
+  const allMeasurements=mergeHealthMeasurements(manualAllMeasurements,readHealthWellness(db,"2000-01-01",date));
   // Только id+date — то же ограничение, что и lastPhotoDate выше (никогда filename/content_type).
   const photos = db.prepare(
     "SELECT id,date FROM photos WHERE date<=? ORDER BY date ASC,id ASC LIMIT ?",

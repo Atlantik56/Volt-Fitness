@@ -9,6 +9,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -28,18 +30,22 @@ class BridgeApiClient(private val baseUrl:String){
         val json=request("/api/health-connect/pair",body,null)
         PairResult(json["deviceToken"]?.jsonPrimitive?.content?:error("Сервер не вернул device token"),json["deviceId"]?.jsonPrimitive?.content?.toLongOrNull()?:error("Сервер не вернул device id"))
     }
-    suspend fun upload(deviceToken:String,diagnostics:SyncDiagnostics,records:List<NormalizedRecord>,onProgress:suspend (UploadProgress)->Unit = {}):UploadResult=withContext(Dispatchers.IO){
+    suspend fun upload(deviceToken:String,diagnostics:SyncDiagnostics,records:List<NormalizedRecord>,requestId:String?=null,onProgress:suspend (UploadProgress)->Unit = {}):UploadResult=withContext(Dispatchers.IO){
         var created=0;var updated=0;var total=0
         val payloads=syncBatchPayloads(Instant.now(),diagnostics,records)
         for((index,payload) in payloads.withIndex()){
             onProgress(UploadProgress(index+1,payloads.size,total))
-            val json=try{request("/api/health-connect/sync",payload.toString(),deviceToken)}catch(cause:Exception){
+            val json=try{request("/api/health-connect/sync",JsonObject(payload+(requestId?.let{mapOf("requestId" to JsonPrimitive(it))}?:emptyMap())).toString(),deviceToken)}catch(cause:Exception){
                 if(cause is CancellationException)throw cause
                 throw IllegalStateException("Пакет ${index+1} из ${payloads.size}: ${cause.message?:"ошибка сети"}\nУже принято записей: $total. Повторная синхронизация не создаёт дубликаты.",cause)
             }
             created+=json["created"]?.jsonPrimitive?.content?.toIntOrNull()?:0;updated+=json["updated"]?.jsonPrimitive?.content?.toIntOrNull()?:0;total+=json["total"]?.jsonPrimitive?.content?.toIntOrNull()?:0
         }
         UploadResult(created,updated,total)
+    }
+    suspend fun finish(deviceToken:String,requestId:String?,success:Boolean)=withContext(Dispatchers.IO){
+        val body=buildJsonObject{put("requestId",requestId?.let{JsonPrimitive(it)}?:JsonNull);put("success",JsonPrimitive(success))}
+        request("/api/health-connect/sync/complete",body.toString(),deviceToken)
     }
     private fun request(path:String,body:String,bearer:String?):kotlinx.serialization.json.JsonObject{
         require(body.toByteArray().size<=256_000){"Пакет синхронизации слишком большой"}
