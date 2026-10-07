@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, HeartPulse, Bell, Bot, CalendarDays, ChevronRight, Dumbbell, LogOut,
+  Activity, HeartPulse, Bell, Bot, CalendarDays, ChevronRight, Dumbbell, Download, LogOut,
   Pencil, Route, Ruler, ShieldCheck, Target, Upload, UserRound, Weight, Zap,
 } from "lucide-react";
 import { currentProgramWeek } from "./personal-data";
@@ -301,6 +301,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
           {openPanel==="strava"&&<div className="profile-settings-detail profile-strava-detail"><StravaIntegration refresh={refresh}/></div>}
           <SettingsRow icon={<HeartPulse size={20}/>} title="Health Connect" description="Синхронизация через Android-приложение" active={openPanel==="health-connect"} onClick={()=>toggle("health-connect")} status="Android"/>
           {openPanel==="health-connect"&&<div className="profile-settings-detail"><HealthConnectSettings/></div>}
+          <SettingsRow icon={<Download size={20}/>} title="Экспорт данных" description="Тренировки, активность, измерения и сведения о фото" onClick={()=>{window.location.href="/api/data-export"}} status="JSON"/>
         </div>
       </div>
     </section>
