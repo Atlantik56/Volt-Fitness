@@ -4,3 +4,8 @@ node_modules
 data
 .env*
 npm-debug.log*
+
+android/health-bridge/.gradle
+android/health-bridge/.kotlin
+android/health-bridge/**/build
+android/health-bridge/local.properties

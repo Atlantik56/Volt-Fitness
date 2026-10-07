@@ -8,6 +8,7 @@ import {
 import { currentProgramWeek } from "./personal-data";
 import { GarminImport } from "./advanced-features";
 import { HealthConnectSettings } from "./health-connect-settings";
+import { HEALTH_BRIDGE_DOWNLOAD_URL, HEALTH_BRIDGE_RELEASE } from "@/lib/health-bridge-release";
 import { StravaIntegration } from "./strava-integration";
 import { PwaInstall } from "./pwa-register";
 import { useToast } from "./toast";
@@ -299,6 +300,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
           {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/><HistoricalImportPreviews items={data.historicalImportPreviews??[]} refresh={refresh}/></div>}
           <SettingsRow icon={<Activity size={20}/>} title="Strava" description="OAuth-подключение и ручная синхронизация активностей" active={openPanel==="strava"} onClick={()=>toggle("strava")} status="OAuth"/>
           {openPanel==="strava"&&<div className="profile-settings-detail profile-strava-detail"><StravaIntegration refresh={refresh}/></div>}
+          <SettingsRow icon={<Download size={20}/>} title="Скачать APK" description={`VOLT Health Bridge · Android · тестовая версия ${HEALTH_BRIDGE_RELEASE.version}`} onClick={()=>{window.location.href=HEALTH_BRIDGE_DOWNLOAD_URL}} status={`${(HEALTH_BRIDGE_RELEASE.bytes/1048576).toFixed(1).replace(".",",")} МБ`}/>
           <SettingsRow icon={<HeartPulse size={20}/>} title="Health Connect" description="Синхронизация через Android-приложение" active={openPanel==="health-connect"} onClick={()=>toggle("health-connect")} status="Android"/>
           {openPanel==="health-connect"&&<div className="profile-settings-detail"><HealthConnectSettings/></div>}
           <SettingsRow icon={<Download size={20}/>} title="Экспорт данных" description="Тренировки, активность, измерения и сведения о фото" onClick={()=>{window.location.href="/api/data-export"}} status="JSON"/>
