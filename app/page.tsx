@@ -1,5 +1,6 @@
 "use client";
 
+import { invalidateAuthStatus } from "@/lib/auth-status-client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { buildHomeWeek, currentProgramWeek, meals, planV4WeekCatalog, safety, week } from "./personal-data";
 import { ExerciseVideo } from "./exercise-video";
@@ -404,7 +405,7 @@ export default function Home() {
           onFoodSaved={load} onStartWorkout={startTodayWorkout} onOpenNutrition={()=>setNav("Питание")}
         /> : nav==="Профиль и настройки" ? <ProfileSettingsPage
           data={data} refresh={load} onOpenRoadmap={()=>setNav("Дорожная карта")}
-          onLogout={async()=>{await fetch("/api/auth/logout",{method:"POST"});location.reload()}}
+          onLogout={async()=>{await fetch("/api/auth/logout",{method:"POST"});invalidateAuthStatus();location.reload()}}
         /> : <Personal
           section={nav} data={data} refresh={load} coachAction={coachAction} loaded={loaded}
           initialProgressTab={progressTab} onAskCoach={goCoach}
