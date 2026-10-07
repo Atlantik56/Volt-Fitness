@@ -2,11 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, Bell, Bot, CalendarDays, ChevronRight, Dumbbell, LogOut,
+  Activity, HeartPulse, Bell, Bot, CalendarDays, ChevronRight, Dumbbell, LogOut,
   Pencil, Route, Ruler, ShieldCheck, Target, Upload, UserRound, Weight, Zap,
 } from "lucide-react";
 import { currentProgramWeek } from "./personal-data";
 import { GarminImport } from "./advanced-features";
+import { HealthConnectSettings } from "./health-connect-settings";
 import { StravaIntegration } from "./strava-integration";
 import { PwaInstall } from "./pwa-register";
 import { useToast } from "./toast";
@@ -27,7 +28,7 @@ type HubSettings={
 };
 
 type ProfileDraft={name:string;height:string;startWeight:string;targetWeight:string};
-type SettingsPanel="profile"|"notifications"|"ai"|"garmin"|"strava"|null;
+type SettingsPanel="profile"|"notifications"|"ai"|"garmin"|"strava"|"health-connect"|null;
 
 const localIso=(date:Date)=>{
   const local=new Date(date.getTime()-date.getTimezoneOffset()*60000);
@@ -298,6 +299,8 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
           {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/><HistoricalImportPreviews items={data.historicalImportPreviews??[]} refresh={refresh}/></div>}
           <SettingsRow icon={<Activity size={20}/>} title="Strava" description="OAuth-подключение и ручная синхронизация активностей" active={openPanel==="strava"} onClick={()=>toggle("strava")} status="OAuth"/>
           {openPanel==="strava"&&<div className="profile-settings-detail profile-strava-detail"><StravaIntegration refresh={refresh}/></div>}
+          <SettingsRow icon={<HeartPulse size={20}/>} title="Health Connect" description="Синхронизация через Android-приложение" active={openPanel==="health-connect"} onClick={()=>toggle("health-connect")} status="Android"/>
+          {openPanel==="health-connect"&&<div className="profile-settings-detail"><HealthConnectSettings/></div>}
         </div>
       </div>
     </section>
