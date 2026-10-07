@@ -3,7 +3,9 @@ package com.voltfitness.healthbridge
 import com.voltfitness.healthbridge.core.NormalizedRecord
 import com.voltfitness.healthbridge.core.SyncDiagnostics
 import com.voltfitness.healthbridge.core.syncBatchPayloads
+import com.voltfitness.healthbridge.core.apiFailureMessage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -17,6 +19,7 @@ import javax.net.ssl.HttpsURLConnection
 
 data class PairResult(val deviceToken:String,val deviceId:Long)
 data class UploadResult(val created:Int,val updated:Int,val total:Int)
+data class UploadProgress(val batch:Int,val batches:Int,val accepted:Int)
 
 class BridgeApiClient(private val baseUrl:String){
     init{require(URI(baseUrl).scheme=="https"){"VOLT backend must use HTTPS"}}
@@ -25,11 +28,15 @@ class BridgeApiClient(private val baseUrl:String){
         val json=request("/api/health-connect/pair",body,null)
         PairResult(json["deviceToken"]?.jsonPrimitive?.content?:error("Сервер не вернул device token"),json["deviceId"]?.jsonPrimitive?.content?.toLongOrNull()?:error("Сервер не вернул device id"))
     }
-    suspend fun upload(deviceToken:String,diagnostics:SyncDiagnostics,records:List<NormalizedRecord>):UploadResult=withContext(Dispatchers.IO){
+    suspend fun upload(deviceToken:String,diagnostics:SyncDiagnostics,records:List<NormalizedRecord>,onProgress:suspend (UploadProgress)->Unit = {}):UploadResult=withContext(Dispatchers.IO){
         var created=0;var updated=0;var total=0
         val payloads=syncBatchPayloads(Instant.now(),diagnostics,records)
-        for(payload in payloads){
-            val json=request("/api/health-connect/sync",payload.toString(),deviceToken)
+        for((index,payload) in payloads.withIndex()){
+            onProgress(UploadProgress(index+1,payloads.size,total))
+            val json=try{request("/api/health-connect/sync",payload.toString(),deviceToken)}catch(cause:Exception){
+                if(cause is CancellationException)throw cause
+                throw IllegalStateException("Пакет ${index+1} из ${payloads.size}: ${cause.message?:"ошибка сети"}\nУже принято записей: $total. Повторная синхронизация не создаёт дубликаты.",cause)
+            }
             created+=json["created"]?.jsonPrimitive?.content?.toIntOrNull()?:0;updated+=json["updated"]?.jsonPrimitive?.content?.toIntOrNull()?:0;total+=json["total"]?.jsonPrimitive?.content?.toIntOrNull()?:0
         }
         UploadResult(created,updated,total)
@@ -45,7 +52,7 @@ class BridgeApiClient(private val baseUrl:String){
             val input=if(code in 200..299)connection.inputStream else connection.errorStream
             val response=input?.bufferedReader()?.use{it.readText().take(64_000)}?:"{}"
             val parsed=runCatching{Json.parseToJsonElement(response).jsonObject}.getOrDefault(buildJsonObject{})
-            if(code !in 200..299)throw IllegalStateException(parsed["error"]?.jsonPrimitive?.content?:"VOLT API: HTTP $code")
+            if(code !in 200..299)throw IllegalStateException(apiFailureMessage(code,parsed))
             return parsed
         } finally { connection.disconnect() }
     }
