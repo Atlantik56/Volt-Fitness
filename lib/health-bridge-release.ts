@@ -4,9 +4,9 @@ export const HEALTH_BRIDGE_RELEASE = {
   "applicationId": "com.voltfitness.healthbridge",
   "channel": "debug",
   "filename": "volt-health-bridge-0.1.1-debug.apk",
-  "bytes": 12757870,
-  "sha256": "08d68510763c0f2b2b5fde7fb403331e18731b4b7d5c04c8149256bbb4a76518",
-  "androidSourceCommit": "f4a0d7696e7e89887a080c1ae58340154ae06afe"
+  "bytes": 12780216,
+  "sha256": "73e40df57da494b3ac519be05f0fbebb37ce46c66cbfc63f36bfa31750d22531",
+  "androidSourceCommit": "8bab821b988bf4f8a02ebd27ad9f6847011d9e09"
 } as const;
 
 export const HEALTH_BRIDGE_DOWNLOAD_URL = "/api/health-connect/apk";
