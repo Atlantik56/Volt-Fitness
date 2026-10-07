@@ -486,6 +486,45 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   CREATE INDEX IF NOT EXISTS idx_training_plan_cycles_dates
    ON training_plan_cycles(program_id,program_version,started_at,ended_at);
  `},
+ // Private VOLT MCP OAuth 2.1 store. Only hashes of authorization codes
+ // and bearer/refresh tokens are persisted; the plaintext values exist only
+ // in the response that creates them. OAuth clients are public PKCE clients.
+ {version:32,sql:`
+  CREATE TABLE IF NOT EXISTS oauth_clients (
+   client_id TEXT PRIMARY KEY,
+   client_name TEXT NOT NULL,
+   redirect_uris TEXT NOT NULL,
+   created_at INTEGER NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS oauth_authorization_codes (
+   code_hash TEXT PRIMARY KEY,
+   client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+   redirect_uri TEXT NOT NULL,
+   code_challenge TEXT NOT NULL,
+   scope TEXT NOT NULL,
+   username TEXT NOT NULL REFERENCES auth_user(username) ON DELETE CASCADE,
+   expires_at INTEGER NOT NULL,
+   created_at INTEGER NOT NULL,
+   used_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_oauth_authorization_codes_expiry
+   ON oauth_authorization_codes(expires_at);
+  CREATE TABLE IF NOT EXISTS oauth_tokens (
+   token_hash TEXT PRIMARY KEY,
+   kind TEXT NOT NULL CHECK(kind IN ('access','refresh')),
+   client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+   username TEXT NOT NULL REFERENCES auth_user(username) ON DELETE CASCADE,
+   scope TEXT NOT NULL,
+   family_id TEXT NOT NULL,
+   expires_at INTEGER NOT NULL,
+   created_at INTEGER NOT NULL,
+   revoked_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_oauth_tokens_lookup
+   ON oauth_tokens(kind,expires_at,revoked_at);
+  CREATE INDEX IF NOT EXISTS idx_oauth_tokens_family
+   ON oauth_tokens(family_id);
+ `},
 ];
 export function applyDatabaseMigrations(database:Database.Database=db):void{
  for(const migration of migrations){
