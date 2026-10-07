@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, Bell, Bot, CalendarDays, ChevronRight, Dumbbell, LogOut,
+  Activity, Bell, Bot, CalendarDays, ChevronRight, Dumbbell, Download, LogOut,
   Pencil, Route, Ruler, ShieldCheck, Target, Upload, UserRound, Weight, Zap,
 } from "lucide-react";
 import { currentProgramWeek } from "./personal-data";
@@ -298,6 +298,7 @@ export function ProfileSettingsPage({data,refresh,onOpenRoadmap,onLogout}:Profil
           {openPanel==="garmin"&&<div className="profile-settings-detail profile-garmin-detail"><GarminImport refresh={refresh}/><HistoricalImportPreviews items={data.historicalImportPreviews??[]} refresh={refresh}/></div>}
           <SettingsRow icon={<Activity size={20}/>} title="Strava" description="OAuth-подключение и ручная синхронизация активностей" active={openPanel==="strava"} onClick={()=>toggle("strava")} status="OAuth"/>
           {openPanel==="strava"&&<div className="profile-settings-detail profile-strava-detail"><StravaIntegration refresh={refresh}/></div>}
+          <SettingsRow icon={<Download size={20}/>} title="Экспорт данных" description="Тренировки, активность, измерения и сведения о фото" onClick={()=>{window.location.href="/api/data-export"}} status="JSON"/>
         </div>
       </div>
     </section>
