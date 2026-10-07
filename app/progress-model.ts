@@ -12,6 +12,7 @@ export type Period = (typeof PERIODS)[number];
 export const PERIOD_LABELS: Record<Period, string> = { "1M": "1М", "3M": "3М", "6M": "6М", "1Y": "1Г", ALL: "Всё" };
 
 export interface Measurement {
+  metricsSource?:string;
   id: number;
   date: string;
   weight: number | null;

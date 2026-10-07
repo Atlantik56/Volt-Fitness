@@ -76,7 +76,10 @@ export default function Home() {
   const [swimToday,setSwimToday]=useState<ResolvedSwimSlot|null>(null);
   const loadSwimToday=()=>fetch("/api/swim/today").then(r=>r.ok?r.json():null).then(d=>setSwimToday(d?.slot??null)).catch(()=>setSwimToday(null));
   const router=useRouter();
+  useEffect(()=>{const refresh=()=>{void load()};window.addEventListener("volt:health-synced",refresh);return()=>window.removeEventListener("volt:health-synced",refresh)},[]);
   useEffect(()=>{
+   const healthRequest=new URLSearchParams(window.location.search).get("health-sync");
+   if(healthRequest&&/^[0-9a-f-]{36}$/i.test(healthRequest))sessionStorage.setItem("volt-health-sync-request",healthRequest);
    load();loadProgression();loadSwimToday();
    const id=window.setTimeout(()=>{
     const {section,mode}=resolveSectionFromQuery(new URLSearchParams(window.location.search));
@@ -1196,13 +1199,13 @@ function HistoryRow({entry,editingId,menuOpenId,onToggleMenu,onStartEdit,onCance
   <b>{entry.date}</b>
   <span>{entry.weight??"—"} кг{entry.deltaWeight!=null&&<em className={`history-delta${entry.deltaWeight>0?" up":entry.deltaWeight<0?" down":""}`}>{entry.deltaWeight>0?"+":""}{entry.deltaWeight}</em>}</span>
   <span>Талия {entry.waist??"—"}</span><span>Грудь {entry.chest??"—"}</span><span>Бицепс {entry.biceps??"—"}</span><span>Бедро {entry.thigh??"—"}</span><span>Шея {entry.neck??"—"}</span>
-  <div className="history-row-menu">
+  {entry.metricsSource==="health_connect"?<small>Health Connect</small>:<div className="history-row-menu">
    <button type="button" className="history-menu-btn" aria-label="Действия с записью" onClick={()=>onToggleMenu(entry.id)}>•••</button>
    {menuOpenId===entry.id&&<div className="history-menu-pop">
     <button type="button" onClick={()=>{onStartEdit(entry.id);onToggleMenu(entry.id)}}>Изменить</button>
     <button type="button" className="danger" onClick={()=>{onDelete(entry.id);onToggleMenu(entry.id)}}>Удалить</button>
    </div>}
-  </div>
+  </div>}
  </article>
 }
 

@@ -1,3 +1,4 @@
+import { readHealthWellness,mergeHealthRecovery } from "@/lib/health-connect-wellness";
 // Синхронизация тренировок из intervals.icu (docs/GARMIN_BRIDGE.md).
 //
 // Цепочка: WattAttack и часы → Garmin Connect → intervals.icu → VOLT.
@@ -173,13 +174,16 @@ const healthSelect="SELECT date,sleep_seconds sleepSeconds,hrv_rmssd hrvRmssd,re
 
 /** Измеренный сон за дату в часах; null — данных нет, вызывающий берёт самоотчёт. */
 export function measuredSleepHours(date:string):number|null{
- const row=db.prepare(`${healthSelect} WHERE date=?`).get(date) as RecoverySample|undefined;
+ const manual=db.prepare(`${healthSelect} WHERE date=?`).get(date) as RecoverySample|undefined;
+ const row=mergeHealthRecovery(manual?[manual]:[],readHealthWellness(db,date,date))[0];
  return row?.sleepSeconds?row.sleepSeconds/3600:null;
 }
 
 /** Ограничитель роста нагрузки на дату — вход для движка прогрессии (AI-14). */
 export function recoveryLimiterForDate(date:string):RecoveryLimiter{
- const samples=db.prepare(`${healthSelect} WHERE date<=? AND date>date(?, '-${BASELINE_WINDOW_DAYS} days') ORDER BY date DESC`).all(date,date) as RecoverySample[];
+ const original=db.prepare(`${healthSelect} WHERE date<=? AND date>date(?, '-${BASELINE_WINDOW_DAYS} days') ORDER BY date DESC`).all(date,date) as RecoverySample[];
+ const from=new Date(Date.parse(`${date}T00:00:00Z`)-(BASELINE_WINDOW_DAYS-1)*86400000).toISOString().slice(0,10);
+ const samples=mergeHealthRecovery(original,readHealthWellness(db,from,date));
  const today=samples.find(sample=>sample.date===date)??null;
  // Базовая линия строится по дням ДО текущего: сегодняшний провал не должен
  // сам себя усреднять и тем самым маскироваться.

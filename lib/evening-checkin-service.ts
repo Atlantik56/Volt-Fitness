@@ -154,6 +154,11 @@ export function saveEveningCheckin(body: any): ActionResult {
       dayFactor, dayFactorNote,
     );
 
+    if(hasSleep){
+      const overrides=JSON.parse((db.prepare("SELECT health_overrides v FROM daily_activity WHERE date=?").get(payload.date) as any)?.v||"[]");
+      db.prepare("UPDATE daily_activity SET health_overrides=? WHERE date=?").run(JSON.stringify([...new Set([...overrides,"sleepHours"])]),payload.date);
+    }
+
     // mood_logs: чек-ин владеет максимум одной строкой на дату — если для даты уже
     // есть запись, обновляем её при изменении значения; идентичный повтор не
     // создаёт дубль. Другие пути записи настроения (app/mood-section.tsx) по-прежнему

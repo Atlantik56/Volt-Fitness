@@ -52,35 +52,27 @@ WattAttack ─┐
 
 Wellness отдаёт `sleepSecs`, `sleepScore`, `sleepQuality`, `avgSleepingHR`,
 `hrv`, `hrvSDNN`, `restingHR`, `readiness`, `weight`, `steps`, `spO2`,
-`respiration`, `vo2max`, `ctl`, `atl`. Сон присутствует — **Health Connect для
-задачи не нужен.**
+`respiration`, `vo2max`, `ctl`, `atl`. Intervals остаётся источником тренировок
+и основным источником wellness; Health Connect дополняет отсутствующие показатели.
 
-## Не понадобилось: Health Connect (начатая ветка)
+## Дополнительный путь: Health Connect
 
-В ветке `feature/health-bridge-sprint-1` (коммит `2cea1c8`, ~1544 строки, в
-`main` не влита) лежит готовый наполовину мост через Android Health Connect,
-куда приложение Garmin пишет данные само.
+С 0.1.2 Android-мост используется для измерений, дневной активности и Coach.
+Тренировки из Health Connect не читаются и не импортируются: единственный
+автоматический путь тренировок остаётся Intervals/FIT. Старые Exercise Session
+из диагностического хранилища не проецируются в журнал и аналитику.
 
-Уже написано:
+- Вес появляется в измерениях, если на дату нет ручного веса.
+- Шаги, активные калории и сон заполняют отсутствующие ручные данные.
+- Recovery из Intervals имеет приоритет; Health дополняет отсутствующие значения
+  сна, пульса покоя и HRV. Ограничитель нагрузки и контекст Coach используют их.
+- Кнопка «Синхронизировать Health Connect» в настройках VOLT запускает
+  установленный мост на том же Android-телефоне. Результат возвращается в PWA
+  после подтверждения всех пакетов.
 
-- [`lib/health-connect.ts`](../lib/health-connect.ts) — типы записей
-  `exercise`, `sleep` (со стадиями), `heart_rate`, `resting_heart_rate`,
-  `heart_rate_variability`, `weight`, `steps`, калории; валидация через zod.
-- Сопряжение устройства: `createHealthPairing` → `claimHealthPairing` →
-  `authenticateHealthDevice`, токены устройств, отзыв доступа.
-- Роуты `/api/health-connect/pair`, `/pairing`, `/sync`; экран
-  `health-connect-settings.tsx`; миграции; тесты
-  `tests/health-connect-ingest.test.ts`.
-- Каркас Android-приложения на Kotlin в `android/health-bridge/`.
-
-Плюс: путь полностью официальный и не зависит от третьей стороны. Минус:
-нужно собрать, подписать и держать на телефоне Android-приложение, и данные
-идут только когда телефон в сети.
-
-**Решение:** intervals.icu закрывает и тренировки, и сон с HRV, поэтому для
-текущей задачи Health Connect не нужен. Ветку не удаляем: это готовый наполовину
-путь без внешних зависимостей, полезный, если intervals.icu когда-нибудь
-перестанет устраивать.
+Подробности, разрешения, обновление APK и ограничения описаны в
+[Android README](../android/health-bridge/README.md). Текущее окно — 30 дней,
+запуск по нажатию. Health Connect не даёт браузеру прямой доступ к данным.
 
 ## Отвергнутые варианты
 

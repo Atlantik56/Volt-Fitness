@@ -5,7 +5,6 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.HealthConnectFeatures
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
-import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.HeartRateRecord
 import androidx.health.connect.client.records.HeartRateVariabilityRmssdRecord
 import androidx.health.connect.client.records.Record
@@ -18,9 +17,7 @@ import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.voltfitness.healthbridge.core.CaloriesMetrics
-import com.voltfitness.healthbridge.core.ExerciseMetrics
 import com.voltfitness.healthbridge.core.HeartRateMetrics
-import com.voltfitness.healthbridge.core.HeartSample
 import com.voltfitness.healthbridge.core.HrvMetrics
 import com.voltfitness.healthbridge.core.NormalizedRecord
 import com.voltfitness.healthbridge.core.PermissionKey
@@ -36,7 +33,8 @@ import com.voltfitness.healthbridge.core.WeightMetrics
 import com.voltfitness.healthbridge.core.stableExternalId
 import java.time.Duration
 import java.time.Instant
-import kotlin.math.roundToInt
+import java.time.ZoneId
+import androidx.health.connect.client.request.AggregateRequest
 import kotlin.reflect.KClass
 
 data class HealthCollection(val records:List<NormalizedRecord>,val diagnostics:SyncDiagnostics)
@@ -51,7 +49,6 @@ class HealthConnectGateway(private val context:Context){
         PermissionKey.HEART_RATE_VARIABILITY to HealthPermission.getReadPermission(HeartRateVariabilityRmssdRecord::class),
         PermissionKey.SLEEP to HealthPermission.getReadPermission(SleepSessionRecord::class),
         PermissionKey.WEIGHT to HealthPermission.getReadPermission(WeightRecord::class),
-        PermissionKey.EXERCISE to HealthPermission.getReadPermission(ExerciseSessionRecord::class),
         PermissionKey.STEPS to HealthPermission.getReadPermission(StepsRecord::class),
         PermissionKey.TOTAL_CALORIES to HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class),
         PermissionKey.ACTIVE_CALORIES to HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class),
@@ -72,43 +69,59 @@ class HealthConnectGateway(private val context:Context){
         if(!permissions.available)return HealthCollection(emptyList(),SyncDiagnostics(false,emptySet(),false,false,emptySet(),emptySet()))
         val since=now.minus(Duration.ofDays(30))
         val records=mutableListOf<NormalizedRecord>()
-        if(PermissionKey.EXERCISE in permissions.granted)readAll(ExerciseSessionRecord::class,since,now).forEach{records+=exercise(it,permissions)}
         if(PermissionKey.SLEEP in permissions.granted)readAll(SleepSessionRecord::class,since,now).forEach{record->
-            val origin=origin(record.metadata.dataOrigin);records+=NormalizedRecord(origin,stable(record.metadata.id,origin,RecordType.SLEEP,record.startTime,record.endTime,record.title.orEmpty()),RecordType.SLEEP,record.startTime,record.endTime,record.metadata.lastModifiedTime,SleepMetrics(Duration.between(record.startTime,record.endTime).seconds,record.title,record.stages.map{SleepStage("stage_${it.stage}",it.startTime,it.endTime)}))
-        }
-        if(PermissionKey.HEART_RATE in permissions.granted)readAll(HeartRateRecord::class,since,now).forEach{record->
-            val samples=record.samples.map{HeartSample(it.time,it.beatsPerMinute.toInt())}
-            val values=samples.map{it.bpm}
-            val origin=origin(record.metadata.dataOrigin)
-            records+=NormalizedRecord(origin,stable(record.metadata.id,origin,RecordType.HEART_RATE,record.startTime,record.endTime,values.joinToString(",")),RecordType.HEART_RATE,record.startTime,record.endTime,record.metadata.lastModifiedTime,HeartRateMetrics(samples.size,values.minOrNull(),values.takeIf{it.isNotEmpty()}?.average()?.roundToInt(),values.maxOrNull(),samples.take(2_000)))
+            val sleepSeconds=client!!.aggregate(AggregateRequest(setOf(SleepSessionRecord.SLEEP_DURATION_TOTAL),TimeRangeFilter.between(record.startTime,record.endTime),setOf(record.metadata.dataOrigin)))[SleepSessionRecord.SLEEP_DURATION_TOTAL]?.seconds?:0L
+            if(sleepSeconds<=0)return@forEach
+            val origin=origin(record.metadata.dataOrigin);records+=NormalizedRecord(origin,stable(record.metadata.id,origin,RecordType.SLEEP,record.startTime,record.endTime,record.title.orEmpty()),RecordType.SLEEP,record.startTime,record.endTime,record.metadata.lastModifiedTime,SleepMetrics(sleepSeconds,record.title,record.stages.map{SleepStage("stage_${it.stage}",it.startTime,it.endTime)}))
         }
         if(PermissionKey.RESTING_HEART_RATE in permissions.granted)readAll(RestingHeartRateRecord::class,since,now).forEach{record->point(records,record.metadata.id,record.metadata.dataOrigin,record.time,record.metadata.lastModifiedTime,RecordType.RESTING_HEART_RATE,RestingHeartRateMetrics(record.beatsPerMinute.toInt()),record.beatsPerMinute.toString())}
         if(PermissionKey.HEART_RATE_VARIABILITY in permissions.granted)readAll(HeartRateVariabilityRmssdRecord::class,since,now).forEach{record->point(records,record.metadata.id,record.metadata.dataOrigin,record.time,record.metadata.lastModifiedTime,RecordType.HEART_RATE_VARIABILITY,HrvMetrics(record.heartRateVariabilityMillis),record.heartRateVariabilityMillis.toString())}
         if(PermissionKey.WEIGHT in permissions.granted)readAll(WeightRecord::class,since,now).forEach{record->point(records,record.metadata.id,record.metadata.dataOrigin,record.time,record.metadata.lastModifiedTime,RecordType.WEIGHT,WeightMetrics(record.weight.inKilograms),record.weight.inKilograms.toString())}
-        if(PermissionKey.STEPS in permissions.granted)readAll(StepsRecord::class,since,now).forEach{record->interval(records,record.metadata.id,record.metadata.dataOrigin,record.startTime,record.endTime,record.metadata.lastModifiedTime,RecordType.STEPS,StepsMetrics(record.count),record.count.toString())}
-        if(PermissionKey.TOTAL_CALORIES in permissions.granted)readAll(TotalCaloriesBurnedRecord::class,since,now).forEach{record->interval(records,record.metadata.id,record.metadata.dataOrigin,record.startTime,record.endTime,record.metadata.lastModifiedTime,RecordType.TOTAL_CALORIES,CaloriesMetrics(record.energy.inKilocalories),record.energy.inKilocalories.toString())}
-        if(PermissionKey.ACTIVE_CALORIES in permissions.granted)readAll(ActiveCaloriesBurnedRecord::class,since,now).forEach{record->interval(records,record.metadata.id,record.metadata.dataOrigin,record.startTime,record.endTime,record.metadata.lastModifiedTime,RecordType.ACTIVE_CALORIES,CaloriesMetrics(record.energy.inKilocalories),record.energy.inKilocalories.toString())}
-        val origins=records.map{it.origin}.toSet()
-        return HealthCollection(records.distinctBy{listOf(it.origin.packageName,it.recordType.wireName,it.externalRecordId)},SyncDiagnostics(true,permissions.granted,permissions.historyAvailable,permissions.historyGranted,records.map{it.recordType}.toSet(),origins))
-    }
-
-    private suspend fun exercise(record:ExerciseSessionRecord,permissions:PermissionSnapshot):NormalizedRecord{
-        val origin=origin(record.metadata.dataOrigin)
-        val filter=setOf(record.metadata.dataOrigin)
-        val heart=if(PermissionKey.HEART_RATE in permissions.granted)readAll(HeartRateRecord::class,record.startTime,record.endTime,filter).flatMap{it.samples}.map{it.beatsPerMinute.toInt()}else emptyList()
-        // Distance intentionally remains null: Sprint 1 does not request READ_DISTANCE.
-        val distance:Double?=null
-        val calories=if(PermissionKey.TOTAL_CALORIES in permissions.granted)readAll(TotalCaloriesBurnedRecord::class,record.startTime,record.endTime,filter).sumOf{it.energy.inKilocalories}.takeIf{it>0}else null
-        val type="health_connect_${record.exerciseType}"
-        val duration=Duration.between(record.startTime,record.endTime).seconds.coerceAtLeast(1)
-        return NormalizedRecord(origin,stable(record.metadata.id,origin,RecordType.EXERCISE,record.startTime,record.endTime,"$type|$duration|$distance"),RecordType.EXERCISE,record.startTime,record.endTime,record.metadata.lastModifiedTime,ExerciseMetrics(type,record.title,duration,distance,calories,heart.takeIf{it.isNotEmpty()}?.average()?.roundToInt(),heart.maxOrNull()))
+        val zone=ZoneId.systemDefault()
+        val aggregateOrigin=SourceOrigin("health_connect.aggregate","Health Connect")
+        val contributingOrigins=mutableSetOf<SourceOrigin>()
+        val today=now.atZone(zone).toLocalDate()
+        for(offset in 0L..29L){
+            val date=today.minusDays(offset)
+            val start=date.atStartOfDay(zone).toInstant()
+            val end=minOf(date.plusDays(1).atStartOfDay(zone).toInstant(),now)
+            if(!start.isBefore(end))continue
+            suspend fun aggregateSteps(){
+                val result=client!!.aggregate(AggregateRequest(setOf(StepsRecord.COUNT_TOTAL),TimeRangeFilter.between(start,end)))
+                contributingOrigins+=result.dataOrigins.map{origin(it)}
+                val value=result[StepsRecord.COUNT_TOTAL]?:return
+                records+=NormalizedRecord(aggregateOrigin,"daily:$date:steps",RecordType.STEPS,start,end,now,StepsMetrics(value))
+            }
+            suspend fun aggregateCalories(active:Boolean){
+                val metric=if(active)ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL else TotalCaloriesBurnedRecord.ENERGY_TOTAL
+                var result=client!!.aggregate(AggregateRequest(setOf(metric),TimeRangeFilter.between(start,end)))
+                // Calories may combine writers. Pick one writer instead of adding copies.
+                val sources=result.dataOrigins.sortedWith(compareBy<DataOrigin>{if(it.packageName.contains("garmin",true))0 else 1}.thenBy{it.packageName})
+                if(sources.size>1)result=client!!.aggregate(AggregateRequest(setOf(metric),TimeRangeFilter.between(start,end),setOf(sources.first())))
+                contributingOrigins+=result.dataOrigins.map{origin(it)}
+                val value=result[metric]?.inKilocalories?:return
+                val type=if(active)RecordType.ACTIVE_CALORIES else RecordType.TOTAL_CALORIES
+                records+=NormalizedRecord(aggregateOrigin,"daily:$date:${type.wireName}",type,start,end,now,CaloriesMetrics(value))
+            }
+            if(PermissionKey.HEART_RATE in permissions.granted){
+                val metrics=setOf(HeartRateRecord.BPM_AVG,HeartRateRecord.BPM_MIN,HeartRateRecord.BPM_MAX,HeartRateRecord.MEASUREMENTS_COUNT)
+                var result=client!!.aggregate(AggregateRequest(metrics,TimeRangeFilter.between(start,end)))
+                val sources=result.dataOrigins.sortedWith(compareBy<DataOrigin>{if(it.packageName.contains("garmin",true))0 else 1}.thenBy{it.packageName})
+                if(sources.size>1)result=client!!.aggregate(AggregateRequest(metrics,TimeRangeFilter.between(start,end),setOf(sources.first())))
+                contributingOrigins+=result.dataOrigins.map{origin(it)}
+                val average=result[HeartRateRecord.BPM_AVG]?.toInt()
+                if(average!=null)records+=NormalizedRecord(aggregateOrigin,"daily:$date:heart_rate",RecordType.HEART_RATE,start,end,now,HeartRateMetrics((result[HeartRateRecord.MEASUREMENTS_COUNT]?:0L).toInt(),result[HeartRateRecord.BPM_MIN]?.toInt(),average,result[HeartRateRecord.BPM_MAX]?.toInt(),emptyList()))
+            }
+            if(PermissionKey.STEPS in permissions.granted)aggregateSteps()
+            if(PermissionKey.TOTAL_CALORIES in permissions.granted)aggregateCalories(false)
+            if(PermissionKey.ACTIVE_CALORIES in permissions.granted)aggregateCalories(true)
+        }
+        val origins=records.map{it.origin}.toSet()+contributingOrigins
+        return HealthCollection(records.distinctBy{listOf(it.origin.packageName,it.recordType.wireName,it.externalRecordId)},SyncDiagnostics(true,permissions.granted,permissions.historyAvailable,permissions.historyGranted,records.map{it.recordType}.toSet(),origins,zone.id,BuildConfig.VERSION_NAME))
     }
 
     private fun point(target:MutableList<NormalizedRecord>,id:String,source:DataOrigin,time:Instant,modified:Instant,type:RecordType,metrics:com.voltfitness.healthbridge.core.NormalizedMetrics,values:String){
         val origin=origin(source);target+=NormalizedRecord(origin,stable(id,origin,type,time,time,values),type,time,time,modified,metrics)
-    }
-    private fun interval(target:MutableList<NormalizedRecord>,id:String,source:DataOrigin,start:Instant,end:Instant,modified:Instant,type:RecordType,metrics:com.voltfitness.healthbridge.core.NormalizedMetrics,values:String){
-        val origin=origin(source);target+=NormalizedRecord(origin,stable(id,origin,type,start,end,values),type,start,end,modified,metrics)
     }
     private fun stable(id:String,origin:SourceOrigin,type:RecordType,start:Instant,end:Instant,values:String)=stableExternalId(id,origin.packageName,type,start,end,values)
     private fun origin(value:DataOrigin):SourceOrigin{

@@ -1,3 +1,4 @@
+import { readHealthWellness,mergeHealthMeasurements,mergeHealthActivity } from "@/lib/health-connect-wellness";
 // AI-5 — Coach Memory: единая точка показа инсайтов для трёх поверхностей
 // (card/evening/mood). GET сам является "фактическим показом" — вызывается
 // клиентом ровно при монтировании реального экрана (не на каждый пересчёт),
@@ -27,7 +28,8 @@ function buildCandidates(surface: Surface, date: string): Insight[] {
   if (surface === "card") {
     const profile = db.prepare("SELECT program_start programStart,target_weight targetWeight FROM profile WHERE id=1").get() as any;
     const trainingPlanCycles=getTrainingPlanCycles();
-    const measurements = db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
+    const healthDays=readHealthWellness(db,"2000-01-01",date);
+    const measurements = mergeHealthMeasurements(db.prepare("SELECT date,weight FROM measurements WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[],healthDays).slice(0,60);
     const foodLogs = db.prepare("SELECT date,calories,protein FROM food_logs WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
     const workouts = db.prepare("SELECT date,type,title FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC,id DESC LIMIT 200").all(date) as any[];
     const strengthLogs = db.prepare("SELECT exercise,weight,date FROM strength_logs WHERE date<=? ORDER BY date DESC LIMIT 300").all(date) as any[];
@@ -35,7 +37,7 @@ function buildCandidates(surface: Surface, date: string): Insight[] {
       "SELECT original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle FROM schedule_overrides WHERE original_date<=? OR scheduled_date<=? ORDER BY scheduled_date,id",
     ).all(date, date) as any[];
     const moodLogs = db.prepare("SELECT id,date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
-    const activity = db.prepare("SELECT date,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
+    const activity = mergeHealthActivity(db.prepare("SELECT date,health_overrides healthOverrides,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[],readHealthWellness(db,"2000-01-01",date)).slice(0,60);
     const {mondayIso,sundayIso}=weekRangeContaining(date);
     const planDays = buildWeekSchedule(
       buildHomeWeek(profile?.programStart,trainingPlanCycles,date),
@@ -49,15 +51,15 @@ function buildCandidates(surface: Surface, date: string): Insight[] {
     });
   }
   if (surface === "evening") {
-    const activity = db.prepare(
-      "SELECT date,first_drink_time firstDrinkTime,beers,dinner,sleep_hours sleepHours,active_minutes activeMinutes FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60",
-    ).all(date) as any[];
+    const activity = mergeHealthActivity(db.prepare(
+      "SELECT date,health_overrides healthOverrides,first_drink_time firstDrinkTime,beers,dinner,sleep_hours sleepHours,active_minutes activeMinutes FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60",
+    ).all(date) as any[],readHealthWellness(db,"2000-01-01",date)).slice(0,60);
     const workouts = db.prepare("SELECT date FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC LIMIT 200").all(date) as any[];
     return buildEveningInsights(activity, workouts);
   }
   const moodLogs = db.prepare("SELECT id,date,mood,note FROM mood_logs WHERE date<=? ORDER BY date DESC LIMIT 200").all(date) as any[];
   const workouts = db.prepare("SELECT date FROM workout_logs WHERE date<=? AND COALESCE(external_activity_source,'')!='strava' ORDER BY date DESC LIMIT 200").all(date) as any[];
-  const activity = db.prepare("SELECT date,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[];
+  const activity = mergeHealthActivity(db.prepare("SELECT date,health_overrides healthOverrides,sleep_hours sleepHours FROM daily_activity WHERE date<=? ORDER BY date DESC LIMIT 60").all(date) as any[],readHealthWellness(db,"2000-01-01",date)).slice(0,60);
   return buildMoodInsights(moodLogs, workouts, activity);
 }
 

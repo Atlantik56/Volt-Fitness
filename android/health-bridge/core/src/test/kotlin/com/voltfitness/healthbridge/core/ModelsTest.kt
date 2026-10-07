@@ -8,6 +8,10 @@ import kotlin.test.assertTrue
 import java.time.Instant
 
 class ModelsTest {
+    @Test fun workoutPermissionIsNeverRequired(){
+        assertFalse(PermissionKey.EXERCISE in PermissionSnapshot(true,emptySet(),false,false).missing)
+    }
+
     private val start=Instant.parse("2026-08-09T07:00:00Z")
     private val end=Instant.parse("2026-08-09T08:00:00Z")
 

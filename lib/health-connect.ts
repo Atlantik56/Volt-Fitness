@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/lib/db";
+import { validHealthSyncRequest } from "./health-sync-requests.ts";
 
 export const MAX_HEALTH_SYNC_BYTES=256_000;
 export const MAX_HEALTH_SYNC_RECORDS=50;
@@ -10,7 +11,10 @@ const PERMISSION_KEYS=["heart_rate","resting_heart_rate","heart_rate_variability
 
 const iso=z.string().datetime({offset:true});
 const origin=z.object({packageName:z.string().min(1).max(200),name:z.string().max(120).default(""),isGarmin:z.boolean()}).strict();
+const timeZone=z.string().max(100).refine(value=>{try{new Intl.DateTimeFormat("en",{timeZone:value});return true}catch{return false}},"Invalid IANA time zone");
 const diagnosticsSchema=z.object({
+ timeZone:timeZone.optional(),
+ bridgeVersion:z.string().max(30).optional(),
  healthConnectAvailable:z.boolean(),
  grantedPermissions:z.array(z.enum(PERMISSION_KEYS)).max(PERMISSION_KEYS.length),
  historyAccessAvailable:z.boolean(),
@@ -43,6 +47,7 @@ const healthRecordSchema=z.discriminatedUnion("recordType",[
 ]);
 export const healthSyncSchema=z.object({
  syncedAt:iso,
+ requestId:z.string().uuid().optional(),
  diagnostics:diagnosticsSchema,
  records:z.array(healthRecordSchema).max(MAX_HEALTH_SYNC_RECORDS),
 }).strict();
@@ -122,33 +127,38 @@ export function ingestHealthSync(device:{id:number;username:string},input:unknow
  let created=0,updated=0,authorized=false;
  db.transaction(()=>{
   if(!db.prepare("SELECT 1 FROM health_bridge_devices WHERE id=? AND username=? AND revoked_at IS NULL").get(device.id,device.username))return;
+  if(parsed.data.requestId&&!validHealthSyncRequest(device,parsed.data.requestId))return;
   authorized=true;
   for(const record of parsed.data.records){
+   // Legacy APKs may still send exercises. Ignore them without breaking the remaining wellness batch.
+   if(record.recordType==="exercise")continue;
    const existing=db.prepare("SELECT id,source_modified_at sourceModifiedAt FROM health_connect_records WHERE username=? AND source_origin=? AND external_record_id=? AND record_type=?").get(device.username,record.sourceOrigin,record.externalRecordId,record.recordType) as {id:number;sourceModifiedAt:string|null}|undefined;
    if(existing?.sourceModifiedAt&&(!record.sourceModifiedAt||Date.parse(record.sourceModifiedAt)<Date.parse(existing.sourceModifiedAt)))continue;
    const metrics=JSON.stringify(record.metrics),modified=record.sourceModifiedAt??null;
-   db.prepare(`INSERT INTO health_connect_records(username,device_id,source_origin,source_origin_name,external_record_id,record_type,start_time,end_time,metrics,source_modified_at,synced_at)
-    VALUES(?,?,?,?,?,?,?,?,?,?,?)
+   db.prepare(`INSERT INTO health_connect_records(username,device_id,source_origin,source_origin_name,external_record_id,record_type,start_time,end_time,metrics,source_modified_at,synced_at,time_zone)
+    VALUES(?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(username,source_origin,external_record_id,record_type) DO UPDATE SET
      device_id=excluded.device_id,source_origin_name=excluded.source_origin_name,start_time=excluded.start_time,end_time=excluded.end_time,
-     metrics=excluded.metrics,source_modified_at=excluded.source_modified_at,synced_at=excluded.synced_at,updated_at=CURRENT_TIMESTAMP`)
-    .run(device.username,device.id,record.sourceOrigin,record.sourceOriginName,record.externalRecordId,record.recordType,record.startTime,record.endTime,metrics,modified,parsed.data.syncedAt);
+     metrics=excluded.metrics,source_modified_at=excluded.source_modified_at,synced_at=excluded.synced_at,time_zone=excluded.time_zone,updated_at=CURRENT_TIMESTAMP`)
+    .run(device.username,device.id,record.sourceOrigin,record.sourceOriginName,record.externalRecordId,record.recordType,record.startTime,record.endTime,metrics,modified,parsed.data.syncedAt,parsed.data.diagnostics.timeZone??"Europe/Moscow");
    if(existing)updated++;else created++;
   }
   const diagnostics={...parsed.data.diagnostics,origins:parsed.data.diagnostics.origins.map(item=>({...item,isGarmin:isGarminOrigin(item.packageName,item.name)}))};
-  db.prepare("UPDATE health_bridge_devices SET diagnostics=?,last_sync_at=?,last_seen_at=? WHERE id=?")
-   .run(JSON.stringify(diagnostics),parsed.data.syncedAt,nowIso(),device.id);
+  db.prepare("UPDATE health_bridge_devices SET diagnostics=?,last_seen_at=? WHERE id=?")
+   .run(JSON.stringify(diagnostics),nowIso(),device.id);
+  if(parsed.data.requestId)db.prepare("UPDATE health_sync_requests SET status='running',accepted=accepted+? WHERE id=?").run(created+updated,parsed.data.requestId);
  })();
  if(!authorized)return {ok:false as const,error:"Устройство Health Bridge отключено",issues:[],status:401};
  return {ok:true as const,created,updated,total:parsed.data.records.length};
 }
 
 export function healthBridgeStatus(username:string){
- const devices=(db.prepare("SELECT id,name,diagnostics,last_sync_at lastSyncAt,last_seen_at lastSeenAt,created_at createdAt FROM health_bridge_devices WHERE username=? AND revoked_at IS NULL ORDER BY id DESC").all(username) as any[]).map(row=>{
+ const devices=(db.prepare("SELECT id,name,diagnostics,last_completed_at lastSyncAt,last_seen_at lastSeenAt,created_at createdAt FROM health_bridge_devices WHERE username=? AND revoked_at IS NULL ORDER BY id DESC").all(username) as any[]).map(row=>{
   let diagnostics:any={};try{diagnostics=JSON.parse(row.diagnostics||"{}")}catch{}
+  if(Array.isArray(diagnostics.discoveredRecordTypes))diagnostics.discoveredRecordTypes=diagnostics.discoveredRecordTypes.filter((type:string)=>type!=="exercise");
   return {...row,diagnostics};
  });
- const totals=db.prepare("SELECT COUNT(*) count,MAX(synced_at) lastSyncedAt FROM health_connect_records WHERE username=?").get(username) as any;
+ const totals=db.prepare("SELECT COUNT(*) count,MAX(synced_at) lastSyncedAt FROM health_connect_records WHERE username=? AND record_type!='exercise'").get(username) as any;
  return {devices,recordCount:Number(totals?.count||0),lastSyncedAt:totals?.lastSyncedAt??null};
 }
 

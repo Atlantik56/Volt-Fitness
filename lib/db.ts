@@ -571,6 +571,17 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
   CREATE INDEX IF NOT EXISTS idx_health_connect_records_time
    ON health_connect_records(username,record_type,start_time DESC);
  `},
+ {version:34,sql:`
+  ALTER TABLE health_bridge_devices ADD COLUMN last_completed_at TEXT;
+  ALTER TABLE health_connect_records ADD COLUMN time_zone TEXT NOT NULL DEFAULT 'Europe/Moscow';
+  ALTER TABLE daily_activity ADD COLUMN health_overrides TEXT NOT NULL DEFAULT '[]';
+  CREATE TABLE health_sync_requests (
+   id TEXT PRIMARY KEY,username TEXT NOT NULL,device_id INTEGER NOT NULL REFERENCES health_bridge_devices(id),
+   status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','running','completed','failed')),
+   accepted INTEGER NOT NULL DEFAULT 0,expires_at INTEGER NOT NULL,created_at TEXT NOT NULL,finished_at TEXT,error TEXT
+  );
+  CREATE INDEX idx_health_sync_requests_user ON health_sync_requests(username,created_at DESC);
+ `},
 ];
 export function applyDatabaseMigrations(database:Database.Database=db):void{
  for(const migration of migrations){
