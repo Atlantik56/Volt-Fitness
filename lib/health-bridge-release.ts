@@ -1,5 +1,7 @@
 export const HEALTH_BRIDGE_RELEASE = {
   "version": "0.1.1",
+  "versionCode": 2,
+  "applicationId": "com.voltfitness.healthbridge",
   "channel": "debug",
   "filename": "volt-health-bridge-0.1.1-debug.apk",
   "bytes": 12757870,
