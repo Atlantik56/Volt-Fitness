@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "volt": {
+      "type": "http",
+      "url": "https://volt-trainer.duckdns.org/mcp",
+      "note": "Private read-only access to the owner's VOLT training plan, confirmed workouts, progress, and records. Uses OAuth on first connection."
+    }
+  }
+}

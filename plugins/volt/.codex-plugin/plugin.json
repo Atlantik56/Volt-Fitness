@@ -1,0 +1,27 @@
+{
+  "name": "volt",
+  "version": "0.1.0",
+  "description": "Private read-only access to VOLT training data through the owner's normal site login.",
+  "author": {
+    "name": "VOLT"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "VOLT",
+    "shortDescription": "Ask about your VOLT plan and progress.",
+    "longDescription": "Connect with your existing VOLT login, then let ChatGPT or Codex read your current plan, confirmed workouts, training load, progress, and records. The plugin cannot change data.",
+    "developerName": "VOLT",
+    "category": "Health & Fitness",
+    "capabilities": [
+      "Read-only",
+      "OAuth 2.1"
+    ],
+    "websiteURL": "https://volt-trainer.duckdns.org/",
+    "defaultPrompt": [
+      "Что у меня сегодня по плану?",
+      "Разбери мой прогресс за последние 12 недель.",
+      "Какие у меня последние рекорды?"
+    ]
+  },
+  "mcpServers": "./.mcp.json"
+}

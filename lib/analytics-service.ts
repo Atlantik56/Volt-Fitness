@@ -56,23 +56,23 @@ export function buildPlannedSlots(input: {
   return slots;
 }
 
-export function buildAnalyticsBundle(todayIso = localIso(new Date())): AnalyticsBundle {
+export function buildAnalyticsBundleFromDb(database: typeof db, todayIso = localIso(new Date())): AnalyticsBundle {
   const periods = Object.fromEntries(ANALYTICS_RANGES.map((key) => [key, resolveAnalyticsPeriod(key, todayIso)])) as Record<(typeof ANALYTICS_RANGES)[number], ReturnType<typeof resolveAnalyticsPeriod>>;
   const earliest = ANALYTICS_RANGES.reduce((value, key) => periods[key].previousFrom < value ? periods[key].previousFrom : value, todayIso);
-  const profile = (db.prepare("SELECT program_start programStart FROM profile WHERE id=1").get() ?? {}) as ProfileRow;
-  const workoutRows = db.prepare(`SELECT id,date,type,title,duration_seconds durationSeconds,distance_meters distanceMeters,calories,
+  const profile = (database.prepare("SELECT program_start programStart FROM profile WHERE id=1").get() ?? {}) as ProfileRow;
+  const workoutRows = database.prepare(`SELECT id,date,type,title,duration_seconds durationSeconds,distance_meters distanceMeters,calories,
     avg_heart_rate avgHeartRate,max_heart_rate maxHeartRate,avg_speed avgSpeed,metrics_source metricsSource,
     external_activity_source externalActivitySource FROM workout_logs WHERE date BETWEEN ? AND ? ORDER BY date ASC,id ASC`).all(earliest, todayIso) as RawAnalyticsWorkout[];
-  const strengthRows = db.prepare(`SELECT s.workout_id workoutId,s.date,s.exercise,s.weight,s.reps
+  const strengthRows = database.prepare(`SELECT s.workout_id workoutId,s.date,s.exercise,s.weight,s.reps
     FROM strength_logs s JOIN workout_logs w ON w.id=s.workout_id
     WHERE s.date BETWEEN ? AND ? AND COALESCE(w.external_activity_source,'')!='strava'
     ORDER BY s.date ASC,s.id ASC`).all(earliest, todayIso) as RawStrengthSet[];
-  const weekChanges = db.prepare(`SELECT id,date,action,assigned_source_day assignedSourceDay,swap_with_date swapWithDate,
+  const weekChanges = database.prepare(`SELECT id,date,action,assigned_source_day assignedSourceDay,swap_with_date swapWithDate,
     alternative_session_id alternativeSessionId,reason_code reasonCode,created_at createdAt,updated_at updatedAt
     FROM week_schedule_changes WHERE date BETWEEN ? AND ? ORDER BY date ASC,id ASC`).all(earliest, todayIso) as WeekScheduleChange[];
-  const scheduleOverrides = db.prepare(`SELECT original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle
+  const scheduleOverrides = database.prepare(`SELECT original_date originalDate,scheduled_date scheduledDate,plan_title planTitle,replacement_title replacementTitle
     FROM schedule_overrides WHERE original_date BETWEEN ? AND ? OR scheduled_date BETWEEN ? AND ? ORDER BY scheduled_date ASC,id ASC`).all(earliest, todayIso, earliest, todayIso) as ScheduleOverride[];
-  const planCycles=db.prepare(`SELECT id,program_id programId,program_version programVersion,started_at startedAt,ended_at endedAt,
+  const planCycles=database.prepare(`SELECT id,program_id programId,program_version programVersion,started_at startedAt,ended_at endedAt,
     restarted_from_cycle_id restartedFromCycleId FROM training_plan_cycles
     WHERE program_id='volt-training' AND started_at<=? AND (ended_at IS NULL OR ended_at>=?) ORDER BY started_at ASC,id ASC`).all(todayIso,earliest) as TrainingPlanCycle[];
   const normalized = normalizeAnalyticsWorkouts(workoutRows);
@@ -84,4 +84,8 @@ export function buildAnalyticsBundle(todayIso = localIso(new Date())): Analytics
     return [key, buildAnalyticsOverview({ period, workouts: normalized.included, strengthSets, plans, excludedStravaWorkouts })];
   })) as AnalyticsBundle["ranges"];
   return { generatedAt: new Date().toISOString(), defaultRange: "4_weeks", ranges };
+}
+
+export function buildAnalyticsBundle(todayIso = localIso(new Date())): AnalyticsBundle {
+  return buildAnalyticsBundleFromDb(db, todayIso);
 }

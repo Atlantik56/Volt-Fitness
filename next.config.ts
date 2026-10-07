@@ -6,6 +6,9 @@ const scriptPolicy = process.env.NODE_ENV === "production"
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  outputFileTracingIncludes: {
+    "/api/health-connect/apk": ["./releases/health-bridge/*.apk"],
+  },
   poweredByHeader: false,
   async headers(){return [{source:"/:path*.webp",headers:[{key:"Cache-Control",value:"public, max-age=31536000, immutable"}]},{source:"/(.*)",headers:[
     {key:"Content-Security-Policy",value:`default-src 'self'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://www.youtube-nocookie.com; object-src 'none'; img-src 'self' data: blob:; media-src 'self'; ${scriptPolicy}; style-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:; manifest-src 'self'`},

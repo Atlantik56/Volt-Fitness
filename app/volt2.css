@@ -2185,6 +2185,31 @@ body:has(.auth-screen),body:has(.volt-widget-page){
 .profile-ai-provider b{font-size:10px;font-weight:600}
 .profile-ai-provider small{color:#737d83;font-size:8px}
 .profile-ai-grid{grid-column:1/-1}
+.profile-health-connect{display:grid;gap:14px}
+.profile-health-connect>header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:11px;align-items:start}
+.profile-health-connect>header>svg{color:var(--lime)}
+.profile-health-connect>header b,.profile-health-empty b,.profile-health-warning b{font-size:11px;font-weight:600}
+.profile-health-connect>header p,.profile-health-empty p,.profile-health-warning p{margin:4px 0 0;color:#7f898f;font-size:8.5px;line-height:1.45}
+.profile-health-connect>header>em{padding:5px 8px;border-radius:7px;background:rgba(255,255,255,.05);color:#aab2b6;font-size:7px;font-weight:750;font-style:normal}
+.profile-health-connect>header>em[data-state="Подключено"]{background:rgba(199,255,50,.07);color:var(--lime)}
+.profile-health-empty,.profile-health-warning{display:flex;align-items:flex-start;gap:11px;padding:14px;border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.018);color:#9da6aa}
+.profile-health-warning{border-color:rgba(244,173,114,.2);color:#e2aa7d}
+.profile-health-device{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--v2-border);border-radius:11px;background:rgba(255,255,255,.018)}
+.profile-health-device>div{display:flex;min-width:0;gap:10px;padding:13px;border-right:1px solid var(--v2-border)}
+.profile-health-device>div:last-child{border-right:0}
+.profile-health-device svg{flex:none;color:var(--lime)}
+.profile-health-device span{display:grid;min-width:0;gap:3px}
+.profile-health-device small,.profile-health-pairing small{color:#727c82;font-size:7px;font-weight:750;letter-spacing:.06em}
+.profile-health-device b{overflow:hidden;color:#dce1e3;font-size:10px;text-overflow:ellipsis;white-space:nowrap}
+.profile-health-device em{overflow:hidden;color:#7f898f;font-size:7.5px;font-style:normal;line-height:1.4;text-overflow:ellipsis}
+.profile-health-history{margin:0;color:#7f898f;font-size:8px;line-height:1.45}.profile-health-history b{color:#b9c0c3;font-weight:550}
+.profile-health-pairing{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;padding:13px;border:1px solid rgba(199,255,50,.16);border-radius:11px;background:rgba(199,255,50,.025);color:var(--lime)}
+.profile-health-pairing>div{display:grid;min-width:0;gap:5px}.profile-health-pairing code{overflow:auto;color:#dfe7c8;font-size:8px;white-space:nowrap}
+.profile-health-pairing button,.profile-health-connect>footer button{display:flex;min-height:38px;align-items:center;justify-content:center;gap:7px;padding:0 11px;border:0;border-radius:9px;background:var(--lime);color:#101407;font-size:8px;font-weight:750;cursor:pointer}
+.profile-health-connect>footer{display:flex;flex-wrap:wrap;gap:8px}
+.profile-health-connect>footer button.secondary,.profile-health-pairing button{border:1px solid var(--v2-border);background:rgba(255,255,255,.035);color:#c8ced0}
+.profile-health-connect>footer button.danger{color:#e3a491}.profile-health-connect button:disabled{opacity:.55;cursor:wait}
+
 .profile-garmin-detail .garmin-import.card{margin:0;padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none}
 .profile-garmin-detail .garmin-import>div:first-child p:first-child{display:none}
 .profile-garmin-detail .garmin-import h3{font-size:15px}
@@ -2275,6 +2300,14 @@ body:has(.auth-screen),body:has(.volt-widget-page){
   .profile-ai-settings form{grid-template-columns:1fr}
   .profile-ai-settings form>label,.profile-ai-settings form>button,.profile-ai-settings form:nth-of-type(2)>button{grid-column:1;grid-row:auto}
   .profile-ai-settings form>button{min-height:46px}
+  .profile-health-connect>header{grid-template-columns:auto minmax(0,1fr)}
+  .profile-health-connect>header>em{grid-column:2;width:max-content}
+  .profile-health-device{grid-template-columns:1fr}
+  .profile-health-device>div{border-right:0;border-bottom:1px solid var(--v2-border)}
+  .profile-health-device>div:last-child{border-bottom:0}
+  .profile-health-pairing{grid-template-columns:auto minmax(0,1fr)}
+  .profile-health-pairing>button{grid-column:1/-1;min-height:44px}
+  .profile-health-connect>footer button{flex:1 1 100%;min-height:44px}
   .profile-system-actions{display:grid;gap:18px;margin-top:22px;padding:20px 16px}
   .profile-system-actions>button{min-height:48px;justify-content:center;width:100%}
 }
