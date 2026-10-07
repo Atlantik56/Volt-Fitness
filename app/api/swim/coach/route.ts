@@ -6,7 +6,7 @@ import { routeAiHub, type AiHubConfig } from "@/lib/ai-hub";
 import { buildSwimCoachContext, buildSwimCoachFallback, parseSwimCoachReply, swimCoachPrompt, type SwimCoachResponse } from "@/lib/swim/coach";
 
 export const runtime="nodejs";
-const SYSTEM="Ты — RITMOVIS Swim Coach. Код уже вычислил все показатели. Только объясни переданные факты, не придумывай данные и верни строго JSON заданной схемы.";
+const SYSTEM="Ты — VOLT Swim Coach. Код уже вычислил все показатели. Только объясни переданные факты, не придумывай данные и верни строго JSON заданной схемы.";
 
 function data(){
   const date=new Date().toISOString().slice(0,10);

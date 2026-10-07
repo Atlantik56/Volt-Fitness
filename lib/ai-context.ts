@@ -228,7 +228,7 @@ export function renderAiCoachContextText(ctx:AiCoachContext):string{
     lines.push("Личные рекорды по силовым упражнениям (лучший вес):");
     for(const r of ctx.personalRecords.slice(0,5))lines.push(`- ${r.exercise}: ${r.weight} кг × ${r.reps} (${r.date}).`);
   }
-  if(ctx.coachDecision)lines.push(`Решение RITMOVIS Coach на сегодня: ${ctx.coachDecision.title}. ${ctx.coachDecision.explanation}`);
+  if(ctx.coachDecision)lines.push(`Решение VOLT Coach на сегодня: ${ctx.coachDecision.title}. ${ctx.coachDecision.explanation}`);
   if(ctx.recentWorkouts.length){
     lines.push("Последние тренировки:");
     for(const w of ctx.recentWorkouts)lines.push(`- ${w.date}: ${w.title} (${w.type}), усилие «${w.effort||"не указано"}»${w.painAfter!=null?`, боль после ${w.painAfter}/10`:""}.`);

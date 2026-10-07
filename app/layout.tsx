@@ -30,7 +30,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title,
     applicationName: APP_NAME,
     description,
-    icons: { icon: [{ url: "/icon-192.png?v=ritmovis-20260905", type: "image/png", sizes: "192x192" }, { url: "/icon-512.png?v=ritmovis-20260905", sizes: "512x512" }], shortcut: "/icon-192.png?v=ritmovis-20260905", apple: "/icon-192.png?v=ritmovis-20260905" },
+    icons: { icon: [{ url: "/icon-192.png?v=volt-20261007", type: "image/png", sizes: "192x192" }, { url: "/icon-512.png?v=volt-20261007", sizes: "512x512" }], shortcut: "/icon-192.png?v=volt-20261007", apple: "/icon-192.png?v=volt-20261007" },
     openGraph: { title, description, images: [{ url: `${origin}/og.png`, width: 1200, height: 630 }] },
     twitter: { card: "summary_large_image", title, description, images: [`${origin}/og.png`] },
   };

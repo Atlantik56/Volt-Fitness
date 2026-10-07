@@ -91,7 +91,7 @@ export function SwimRecordsScreen() {
     <div className="swim-plan swim-records">
       <header className="swim-plan-header">
         <div>
-          <p className="swim-breadcrumb">RITMOVIS / Тренировки / Swim / <b>Рекорды</b></p>
+          <p className="swim-breadcrumb">VOLT / Тренировки / Swim / <b>Рекорды</b></p>
           <h1>Рекорды</h1>
           <p>Лучшие достижения по завершённым и подтверждённым заплывам.</p>
         </div>

@@ -49,8 +49,8 @@ export default function PwaRegister({ children }: { children: ReactNode }) {
   };
   return <PwaContext.Provider value={{ ready, installed, busy, message, install }}>
     {children}
-    {ready && !installed && !hidden && <aside className="pwa-promotion" aria-label="Установка RITMOVIS">
-      <div><b>RITMOVIS на вашем телефоне</b><p>Открывайте приложение с главного экрана.</p></div>
+    {ready && !installed && !hidden && <aside className="pwa-promotion" aria-label="Установка VOLT">
+      <div><b>VOLT на вашем телефоне</b><p>Открывайте приложение с главного экрана.</p></div>
       <button type="button" onClick={install}>Установить</button>
       <button type="button" className="pwa-dismiss" onClick={() => setHidden(true)} aria-label="Закрыть предложение установки">×</button>
     </aside>}
@@ -61,10 +61,10 @@ export function PwaInstall() {
   const pwa = useContext(PwaContext);
   if (!pwa) return null;
   return <div className="pwa-install">
-    <b>Приложение RITMOVIS</b>
+    <b>Приложение VOLT</b>
     {pwa.installed ? <p role="status">Приложение установлено.</p> : <>
       <p>Велосипед, бассейн и силовые — с главного экрана телефона.</p>
-      {pwa.ready ? <button type="button" onClick={pwa.install}>Установить RITMOVIS</button> : <p>{pwa.busy ? "Ожидаем ответ Chrome…" : "Браузер пока не предложил установку приложения."}</p>}
+      {pwa.ready ? <button type="button" onClick={pwa.install}>Установить VOLT</button> : <p>{pwa.busy ? "Ожидаем ответ Chrome…" : "Браузер пока не предложил установку приложения."}</p>}
       <details><summary>Как установить</summary><p>Android: откройте этот сайт в обычной вкладке Chrome по HTTPS. В меню ⋮ выберите «Добавить на главный экран», затем «Установить». Если доступно только создание ярлыка, установка приложения сейчас не предложена браузером.</p><p>iPhone: в Safari выберите «Поделиться» → «На экран Домой».</p></details>
     </>}
     {pwa.message && <p role="status">{pwa.message}</p>}

@@ -1,6 +1,6 @@
-const CACHE = "ritmovis-media-v18";
+const CACHE = "volt-media-v19";
 const OFFLINE = "/offline.html";
-const ASSETS = [OFFLINE, "/icon-192.png?v=ritmovis-20260905", "/icon-512.png?v=ritmovis-20260905", "/icon-maskable-192.png?v=ritmovis-20260905", "/icon-maskable-512.png?v=ritmovis-20260905"];
+const ASSETS = [OFFLINE, "/icon-192.png?v=volt-20261007", "/icon-512.png?v=volt-20261007", "/icon-maskable-192.png?v=volt-20261007", "/icon-maskable-512.png?v=volt-20261007"];
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE).then(async cache => {
     await cache.add(OFFLINE);
@@ -30,5 +30,5 @@ self.addEventListener("fetch", event => {
     return response;
   }));
 });
-self.addEventListener("push",e=>{let data={title:"RITMOVIS",body:"Пора двигаться."};try{data=e.data.json()}catch{}e.waitUntil(self.registration.showNotification(data.title,{body:data.body,icon:"/icon-192.png?v=ritmovis-20260905",badge:"/icon-192.png?v=ritmovis-20260905",tag:"volt-reminder"}))});
+self.addEventListener("push",e=>{let data={title:"VOLT",body:"Пора двигаться."};try{data=e.data.json()}catch{}e.waitUntil(self.registration.showNotification(data.title,{body:data.body,icon:"/icon-192.png?v=volt-20261007",badge:"/icon-192.png?v=volt-20261007",tag:"volt-reminder"}))});
 self.addEventListener("notificationclick",e=>{e.notification.close();e.waitUntil(self.clients.matchAll({type:"window"}).then(list=>{for(const c of list)if("focus" in c)return c.focus();if(self.clients.openWindow)return self.clients.openWindow("/")}))});

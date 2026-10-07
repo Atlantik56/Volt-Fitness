@@ -57,8 +57,8 @@ export default function SwimHomePage() {
       <section className="swim-home-stage" aria-labelledby="swim-home-title">
         <header className="swim-home-header">
           <div>
-            <p className="swim-breadcrumb">RITMOVIS / Тренировки / <b>Swim</b></p>
-            <h1 id="swim-home-title"><span>RITMOVIS</span> <em>SWIM</em></h1>
+            <p className="swim-breadcrumb">VOLT / Тренировки / <b>Swim</b></p>
+            <h1 id="swim-home-title"><span>VOLT</span> <em>SWIM</em></h1>
             <p>Плавай умнее. Становись сильнее.</p>
           </div>
           <div className="swim-header-tools" aria-label="Состояние синхронизации">

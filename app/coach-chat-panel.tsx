@@ -67,7 +67,7 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ date: today, plan, originalPlan, planChanged, changeReasonCode, question: text,provider:providerChoice,requestId:request.id }),
       });
-      const j = await r.json().catch(()=>({error:"Сервер RITMOVIS вернул некорректный ответ",code:"invalid_json"}));
+      const j = await r.json().catch(()=>({error:"Сервер VOLT вернул некорректный ответ",code:"invalid_json"}));
       if (!r.ok) {
         const message=coachErrorMessage(j,r.status);
         setError({message,code:typeof j.code==="string"?j.code:undefined,provider:typeof j.provider==="string"?j.provider:undefined});
@@ -114,9 +114,9 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
   };
 
   return (
-    <div className={`coach-chat-panel card${embedded?" coach-chat-embedded":""}`} role={embedded?"region":"dialog"} aria-label="Чат с RITMOVIS Coach">
+    <div className={`coach-chat-panel card${embedded?" coach-chat-embedded":""}`} role={embedded?"region":"dialog"} aria-label="Чат с VOLT Coach">
       <header className="coach-chat-head">
-        <div><p className="eyebrow">RITMOVIS COACH · AI HUB</p><small>{provider?`Последний ответ: ${provider==="anthropic+mws"?"Консилиум":provider==="mws"?"MWS GPT":"Anthropic"}`:hubSettings?.anthropicEnabled===false?"Anthropic отключён · Auto использует MWS":"Anthropic основной · MWS резервный"}</small></div>
+        <div><p className="eyebrow">VOLT COACH · AI HUB</p><small>{provider?`Последний ответ: ${provider==="anthropic+mws"?"Консилиум":provider==="mws"?"MWS GPT":"Anthropic"}`:hubSettings?.anthropicEnabled===false?"Anthropic отключён · Auto использует MWS":"Anthropic основной · MWS резервный"}</small></div>
         <div className="coach-chat-head-actions"><button type="button" aria-label="Настроить AI Hub" title="Настроить AI Hub" onClick={()=>setSettingsOpen(v=>!v)}>⚙</button>{embedded?<button type="button" className="coach-chat-close-embedded" aria-label="Закрыть AI Coach" onClick={onClose}>×</button>:<button type="button" aria-label="Закрыть чат" onClick={onClose}>×</button>}</div>
       </header>
       {settingsOpen&&<MwsSetup settings={hubSettings} onSaved={(next)=>{setHubSettings(next);setSettingsOpen(false);notify("MWS GPT подключён как резерв","good")}}/>}
@@ -155,7 +155,7 @@ export function CoachChatPanel({ open, onClose, plan, today, quickActions=[], su
       </div>
       {error&&<div className="coach-chat-error" role="alert" id="coach-chat-error"><b>Ответ не получен</b><span>{error.message}</span>{error.code&&<small>Код: {error.code}{error.provider?` · ${error.provider}`:""}</small>}</div>}
       <form className="coach-chat-form" onSubmit={ask}>
-        <input aria-label="Вопрос RITMOVIS Coach" aria-describedby={error?"coach-chat-error":undefined} value={question} onChange={(e) => {setQuestion(e.target.value);if(requestRef.current?.text!==e.target.value.trim())requestRef.current=null}} onKeyDown={(e)=>{if(e.key==="Enter"){e.preventDefault();void sendQuestion(question)}}} placeholder="Например: сколько калорий осталось?" maxLength={1000} disabled={sending} />
+        <input aria-label="Вопрос VOLT Coach" aria-describedby={error?"coach-chat-error":undefined} value={question} onChange={(e) => {setQuestion(e.target.value);if(requestRef.current?.text!==e.target.value.trim())requestRef.current=null}} onKeyDown={(e)=>{if(e.key==="Enter"){e.preventDefault();void sendQuestion(question)}}} placeholder="Например: сколько калорий осталось?" maxLength={1000} disabled={sending} />
         <button type="submit" disabled={!canSubmitCoachQuestion(question,sending)}>{sending?"Думаю…":"Спросить"}</button>
       </form>
     </div>

@@ -12,7 +12,7 @@ export function coachRequestForQuestion(current:CoachChatRequest|null,text:strin
 
 export function coachErrorMessage(payload:CoachChatErrorPayload,status?:number):string{
   if(typeof payload.error==="string"&&payload.error.trim())return payload.error.trim();
-  if(status===401)return "Сессия истекла — войдите в RITMOVIS снова.";
+  if(status===401)return "Сессия истекла — войдите в VOLT снова.";
   if(status===403)return "Запрос отклонён проверкой безопасности. Обновите страницу и повторите.";
   if(status===429)return "Дневной лимит сообщений исчерпан. Продолжите завтра.";
   return status?`Не удалось получить ответ тренера (HTTP ${status}).`:"Тренер не ответил — проверьте соединение.";

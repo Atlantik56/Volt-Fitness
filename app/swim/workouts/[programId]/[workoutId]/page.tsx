@@ -20,7 +20,7 @@ type StageKey = "warmup" | "main" | "legs" | "cooldown";
 const DAY_LABEL = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const LEVEL_LABEL: Record<string, string> = { beginner: "Начальный", intermediate: "Средний", advanced: "Продвинутый" };
 const STATUS_LABEL: Record<SwimWorkoutProgressStatus, string> = { not_started: "Запланировано", in_progress: "Идёт сейчас", awaiting_confirmation: "Ожидает подтверждения", completed: "Выполнено" };
-const ORIGIN_LABEL: Record<SwimCalendarSlot["origin"], string> = { completed: "Фактическая дата выполнения", active: "Дата начала тренировки", projected: "По основному плану RITMOVIS" };
+const ORIGIN_LABEL: Record<SwimCalendarSlot["origin"], string> = { completed: "Фактическая дата выполнения", active: "Дата начала тренировки", projected: "По основному плану VOLT" };
 
 function formatCalendarDate(iso: string): string {
   const date = new Date(`${iso}T12:00:00`);
@@ -279,7 +279,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
       {phase !== "preview" && <header className="swim-page-header">
         <div>
           <p className="swim-breadcrumb">
-            RITMOVIS / Тренировки / Swim /{" "}
+            VOLT / Тренировки / Swim /{" "}
             <Link href={backToPlanHref}>План тренировок</Link> /{" "}
             <b>{workout ? workout.title : "Тренировка"}</b>
           </p>
@@ -327,7 +327,7 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
           <header className="swim-detail-header">
             <div>
               <p className="swim-breadcrumb">
-                RITMOVIS / Тренировки / Swim /{" "}
+                VOLT / Тренировки / Swim /{" "}
                 <Link href={backToPlanHref}>План тренировок</Link> /{" "}
                 <b>{workout.title}</b>
               </p>
@@ -510,10 +510,10 @@ export default function SwimWorkoutSessionPage({ params }: { params: Promise<{ p
         <div className="swim-detail">
           <GlassPanel className="swim-empty">
             <h4>Тренировка сохранена</h4>
-            <p>Результаты уже видны на главной странице RITMOVIS Swim.</p>
+            <p>Результаты уже видны на главной странице VOLT Swim.</p>
             <div className="swim-quick-actions" style={{ justifyContent: "center", marginTop: 12 }}>
               <Link href="/swim" className="swim-btn primary">
-                На главную RITMOVIS Swim
+                На главную VOLT Swim
               </Link>
               <Link href={`/swim/workouts/${programId}`} className="swim-btn secondary">
                 К программе
