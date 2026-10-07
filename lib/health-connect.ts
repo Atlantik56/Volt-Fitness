@@ -52,6 +52,10 @@ const hash=(value:string)=>createHash("sha256").update(value).digest("hex");
 const nowIso=()=>new Date().toISOString();
 const safeDate=(value:string)=>{const n=Date.parse(value);return Number.isFinite(n)?n:null};
 const isGarminOrigin=(packageName:string,name:string)=>packageName.toLowerCase().includes("garmin")||name.toLowerCase().includes("garmin");
+// Providers can publish the current day's steps/calories before its interval ends.
+// Preserve the original interval; it is not a completed workout or a forecast.
+const ONGOING_DAILY_TYPES=new Set(["steps","total_calories","active_calories"]);
+const MAX_ONGOING_DAILY_MS=26*60*60_000; // Includes a 25-hour day at a DST change.
 
 export function parseHealthSyncBatch(input:unknown){
  const parsed=healthSyncSchema.safeParse(input);
@@ -61,10 +65,17 @@ export function parseHealthSyncBatch(input:unknown){
  if(syncedAt===null||syncedAt<earliest||syncedAt>latest)
   return {ok:false as const,error:"Некорректное время синхронизации Health Connect",issues:[]};
  const diagnosticOrigins=new Set(parsed.data.diagnostics.origins.map(item=>item.packageName));
- for(const record of parsed.data.records){
+ for(const [index,record] of parsed.data.records.entries()){
   const start=safeDate(record.startTime),end=safeDate(record.endTime),modified=record.sourceModifiedAt?safeDate(record.sourceModifiedAt):now;
-  if(start===null||end===null||modified===null||start<earliest||end<start||end>latest||modified<earliest||modified>latest||end-start>14*86400_000)
-   return {ok:false as const,error:"Некорректный временной диапазон Health Connect",issues:[]};
+  const timeFailure=(field:string,code:string)=>({ok:false as const,error:"Некорректный временной диапазон Health Connect",issues:[{path:`records.${index}.${field}`,code}]});
+  if(start===null||start<earliest)return timeFailure("startTime","invalid_record_start");
+  if(start>latest)return timeFailure("startTime","future_record_start");
+  if(end===null||end<start)return timeFailure("endTime","end_before_start");
+  if(end-start>14*86400_000)return timeFailure("endTime","record_interval_too_long");
+  const ongoingDaily=ONGOING_DAILY_TYPES.has(record.recordType)&&start<=now&&end-start<=MAX_ONGOING_DAILY_MS&&end<=now+MAX_ONGOING_DAILY_MS;
+  if(end>latest&&!ongoingDaily)return timeFailure("endTime","future_record_end");
+  if(modified===null||modified<earliest)return timeFailure("sourceModifiedAt","invalid_source_modified_time");
+  if(modified>latest)return timeFailure("sourceModifiedAt","future_source_modified_time");
   if(!diagnosticOrigins.has(record.sourceOrigin))
    return {ok:false as const,error:"DataOrigin записи отсутствует в диагностике Health Connect",issues:[]};
   if(record.recordType==="heart_rate"&&record.metrics.samples.some(sample=>{const time=safeDate(sample.time);return time===null||time<start||time>end}))
