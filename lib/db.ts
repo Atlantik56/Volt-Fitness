@@ -489,7 +489,7 @@ const migrations:{version:number;sql?:string;run?:(database:Database.Database)=>
  // VOLT Health Bridge Sprint 1 — отдельный, provider-neutral ingestion layer.
  // Health Connect records не становятся workout_logs автоматически: сначала
  // сохраняются как диагностические импорты и ждут отдельного mapping layer.
- {version:32,sql:`
+ {version:33,sql:`
   CREATE TABLE IF NOT EXISTS health_bridge_pairings (
    token_hash TEXT PRIMARY KEY,
    username TEXT NOT NULL,

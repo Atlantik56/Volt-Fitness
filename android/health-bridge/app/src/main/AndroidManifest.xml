@@ -19,7 +19,9 @@
     <application
         android:allowBackup="false"
         android:fullBackupContent="false"
-        android:label="VOLT Health Bridge"
+        android:label="@string/app_name"
+        android:icon="@drawable/volt_icon"
+        android:roundIcon="@drawable/volt_icon"
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.VoltHealthBridge">
         <activity
@@ -52,6 +54,11 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="volt-health" android:host="sync" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="volt-health" android:host="permissions" />
             </intent-filter>
         </activity>

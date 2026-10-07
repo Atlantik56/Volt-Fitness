@@ -44,15 +44,16 @@ class MainActivity:ComponentActivity(){
         val container=LinearLayout(this).apply{orientation=LinearLayout.VERTICAL;setPadding(padding,padding,padding,padding);setBackgroundColor(Color.rgb(11,14,15))}
         container.addView(label("VOLT HEALTH BRIDGE",12f,Color.rgb(199,255,50)))
         container.addView(label("Health Connect → VOLT",27f,Color.WHITE).apply{setPadding(0,(8*density).toInt(),0,0)})
-        container.addView(label("Диагностический companion. Только чтение, ручная синхронизация и никаких GPS-маршрутов.",15f,Color.LTGRAY).apply{setPadding(0,(10*density).toInt(),0,padding)})
+        container.addView(label("Передавайте данные Health Connect в VOLT. Вы сами выбираете разрешения и запускаете синхронизацию.",15f,Color.LTGRAY).apply{setPadding(0,(10*density).toInt(),0,padding)})
         statusText=label("Проверяем Health Connect…",16f,Color.WHITE);container.addView(card(statusText))
         diagnosticsText=label("Данные ещё не прочитаны",14f,Color.LTGRAY);container.addView(card(diagnosticsText))
         pairingInput=EditText(this).apply{hint="Одноразовый код из Profile → Health Connect";setSingleLine(true);setTextColor(Color.WHITE);setHintTextColor(Color.GRAY);setBackgroundColor(Color.rgb(28,33,35));setPadding(padding,(12*density).toInt(),padding,(12*density).toInt())}
         container.addView(pairingInput,LinearLayout.LayoutParams(-1,-2).apply{topMargin=padding})
-        pairButton=button("Привязать Sony Xperia"){pair()};container.addView(pairButton)
+        pairButton=button("Привязать телефон"){pair()};container.addView(pairButton)
         permissionsButton=button("Выдать разрешения Health Connect"){permissionLauncher.launch(gateway.requiredPermissions)};container.addView(permissionsButton)
         historyButton=button("Разрешить полную историю"){permissionLauncher.launch(setOf(gateway.historyPermission))};container.addView(historyButton)
         syncButton=button("Синхронизировать сейчас"){syncNow()};container.addView(syncButton)
+        container.addView(button("Сбросить привязку на телефоне"){tokenStore.clear();refreshStatus()})
         container.addView(button("Открыть VOLT PWA"){startActivity(Intent(Intent.ACTION_VIEW,Uri.parse(BuildConfig.VOLT_BASE_URL)))})
         return ScrollView(this).apply{addView(container)}
     }

@@ -34,8 +34,10 @@ function pairedDevice(){
  return device!;
 }
 
-test("migration v21 creates isolated Health Connect storage",()=>{
- assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=21").get());
+test("migration v33 preserves existing plans and creates isolated Health Connect storage",()=>{
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=33").get());
+ assert.ok(db.prepare("SELECT 1 FROM schema_migrations WHERE version=31").get());
+ assert.ok(db.prepare("PRAGMA table_info(profile)").all().some((column:any)=>column.name==="training_plan_v3_started_at"));
  assert.ok(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='health_connect_records'").get());
  assert.equal((db.prepare("SELECT COUNT(*) n FROM workout_logs").get() as any).n,1);
 });
@@ -103,4 +105,22 @@ test("invalid payload, impossible timestamps and oversized batch are rejected",(
 test("heart samples must stay inside their record interval",()=>{
  const heart={source:"health_connect",sourceOrigin:"com.garmin.connect",sourceOriginName:"Garmin Connect",externalRecordId:"hr-1",recordType:"heart_rate",startTime:"2026-08-09T07:00:00.000Z",endTime:"2026-08-09T07:05:00.000Z",metrics:{sampleCount:1,minimumBpm:120,averageBpm:120,maximumBpm:120,samples:[{time:"2026-08-09T08:00:00.000Z",bpm:120}]}};
  assert.equal(health.parseHealthSyncBatch(batch([heart])).ok,false);
+});
+
+
+test("revoked devices cannot persist a batch after their prior authentication",()=>{
+ const device=pairedDevice();
+ health.revokeHealthDevice(device.id,device.username);
+ const result=health.ingestHealthSync(device,batch([exercise("revoked-record")]));
+ assert.equal(result.ok,false);
+ assert.equal(db.prepare("SELECT 1 FROM health_connect_records WHERE external_record_id='revoked-record'").get(),undefined);
+});
+
+test("older sync cannot overwrite newer source data",()=>{
+ const device=pairedDevice();
+ const newer={...exercise("stale-record"),sourceModifiedAt:"2026-08-09T09:00:00.000Z",metrics:{...exercise().metrics,caloriesKcal:500}};
+ assert.equal(health.ingestHealthSync(device,batch([newer])).ok,true);
+ assert.equal(health.ingestHealthSync(device,batch([exercise("stale-record")])).ok,true);
+ const row=db.prepare("SELECT metrics FROM health_connect_records WHERE external_record_id='stale-record'").get() as {metrics:string};
+ assert.equal(JSON.parse(row.metrics).caloriesKcal,500);
 });

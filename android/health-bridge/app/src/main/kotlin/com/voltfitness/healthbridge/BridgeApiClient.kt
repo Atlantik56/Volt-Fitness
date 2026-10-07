@@ -37,14 +37,16 @@ class BridgeApiClient(private val baseUrl:String){
     private fun request(path:String,body:String,bearer:String?):kotlinx.serialization.json.JsonObject{
         require(body.toByteArray().size<=256_000){"Пакет синхронизации слишком большой"}
         val connection=(URL(baseUrl.trimEnd('/')+path).openConnection() as HttpsURLConnection).apply{
-            requestMethod="POST";connectTimeout=15_000;readTimeout=30_000;doOutput=true;setRequestProperty("content-type","application/json");setRequestProperty("accept","application/json");if(bearer!=null)setRequestProperty("authorization","Bearer $bearer")
+            instanceFollowRedirects=false;requestMethod="POST";connectTimeout=15_000;readTimeout=30_000;doOutput=true;setRequestProperty("content-type","application/json");setRequestProperty("accept","application/json");if(bearer!=null)setRequestProperty("authorization","Bearer $bearer")
         }
-        connection.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))}
-        val code=connection.responseCode
-        val input=if(code in 200..299)connection.inputStream else connection.errorStream
-        val response=input?.bufferedReader()?.use{it.readText().take(64_000)}?:"{}"
-        val parsed=runCatching{Json.parseToJsonElement(response).jsonObject}.getOrDefault(buildJsonObject{})
-        if(code !in 200..299)throw IllegalStateException(parsed["error"]?.jsonPrimitive?.content?:"VOLT API: HTTP $code")
-        return parsed
+        try {
+            connection.outputStream.use{it.write(body.toByteArray(Charsets.UTF_8))}
+            val code=connection.responseCode
+            val input=if(code in 200..299)connection.inputStream else connection.errorStream
+            val response=input?.bufferedReader()?.use{it.readText().take(64_000)}?:"{}"
+            val parsed=runCatching{Json.parseToJsonElement(response).jsonObject}.getOrDefault(buildJsonObject{})
+            if(code !in 200..299)throw IllegalStateException(parsed["error"]?.jsonPrimitive?.content?:"VOLT API: HTTP $code")
+            return parsed
+        } finally { connection.disconnect() }
     }
 }

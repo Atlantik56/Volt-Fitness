@@ -108,10 +108,13 @@ export function authenticateHealthDevice(req:Request){
 
 export function ingestHealthSync(device:{id:number;username:string},input:unknown){
  const parsed=parseHealthSyncBatch(input);if(!parsed.ok)return parsed;
- let created=0,updated=0;
+ let created=0,updated=0,authorized=false;
  db.transaction(()=>{
+  if(!db.prepare("SELECT 1 FROM health_bridge_devices WHERE id=? AND username=? AND revoked_at IS NULL").get(device.id,device.username))return;
+  authorized=true;
   for(const record of parsed.data.records){
-   const existing=db.prepare("SELECT id FROM health_connect_records WHERE username=? AND source_origin=? AND external_record_id=? AND record_type=?").get(device.username,record.sourceOrigin,record.externalRecordId,record.recordType);
+   const existing=db.prepare("SELECT id,source_modified_at sourceModifiedAt FROM health_connect_records WHERE username=? AND source_origin=? AND external_record_id=? AND record_type=?").get(device.username,record.sourceOrigin,record.externalRecordId,record.recordType) as {id:number;sourceModifiedAt:string|null}|undefined;
+   if(existing?.sourceModifiedAt&&(!record.sourceModifiedAt||Date.parse(record.sourceModifiedAt)<Date.parse(existing.sourceModifiedAt)))continue;
    const metrics=JSON.stringify(record.metrics),modified=record.sourceModifiedAt??null;
    db.prepare(`INSERT INTO health_connect_records(username,device_id,source_origin,source_origin_name,external_record_id,record_type,start_time,end_time,metrics,source_modified_at,synced_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?)
@@ -125,6 +128,7 @@ export function ingestHealthSync(device:{id:number;username:string},input:unknow
   db.prepare("UPDATE health_bridge_devices SET diagnostics=?,last_sync_at=?,last_seen_at=? WHERE id=?")
    .run(JSON.stringify(diagnostics),parsed.data.syncedAt,nowIso(),device.id);
  })();
+ if(!authorized)return {ok:false as const,error:"Устройство Health Bridge отключено",issues:[],status:401};
  return {ok:true as const,created,updated,total:parsed.data.records.length};
 }
 

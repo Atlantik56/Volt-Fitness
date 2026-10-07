@@ -45,8 +45,8 @@ export function HealthConnectSettings(){
  const origins=useMemo(()=>diagnostics.origins??[],[diagnostics.origins]);
 
  return <section className="profile-health-connect">
-  <header><HeartPulse size={20}/><div><b>Health Connect</b><p>Android companion читает только разрешённые данные. Записи пока не влияют на Coach и программы.</p></div><em data-state={connection}>{connection}</em></header>
-  {!device?<div className="profile-health-empty"><Smartphone size={18}/><div><b>VOLT Health Bridge не привязан</b><p>Установите companion на Sony Xperia, создайте одноразовый код и вставьте его в приложении.</p></div></div>:
+  <header><HeartPulse size={20}/><div><b>Health Connect</b><p>Приложение Android читает только разрешённые данные. Записи пока не влияют на Coach и программы.</p></div><em data-state={connection}>{connection}</em></header>
+  {!device?<div className="profile-health-empty"><Smartphone size={18}/><div><b>VOLT Health Bridge не привязан</b><p>Установите VOLT Health Bridge на телефон, создайте одноразовый код и вставьте его в приложении.</p></div></div>:
    <div className="profile-health-device">
     <div><Smartphone size={18}/><span><small>УСТРОЙСТВО</small><b>{device.name}</b><em>Последняя синхронизация: {dateTime(device.lastSyncAt)}</em></span></div>
     <div><CheckCircle2 size={18}/><span><small>ИСТОЧНИК</small><b>{garmin?"Garmin Connect":origins.length?origins.map(item=>item.name||item.packageName).join(", "):"Источник ещё не обнаружен"}</b><em>{garmin?garmin.packageName:"Garmin не подтверждён DataOrigin"}</em></span></div>
